@@ -650,8 +650,15 @@ async function getDestinationNetworkInfo(destination) {
   }
 
   const providerCoverage = await getProviderCoverage(destination);
-  const allRecords = await getNetworkIndex();
-  const countryRecords = allRecords.filter((record) => recordMatchesDestination(record, destination));
+  let countryRecords = [];
+  if (!providerCoverage.providers.length) {
+    try {
+      const allRecords = await getNetworkIndex();
+      countryRecords = allRecords.filter((record) => recordMatchesDestination(record, destination));
+    } catch (error) {
+      console.warn("National network register unavailable for " + countryCode + ": " + error.message);
+    }
+  }
   const generationSet = new Set(providerCoverage.generations);
   const operatorMap = new Map();
 
