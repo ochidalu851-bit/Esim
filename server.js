@@ -75,7 +75,8 @@ function servePublicFile(req, res, urlPath) {
       "cache-control": cacheControl,
       "x-content-type-options": "nosniff",
       "referrer-policy": "strict-origin-when-cross-origin",
-      "permissions-policy": "camera=(), microphone=(), geolocation=()"
+      "permissions-policy": "camera=(), microphone=(), geolocation=()",
+      "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://speed.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
     });
     if (req.method === "HEAD") return res.end();
     res.end(content);
