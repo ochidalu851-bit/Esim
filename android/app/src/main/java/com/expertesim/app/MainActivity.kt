@@ -2,6 +2,11 @@ package com.expertesim.app
 
 import android.Manifest
 import android.app.Activity
+import android.app.ActivityManager
+import android.os.BatteryManager
+import android.os.Environment
+import android.os.PowerManager
+import android.os.StatFs
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -185,6 +190,59 @@ class MainActivity : Activity() {
                 .put("hasEuiccHardware", hasEuicc)
                 .put("euiccEnabled", euiccEnabled)
                 .toString()
+        }
+
+        @JavascriptInterface
+        fun getDeviceHealth(): String {
+            val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+            val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+            val batteryPercent = if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+            val batteryStatus = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
+            val charging = batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING ||
+                batteryStatus == BatteryManager.BATTERY_STATUS_FULL
+            val activityManager = getSystemService(ActivityManager::class.java)
+            val memory = ActivityManager.MemoryInfo()
+            activityManager?.getMemoryInfo(memory)
+            val totalMemoryMb = if (memory.totalMem > 0) memory.totalMem / (1024L * 1024L) else 0L
+            val availableMemoryMb = memory.availMem / (1024L * 1024L)
+            val stats = StatFs(Environment.getDataDirectory().path)
+            val totalStorageMb = stats.totalBytes / (1024L * 1024L)
+            val availableStorageMb = stats.availableBytes / (1024L * 1024L)
+            val thermalStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val power = getSystemService(PowerManager::class.java)
+                when (power?.currentThermalStatus) {
+                    PowerManager.THERMAL_STATUS_NONE -> "Normal"
+                    PowerManager.THERMAL_STATUS_LIGHT -> "Light"
+                    PowerManager.THERMAL_STATUS_MODERATE -> "Moderate"
+                    PowerManager.THERMAL_STATUS_SEVERE -> "Severe"
+                    PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                    PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                    PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
+                    else -> "Unavailable"
+                }
+            } else "Unavailable on this Android version"
+            return JSONObject()
+                .put("batteryPercent", batteryPercent.takeIf { it >= 0 } ?: JSONObject.NULL)
+                .put("charging", charging)
+                .put("memoryTotalMb", totalMemoryMb)
+                .put("memoryAvailableMb", availableMemoryMb)
+                .put("storageTotalMb", totalStorageMb)
+                .put("storageAvailableMb", availableStorageMb)
+                .put("thermalStatus", thermalStatus)
+                .put("androidVersion", Build.VERSION.RELEASE ?: "unknown")
+                .toString()
+        }
+
+        @JavascriptInterface
+        fun openBatterySettings() {
+            runOnUiThread {
+                try {
+                    startActivity(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS))
+                } catch (error: Exception) {
+                    startActivity(Intent(Settings.ACTION_SETTINGS))
+                }
+            }
         }
 
         @JavascriptInterface
