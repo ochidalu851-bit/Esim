@@ -24,6 +24,9 @@ main{max-width:1000px;margin:auto;padding:24px 16px 60px}.head{display:flex;just
 </form><div class="status" id="planStatus"></div></section>
 <section class="card"><strong>Data packages</strong><div id="plans" class="muted" style="margin-top:10px">Not loaded.</div></section>
 <section class="card"><strong>Recent eSIM orders</strong><div id="orders" class="muted" style="margin-top:10px">Not loaded.</div></section>
+<section class="card"><strong>Subscriber registration and KYC</strong><div id="subscribers" class="muted" style="margin-top:10px">Not loaded.</div></section>
+<section class="card"><strong>Customer support and complaints</strong><div id="tickets" class="muted" style="margin-top:10px">Not loaded.</div></section>
+<section class="card"><strong>Privacy and data-rights requests</strong><div id="privacyRequests" class="muted" style="margin-top:10px">Not loaded.</div></section>
 </div>
 </main>
 <script>
@@ -33,13 +36,30 @@ var key="", $=function(id){return document.getElementById(id);};
 function api(path,options){options=options||{};var headers=Object.assign({"content-type":"application/json","x-expert-admin-key":key},options.headers||{});return fetch("/api/v1/admin"+path,Object.assign({},options,{headers:headers})).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Request failed "+r.status);return d;});});}
 function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
 function render(data){
-var t=data.totals, metrics=[["Subscribers",t.subscribers],["Data plans",t.plans],["Published plans",t.publishedPlans],["eSIM orders",t.orders],["Awaiting provider",t.awaitingPartner],["Provisioning",t.provisioning],["Profiles issued",t.profilesIssued],["Active profiles",t.activeProfiles],["Provider errors",t.providerErrors]];
-$("metrics").innerHTML=metrics.map(function(x){return '<div class="metric"><span class="muted">'+esc(x[0])+'</span><strong>'+x[1]+'</strong></div>';}).join("");
+var t=data.totals;
+var metrics=[
+ ["Subscribers",t.subscribers],["Email unverified",t.emailUnverified],["KYC pending",t.kycPending],["KYC verified",t.kycVerified],
+ ["Data plans",t.plans],["Published plans",t.publishedPlans],["eSIM orders",t.orders],["Awaiting payment",t.awaitingPayment],
+ ["Awaiting network partner",t.awaitingPartner],["Provisioning",t.provisioning],["Profiles issued",t.profilesIssued],["Active profiles",t.activeProfiles],
+ ["Provider errors",t.providerErrors],["Open support cases",t.openTickets],["Privacy requests in review",t.privacyRequests]
+];
+$("metrics").innerHTML=metrics.map(function(x){return '<div class="metric"><span class="muted">'+esc(x[0])+'</span><strong>'+Number(x[1]||0)+'</strong></div>';}).join("");
 var p=data.provider;
-$("providerStatus").textContent="Provider API: "+(p.adapterConfigured?"configured":"missing")+"\\nProfile encryption: "+(p.profileEncryptionConfigured?"configured":"missing")+"\\nSigned provider webhook: "+(p.webhookConfigured?"configured":"missing")+"\\nHost-network agreement: "+(p.hostNetworkAgreement?"active":"not confirmed")+"\\nSM-DP+ partner: "+(p.smdpPartnerConfigured?"active":"not confirmed")+"\\nService activation: "+(p.serviceEnabled?"enabled":"disabled");
+var readiness=[
+ ["eSIM provider API",p.adapterConfigured],["Profile encryption",p.profileEncryptionConfigured],["Signed eSIM webhooks",p.webhookConfigured],
+ ["Host-network agreement",p.hostNetworkAgreement],["SM-DP+ partner",p.smdpPartnerConfigured],["NCC MVNO licence",p.nccLicenceConfirmed],
+ ["Identity verification partner",p.kycProviderConfigured],["Paystack payments",p.paystackConfigured],["Email delivery",p.emailDeliveryConfigured],
+ ["Privacy governance",p.privacyGovernanceReady],["Customer support readiness",p.consumerSupportReady],["Service launch switch",p.serviceEnabled]
+];
+$("providerStatus").textContent=readiness.map(function(x){return (x[1]?"READY · ":"MISSING · ")+x[0];}).join("\n");
 $("plans").innerHTML=data.plans.length?data.plans.map(function(x){var action=x.status==="draft"?' <button class="btn secondary" data-publish-plan="'+esc(x.id)+'" type="button">Publish</button>':'';return '<div class="item"><strong>'+esc(x.name)+'</strong> · '+(x.dataMb/1024).toFixed(1)+' GB · '+x.validityDays+' days · '+esc(x.currency)+' '+(x.priceMinor/100).toFixed(2)+' <span class="pill">'+esc(x.status)+'</span>'+action+'</div>';}).join(""):'No packages created yet.';
 $("plans").querySelectorAll("[data-publish-plan]").forEach(function(button){button.addEventListener("click",function(){api("/plans/"+encodeURIComponent(button.dataset.publishPlan)+"/publish",{method:"POST"}).then(refresh).catch(function(e){$("planStatus").textContent=e.message;});});});
-$("orders").innerHTML=data.recentOrders.length?data.recentOrders.map(function(x){return '<div class="item"><strong>'+esc(x.planName)+'</strong> · '+esc(x.reference)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">'+esc(x.message||"")+'</div></div>';}).join(""):'No eSIM orders yet.';
+$("orders").innerHTML=data.recentOrders.length?data.recentOrders.map(function(x){return '<div class="item"><strong>'+esc(x.planName)+'</strong> · '+esc(x.reference)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">Payment: '+esc(x.paymentStatus||"pending")+' · '+esc(x.message||"")+'</div></div>';}).join(""):'No eSIM orders yet.';
+$("subscribers").innerHTML=(data.recentSubscribers||[]).length?data.recentSubscribers.map(function(x){return '<div class="item"><strong>'+esc(x.fullName)+'</strong> · '+esc(x.email)+' <span class="pill">'+(x.emailVerified?"EMAIL VERIFIED":"EMAIL UNVERIFIED")+'</span> <span class="pill">KYC '+esc(x.kycStatus)+'</span></div>';}).join(""):'No subscribers yet.';
+$("tickets").innerHTML=(data.recentTickets||[]).length?data.recentTickets.map(function(x){return '<div class="item"><strong>'+esc(x.reference)+'</strong> · '+esc(x.subject)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">'+esc(x.category)+' · Subscriber '+esc(x.userId)+'</div><div class="form" style="margin-top:8px"><select class="input" data-ticket-status="'+esc(x.id)+'"><option value="open" '+(x.status==="open"?"selected":"")+'>Open</option><option value="in_progress" '+(x.status==="in_progress"?"selected":"")+'>In progress</option><option value="resolved" '+(x.status==="resolved"?"selected":"")+'>Resolved</option><option value="closed" '+(x.status==="closed"?"selected":"")+'>Closed</option></select><button class="btn secondary" data-save-ticket="'+esc(x.id)+'" type="button">Update case</button></div></div>';}).join(""):'No support cases yet.';
+$("tickets").querySelectorAll("[data-save-ticket]").forEach(function(button){button.addEventListener("click",function(){var id=button.dataset.saveTicket;var status=$("tickets").querySelector('[data-ticket-status="'+id+'"]').value;api("/support/tickets/"+encodeURIComponent(id)+"/status",{method:"POST",body:JSON.stringify({status:status})}).then(refresh).catch(function(e){$("loginStatus").textContent=e.message;});});});
+$("privacyRequests").innerHTML=(data.recentPrivacyRequests||[]).length?data.recentPrivacyRequests.map(function(x){return '<div class="item"><strong>'+esc(x.reference)+'</strong> · '+esc(x.type)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">Subscriber '+esc(x.userId)+' · '+esc(x.details||"No additional details")+'</div><div class="form" style="margin-top:8px"><select class="input" data-privacy-status="'+esc(x.id)+'"><option value="received" '+(x.status==="received"?"selected":"")+'>Received</option><option value="in_review" '+(x.status==="in_review"?"selected":"")+'>In review</option><option value="fulfilled" '+(x.status==="fulfilled"?"selected":"")+'>Fulfilled</option><option value="rejected" '+(x.status==="rejected"?"selected":"")+'>Rejected</option></select><button class="btn secondary" data-save-privacy="'+esc(x.id)+'" type="button">Update request</button></div></div>';}).join(""):'No privacy requests yet.';
+$("privacyRequests").querySelectorAll("[data-save-privacy]").forEach(function(button){button.addEventListener("click",function(){var id=button.dataset.savePrivacy;var status=$("privacyRequests").querySelector('[data-privacy-status="'+id+'"]').value;api("/privacy/requests/"+encodeURIComponent(id)+"/status",{method:"POST",body:JSON.stringify({status:status})}).then(refresh).catch(function(e){$("loginStatus").textContent=e.message;});});});
 }
 function refresh(){api("/dashboard").then(function(d){render(d.dashboard);$("loginStatus").textContent="Dashboard loaded."; $("loginCard").hidden=true; $("adminPanel").hidden=false;}).catch(function(e){$("loginStatus").textContent=e.message;});}
 $("login").addEventListener("click",function(){key=$("adminKey").value.trim();if(!key){$("loginStatus").textContent="Enter the admin key.";return;}refresh();});
