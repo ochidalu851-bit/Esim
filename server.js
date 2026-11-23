@@ -804,22 +804,66 @@ async function route(req, res, url) {
   if (p === '/api/esim/status' && m === 'GET') return send(res, 200, { ok: true, connected: false, providerConfigured: readyToSell(), profileIssued: false, message: 'A host-network and authorised eSIM provider must issue a profile before Expert eSIM can connect.' });
 
   if (p === '/api/v1/auth/register' && m === 'POST') {
+    rateLimit(req, 'register', 5, 15 * 60 * 1000);
     const result = await register(await body(req));
-    return send(res, 201, { ok: true, ...result });
+    let delivery = { sent: false, reason: 'email_provider_not_configured' };
+    if (providerStatus().emailDeliveryConfigured) {
+      try { delivery = await sendVerificationEmail(result.user); }
+      catch (error) { delivery = { sent: false, reason: 'delivery_failed' }; }
+    }
+    return send(res, 201, { ok: true, user: result.user, emailVerification: delivery, message: delivery.sent ? 'Account created. Verify your email to continue.' : 'Account created. Email verification is not yet configured; mobile service ordering remains locked until verification is available.' }, { 'set-cookie': sessionCookie(result.token) });
   }
   if (p === '/api/v1/auth/login' && m === 'POST') {
+    rateLimit(req, 'login', 8, 15 * 60 * 1000);
     const result = await login(await body(req));
-    return send(res, 200, { ok: true, ...result });
+    return send(res, 200, { ok: true, user: result.user }, { 'set-cookie': sessionCookie(result.token) });
   }
   if (p === '/api/v1/auth/logout' && m === 'POST') {
     const token = tokenFrom(req), tokenHash = token ? hashToken(token) : '';
     await transact(store => { store.sessions = store.sessions.filter(x => x.tokenHash !== tokenHash); });
-    return send(res, 200, { ok: true });
+    return send(res, 200, { ok: true }, { 'set-cookie': clearSessionCookie() });
+  }
+  if (p === '/api/v1/auth/verification/send' && m === 'POST') {
+    const user = await signedIn(req);
+    if (user.emailVerified) return send(res, 200, { ok: true, verified: true });
+    const delivery = await sendVerificationEmail(user);
+    return send(res, 200, { ok: true, ...delivery });
+  }
+  if (p === '/api/v1/auth/verify-email' && m === 'GET') {
+    const user = await verifyEmailToken(url.searchParams.get('token'));
+    return send(res, 200, { ok: true, verified: true, user, message: 'Email verified. Return to Expert eSIM and sign in.' });
   }
   if (p === '/api/v1/me' && m === 'GET') {
     const user = await signedIn(req), store = await loadStore();
     const orders = store.orders.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(orderView);
-    return send(res, 200, { ok: true, user: userView(user), orders });
+    const tickets = store.supportTickets.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    const privacyRequests = store.privacyRequests.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    const headers = {};
+    if (String(req.headers.authorization || '').startsWith('Bearer ')) headers['set-cookie'] = sessionCookie(tokenFrom(req));
+    return send(res, 200, { ok: true, user: userView(user), orders, tickets, privacyRequests, readiness: providerStatus() }, headers);
+  }
+  if (p === '/api/v1/kyc/start' && m === 'POST') {
+    const user = await signedIn(req);
+    return send(res, 200, { ok: true, ...(await beginKyc(user)) });
+  }
+  if (p === '/api/v1/support/tickets' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    const tickets = store.supportTickets.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    return send(res, 200, { ok: true, tickets });
+  }
+  if (p === '/api/v1/support/tickets' && m === 'POST') {
+    const user = await signedIn(req);
+    const ticket = await createSupportTicket(user, await body(req));
+    return send(res, 201, { ok: true, ticket, message: 'Your support case has been recorded.' });
+  }
+  if (p === '/api/v1/privacy/requests' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    return send(res, 200, { ok: true, requests: store.privacyRequests.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)) });
+  }
+  if (p === '/api/v1/privacy/requests' && m === 'POST') {
+    const user = await signedIn(req);
+    const request = await createPrivacyRequest(user, await body(req));
+    return send(res, 201, { ok: true, request, message: 'Your privacy request has been recorded for review.' });
   }
   if (p === '/api/v1/plans' && m === 'GET') {
     const store = await loadStore();
@@ -835,7 +879,20 @@ async function route(req, res, url) {
   }
   if (p === '/api/v1/esim/orders' && m === 'POST') {
     const user = await signedIn(req), result = await createOrder(user, await body(req));
-    return send(res, result.status === 'awaiting_partner' ? 202 : 201, { ok: true, order: result, message: result.message });
+    return send(res, ['awaiting_partner','awaiting_payment','provisioning'].includes(result.status) ? 202 : 201, { ok: true, order: result, message: result.message });
+  }
+  const paymentInit = p.match(/^\/api\/v1\/esim\/orders\/([0-9a-f-]{36})\/pay$/i);
+  if (paymentInit && m === 'POST') {
+    const user = await signedIn(req);
+    return send(res, 200, { ok: true, payment: await initializePaystackPayment(user, paymentInit[1]) });
+  }
+  if (p === '/api/v1/payments/paystack/webhook' && m === 'POST') {
+    const result = await paystackWebhook(await rawBody(req), req.headers);
+    return send(res, 200, { ok: true, ...result });
+  }
+  if (p === '/api/v1/kyc/webhook' && m === 'POST') {
+    const result = await kycWebhook(await rawBody(req), req.headers['x-kyc-signature']);
+    return send(res, 200, { ok: true, ...result });
   }
   const profileMatch = p.match(/^\/api\/v1\/esim\/orders\/([0-9a-f-]{36})\/profile$/i);
   if (profileMatch && m === 'GET') return send(res, 200, { ok: true, profile: await profileForUser((await signedIn(req)).id, profileMatch[1]) });
@@ -863,7 +920,41 @@ async function route(req, res, url) {
     }
     if (p === '/api/v1/admin/plans' && m === 'POST') {
       const plan = await createPlan(await body(req));
-      return send(res, 201, { ok: true, plan, message: 'Plan saved as a draft. It cannot be published until the provider and host-network requirements are satisfied.' });
+      return send(res, 201, { ok: true, plan, message: 'Plan saved as a draft. Publishing is blocked until network, provisioning and payment requirements are configured.' });
+    }
+    if (p === '/api/v1/admin/support/tickets' && m === 'GET') {
+      const store = await loadStore();
+      return send(res, 200, { ok: true, tickets: store.supportTickets.slice(-200).reverse() });
+    }
+    const ticketStatus = p.match(/^\/api\/v1\/admin\/support\/tickets\/([0-9a-f-]{36})\/status$/i);
+    if (ticketStatus && m === 'POST') {
+      const data = await body(req), next = String(data.status || '');
+      if (!['open','in_progress','resolved','closed'].includes(next)) throw Object.assign(new Error('Invalid support-ticket status.'), { statusCode: 400 });
+      const updated = await transact(store => {
+        const ticket = store.supportTickets.find(x => x.id === ticketStatus[1]);
+        if (!ticket) throw Object.assign(new Error('Support case not found.'), { statusCode: 404 });
+        ticket.status = next; ticket.updatedAt = new Date().toISOString();
+        store.audit.push({ id: crypto.randomUUID(), event: 'support.ticket_status_changed', subject: ticket.id, at: ticket.updatedAt });
+        return ticket;
+      });
+      return send(res, 200, { ok: true, ticket: updated });
+    }
+    if (p === '/api/v1/admin/privacy/requests' && m === 'GET') {
+      const store = await loadStore();
+      return send(res, 200, { ok: true, requests: store.privacyRequests.slice(-200).reverse() });
+    }
+    const privacyStatus = p.match(/^\/api\/v1\/admin\/privacy\/requests\/([0-9a-f-]{36})\/status$/i);
+    if (privacyStatus && m === 'POST') {
+      const data = await body(req), next = String(data.status || '');
+      if (!['received','in_review','fulfilled','rejected'].includes(next)) throw Object.assign(new Error('Invalid privacy-request status.'), { statusCode: 400 });
+      const updated = await transact(store => {
+        const request = store.privacyRequests.find(x => x.id === privacyStatus[1]);
+        if (!request) throw Object.assign(new Error('Privacy request not found.'), { statusCode: 404 });
+        request.status = next; request.updatedAt = new Date().toISOString();
+        store.audit.push({ id: crypto.randomUUID(), event: 'privacy.request_status_changed', subject: request.id, at: request.updatedAt });
+        return request;
+      });
+      return send(res, 200, { ok: true, request: updated });
     }
     const publish = p.match(/^\/api\/v1\/admin\/plans\/([0-9a-f-]{36})\/publish$/i);
     if (publish && m === 'POST') return send(res, 200, { ok: true, plan: await publishPlan(publish[1]) });
@@ -878,7 +969,11 @@ const server = http.createServer(async (req, res) => {
   try { url = new URL(req.url, 'http://' + (req.headers.host || 'localhost')); }
   catch { return send(res, 400, { error: 'Invalid request URL.' }); }
   if (req.method === 'OPTIONS') { res.writeHead(204, { 'cache-control': 'no-store' }); return res.end(); }
-  try { await route(req, res, url); } catch (error) { fail(res, error); }
+  try {
+    if (['POST','PUT','PATCH','DELETE'].includes(req.method) && !['/api/v1/provider/webhook','/api/v1/kyc/webhook','/api/v1/payments/paystack/webhook'].includes(url.pathname)) enforceSameOrigin(req);
+    if (['POST','PUT','PATCH','DELETE'].includes(req.method) && url.pathname.startsWith('/api/v1/admin/')) rateLimit(req, 'admin', 120, 60 * 1000);
+    await route(req, res, url);
+  } catch (error) { fail(res, error); }
 });
 server.listen(PORT, '0.0.0.0', () => console.log('Expert eSIM API listening on port ' + PORT));
 server.on('error', error => { console.error('Expert eSIM server error:', error.message); process.exitCode = 1; });
