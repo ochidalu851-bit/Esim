@@ -2,128 +2,205 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#090a0d">
-<meta name="description" content="Browse eSIM destinations and plan categories.">
+<meta name="description" content="Choose an eSIM destination and browse data plans.">
 <title>Expert eSIM</title>
 <style>
-:root{color-scheme:dark;--bg:#090a0d;--panel:#171920;--line:#292d38;--muted:#8993aa;--text:#f4f5f8;--blue:#94a9db}
+:root{color-scheme:dark;--bg:#090a0d;--panel:#111217;--line:#242630;--muted:#8490a9;--text:#f5f6fa;--blue:#8998bb;--accent:#a6b7e8}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-button,input,select{font:inherit}
-button{cursor:pointer}
-.shell{max-width:760px;min-height:100dvh;margin:0 auto;padding:20px 18px 150px}
-.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:45px}
-.back{border:0;background:transparent;color:#eef0f7;font-size:30px;padding:4px 8px}
-.brand{font-size:13px;color:#aab3ca;background:#171920;border:1px solid #292d38;border-radius:30px;padding:9px 13px;letter-spacing:.04em}
-.brand b{color:#fff}
-.heading{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:22px}
-.eyebrow{font-size:12px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase}
-.heading h1{font-size:35px;line-height:1.12;margin:7px 0 5px;letter-spacing:-.04em}
-.countryName{font-size:23px;color:var(--blue)}
-.flag{font-size:48px}
-.count{display:inline-flex;align-items:center;gap:7px;background:#171920;border:1px solid #292d38;border-radius:30px;padding:8px 12px;color:#aab3ca;font-size:12px;margin-top:12px}
-.search{width:100%;margin:22px 0 10px;background:#15171d;border:1px solid var(--line);border-radius:14px;padding:15px 16px;color:#f4f5f8;outline:none}
-.search:focus,.country:focus{border-color:#7186ba}
-.country{width:100%;appearance:none;background:#15171d;border:1px solid var(--line);border-radius:15px;color:#f3f4f7;padding:17px 42px 17px 16px;outline:none}
-.selectwrap{position:relative}
-.selectwrap:after{content:"⌄";position:absolute;right:18px;top:12px;color:var(--blue);font-size:23px;pointer-events:none}
-.tabs{display:grid;grid-template-columns:1fr;padding:4px;background:#191b21;border:1px solid #292d38;border-radius:18px;margin:25px 0 32px}
-.tabs button{border:0;background:transparent;color:#929bb0;padding:16px 8px;border-radius:14px;font-weight:600}
-.tabs button.active{background:#0d0f13;color:#f5f6f9;box-shadow:0 0 0 1px #30343e}
-.sectionhead{color:#8993ab;font-size:14px;font-weight:700;letter-spacing:.055em;margin:26px 0 12px}
-.empty{border:1px solid #2a2e39;border-radius:18px;padding:24px 20px;color:#b8bfd0;line-height:1.55;background:#101217}
-.emptyIcon{font-size:25px;margin-bottom:12px}
-.empty h3{margin:0 0 8px;font-size:17px;color:white}
-.empty p{margin:0;color:#9ca5b8;font-size:14px}
-.info{font-size:11px;color:#8791a8;line-height:1.5;margin:16px 2px}
-.bottom{position:fixed;z-index:5;bottom:0;left:0;right:0;background:linear-gradient(180deg,rgba(9,10,13,0),#090a0d 25%);padding:25px 18px 18px}
-.bottominner{max-width:724px;margin:auto;display:flex;align-items:center;gap:14px;background:#202127;border:1px solid #2a2d36;border-radius:17px;padding:10px 12px 10px 16px}
-.total{flex:1;min-width:0}
-.total small{display:block;color:#929bad;font-size:11px;margin-bottom:4px}
-.total strong{font-size:15px}
-.primary{border:0;background:#41444d;color:#aeb3be;font-weight:750;padding:15px 20px;border-radius:13px;min-width:148px;cursor:not-allowed}
-.footer{max-width:724px;margin:18px auto 0;color:#686f80;font-size:11px;text-align:center}
-@media(min-width:650px){.shell{padding-top:35px}.heading h1{font-size:40px}.bottom{padding-left:24px;padding-right:24px}}
+html,body{margin:0;width:100%;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+body{min-height:100svh;overscroll-behavior-y:contain}
+button,input{font:inherit}
+button{color:inherit}
+.app{width:100%;max-width:760px;min-height:100svh;margin:0 auto;background:var(--bg);position:relative}
+.screen{min-height:100svh;display:none;flex-direction:column}
+.screen.active{display:flex}
+.country-head{position:sticky;top:0;z-index:5;background:var(--bg);padding:20px 16px 0}
+.back-row{height:48px;display:flex;align-items:center}
+.back{width:42px;height:42px;border:0;background:transparent;padding:0;display:grid;place-items:center;color:#f6f7fb;font-size:0}
+.back svg{width:26px;height:26px;display:block}
+.country-title{font-size:24px;font-weight:750;letter-spacing:-.035em;margin:20px 0 17px;line-height:1.2}
+.search-wrap{height:50px;border:1px solid #242630;background:#0c0d11;border-radius:10px;display:flex;align-items:center;padding:0 13px;gap:10px;margin-bottom:12px}
+.search-wrap svg{width:19px;height:19px;flex:none;color:#8e98ad}
+.search-wrap input{border:0;outline:0;background:transparent;color:#f4f5f9;width:100%;font-size:13px;padding:0}
+.search-wrap input::placeholder{color:#7e879a;opacity:1}
+.country-list{padding:0 16px 28px;overflow-y:auto;overscroll-behavior:contain;flex:1}
+.country-row{min-height:48px;width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) 18px;align-items:center;gap:9px;padding:5px 0;border:0;background:transparent;text-align:left;border-radius:9px}
+.country-row:active{background:#151820}
+.country-flag{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:27px;line-height:1;background:#161820;flex:none}
+.country-flag.empty-flag{background:transparent}
+.country-info{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.country-name{font-size:12px;font-weight:500;line-height:16px;color:#f1f2f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.country-price{font-size:11px;line-height:14px;color:#7f8ba8}
+.chevron{width:17px;height:17px;color:#677188;justify-self:end}
+.no-results{padding:20px 4px;color:#929bb0;font-size:13px}
+.plan-screen{padding:0 0 100px}
+.plan-head{padding:20px 16px 0}
+.plan-top{height:48px;display:flex;align-items:center;justify-content:space-between}
+.plan-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:64px;margin-bottom:29px}
+.plan-heading h1{font-size:35px;line-height:1.1;letter-spacing:-.04em;margin:0 0 9px;font-weight:760}
+.plan-country{font-size:22px;line-height:1.25;color:var(--blue);font-weight:400}
+.plan-flag{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;font-size:61px;line-height:1;overflow:hidden;flex:none}
+.plan-type{margin:0 16px 0;padding:4px;background:#191b20;border:1px solid #292c35;border-radius:18px;display:grid;grid-template-columns:1fr}
+.plan-type button{border:0;border-radius:14px;background:#0d0f12;color:#f4f5f8;padding:16px 10px;font-size:16px;font-weight:650;box-shadow:0 0 0 1px #30343d}
+.plan-content{padding:0 16px;flex:1}
+.plan-section{margin:82px 0 13px;color:#8490aa;font-size:14px;line-height:18px;font-weight:700;letter-spacing:.035em}
+.no-plans{border:1px solid #20232b;background:#0d0f13;border-radius:20px;padding:22px 18px;color:#a2abc0;line-height:1.55;font-size:13px}
+.no-plans-title{color:#f2f3f7;font-size:16px;font-weight:650;margin-bottom:7px}
+.plan-foot{position:fixed;bottom:0;left:0;right:0;padding:14px 16px max(18px,env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(9,10,13,0),#090a0d 22%);z-index:4;pointer-events:none}
+.plan-foot-inner{max-width:728px;margin:0 auto;border:1px solid #242730;background:#202127;border-radius:16px;padding:15px 16px;text-align:center;color:#9ba4b6;font-size:12px;pointer-events:auto}
+@media(min-width:650px){.country-head,.plan-head{padding-left:24px;padding-right:24px}.country-list{padding-left:24px;padding-right:24px}.country-title{font-size:26px}.plan-content{padding-left:24px;padding-right:24px}.plan-type{margin-left:24px;margin-right:24px}.plan-heading h1{font-size:40px}}
 </style>
 </head>
 <body>
-<main class="shell">
-<header class="top"><button class="back" id="back" aria-label="Back">←</button><div class="brand"><b>EXPERT</b> eSIM</div></header>
-<section class="heading">
- <div><div class="eyebrow">Global mobile connectivity</div><h1>Available plans</h1><div class="countryName" id="countryName">Nigeria</div><div class="count"><span>◈</span><span id="destinationCount">206 destinations</span></div></div>
- <div class="flag" id="flag" aria-hidden="true">🇳🇬</div>
+<div class="app">
+<section class="screen active" id="countryScreen" aria-label="Select country">
+  <header class="country-head">
+    <div class="back-row"><button class="back" id="countryBack" aria-label="Back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button></div>
+    <h1 class="country-title">Select country</h1>
+    <label class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.8" cy="10.8" r="7.3"/><path d="m16.3 16.3 4.2 4.2"/></svg>
+      <input id="countrySearch" type="search" placeholder="Where do you need an eSIM?" autocomplete="off" aria-label="Where do you need an eSIM?">
+    </label>
+  </header>
+  <main class="country-list" id="countryList" aria-live="polite"></main>
 </section>
-<input class="search" id="search" type="search" placeholder="Search destinations" autocomplete="off" aria-label="Search destinations">
-<div class="selectwrap"><select class="country" id="country" aria-label="Choose destination"></select></div>
-<div class="tabs" role="tablist" aria-label="Plan type">
- <button class="active" id="dataTab" type="button" role="tab" aria-selected="true">Data</button>
+
+<section class="screen plan-screen" id="plansScreen" aria-label="Available data plans">
+  <header class="plan-head">
+    <div class="plan-top">
+      <button class="back" id="plansBack" aria-label="Back to countries">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+    </div>
+    <div class="plan-heading">
+      <div>
+        <h1>Available plans</h1>
+        <div class="plan-country" id="selectedCountryName">United Kingdom</div>
+      </div>
+      <div class="plan-flag" id="selectedCountryFlag" aria-hidden="true">🇬🇧</div>
+    </div>
+  </header>
+  <div class="plan-type" role="tablist" aria-label="Plan type">
+    <button type="button" role="tab" aria-selected="true" class="active">Data</button>
+  </div>
+  <main class="plan-content">
+    <div class="plan-section">DATA PLANS</div>
+    <div class="no-plans">
+      <div class="no-plans-title">Plans are not available yet</div>
+      <div>Data allowances, validity periods and prices will appear here when a live eSIM plan catalogue is connected. No sample prices or provider details are displayed.</div>
+    </div>
+  </main>
+  <footer class="plan-foot">
+    <div class="plan-foot-inner">No data plan selected</div>
+  </footer>
+</section>
 </div>
-<div class="sectionhead" id="planHeading">DATA PLANS</div>
-<div class="empty" id="empty">
- <div class="emptyIcon">◎</div>
- <h3>Plans are not connected yet</h3>
- <p>This app currently includes the destination catalogue and plan categories. Real plan names, data allowances, prices and eSIM activation will be added after a mobile connectivity service is connected. No sample offers are being displayed.</p>
-</div>
-<div class="info">Availability, coverage, supported networks, plan validity and pricing will be shown only after live plan data is connected. Choosing a destination here does not install or activate an eSIM.</div>
-<div class="footer">Expert eSIM · Destination catalogue</div>
-</main>
-<div class="bottom"><div class="bottominner"><div class="total"><small>SELECTED DESTINATION</small><strong id="selectedDestination">Nigeria · Data</strong></div><button class="primary" type="button" disabled>Plans not loaded</button></div></div>
 <script>
 let destinations=[];
-const country=document.getElementById('country');
-const search=document.getElementById('search');
-const countryName=document.getElementById('countryName');
-const flag=document.getElementById('flag');
-const selectedDestination=document.getElementById('selectedDestination');
-const destinationCount=document.getElementById('destinationCount');
-const planHeading=document.getElementById('planHeading');
-let selectedKind='Data';
-function flagFor(code){
- if(!code||code.length!==2)return '🌍';
- return String.fromCodePoint(...code.toUpperCase().split('').map(ch=>127397+ch.charCodeAt(0)));
+let selectedDestination=null;
+const countryList=document.getElementById('countryList');
+const searchInput=document.getElementById('countrySearch');
+const countryScreen=document.getElementById('countryScreen');
+const plansScreen=document.getElementById('plansScreen');
+
+const flagOverrides={
+  "Afghanistan":"🇦🇫","Albania":"🇦🇱","Algeria":"🇩🇿","Andorra":"🇦🇩","Angola":"🇦🇴","Anguilla":"🇦🇮",
+  "Antigua And Barbuda":"🇦🇬","Argentina":"🇦🇷","Armenia":"🇦🇲","Aruba":"🇦🇼","Australia":"🇦🇺","Austria":"🇦🇹",
+  "Azerbaijan":"🇦🇿","Bahamas":"🇧🇸","Bahrain":"🇧🇭","Bangladesh":"🇧🇩","Barbados":"🇧🇧","Belarus":"🇧🇾",
+  "Belgium":"🇧🇪","Belize":"🇧🇿","Benin":"🇧🇯","Bermuda":"🇧🇲","Bhutan":"🇧🇹","Bolivia":"🇧🇴","Bonaire":"🇧🇶",
+  "Bosnia and Herzegovina":"🇧🇦","Botswana":"🇧🇼","Brazil":"🇧🇷","British Virgin Islands":"🇻🇬","Brunei":"🇧🇳",
+  "Bulgaria":"🇧🇬","Burkina Faso":"🇧🇫","Cambodia":"🇰🇭","Cameroon":"🇨🇲","Canada":"🇨🇦","Canary Islands":"🇮🇨",
+  "Cape Verde":"🇨🇻","Cayman Islands":"🇰🇾","Central African Republic":"🇨🇫","Chad":"🇹🇩","Chile":"🇨🇱",
+  "China":"🇨🇳","Colombia":"🇨🇴","Costa Rica":"🇨🇷","Croatia":"🇭🇷","Curaçao":"🇨🇼","Cyprus":"🇨🇾",
+  "Czech Republic":"🇨🇿","Côte d'Ivoire":"🇨🇮","Democratic Republic Of The Congo":"🇨🇩","Denmark":"🇩🇰",
+  "Dominica":"🇩🇲","Dominican Republic":"🇩🇴","Ecuador":"🇪🇨","Egypt":"🇪🇬","El Salvador":"🇸🇻","Estonia":"🇪🇪",
+  "Eswatini":"🇸🇿","Ethiopia":"🇪🇹","Faroe Islands":"🇫🇴","Fiji":"🇫🇯","Finland":"🇫🇮","France":"🇫🇷",
+  "French Guiana":"🇬🇫","Gabon":"🇬🇦","Gambia":"🇬🇲","Georgia":"🇬🇪","Germany":"🇩🇪","Ghana":"🇬🇭",
+  "Gibraltar":"🇬🇮","Greece":"🇬🇷","Greenland":"🇬🇱","Grenada":"🇬🇩","Guadeloupe":"🇬🇵","Guam":"🇬🇺",
+  "Guatemala":"🇬🇹","Guinea":"🇬🇳","Guinea-Bissau":"🇬🇼","Guyana":"🇬🇾","Haiti":"🇭🇹","Honduras":"🇭🇳",
+  "Hong Kong":"🇭🇰","Hungary":"🇭🇺","Iceland":"🇮🇸","India":"🇮🇳","Indonesia":"🇮🇩","Iraq":"🇮🇶",
+  "Ireland":"🇮🇪","Isle of Man":"🇮🇲","Israel":"🇮🇱","Italy":"🇮🇹","Jamaica":"🇯🇲","Japan":"🇯🇵",
+  "Jersey":"🇯🇪","Jordan":"🇯🇴","Kazakhstan":"🇰🇿","Kenya":"🇰🇪","Kosovo":"🇽🇰","Kuwait":"🇰🇼",
+  "Kyrgyzstan":"🇰🇬","Laos":"🇱🇦","Latvia":"🇱🇻","Lebanon":"🇱🇧","Lesotho":"🇱🇸","Liberia":"🇱🇷",
+  "Liechtenstein":"🇱🇮","Lithuania":"🇱🇹","Luxembourg":"🇱🇺","Macao":"🇲🇴","Madagascar":"🇲🇬","Malawi":"🇲🇼",
+  "Malaysia":"🇲🇾","Maldives":"🇲🇻","Mali":"🇲🇱","Malta":"🇲🇹","Martinique":"🇲🇶","Mauritius":"🇲🇺",
+  "Mayotte":"🇾🇹","Mexico":"🇲🇽","Moldova":"🇲🇩","Monaco":"🇲🇨","Mongolia":"🇲🇳","Montenegro":"🇲🇪",
+  "Montserrat":"🇲🇸","Morocco":"🇲🇦","Mozambique":"🇲🇿","Nauru":"🇳🇷","Nepal":"🇳🇵","Netherlands":"🇳🇱",
+  "New Zealand":"🇳🇿","Nicaragua":"🇳🇮","Niger":"🇳🇪","Nigeria":"🇳🇬","North Macedonia":"🇲🇰","Norway":"🇳🇴",
+  "Oman":"🇴🇲","Pakistan":"🇵🇰","Palestine, State of":"🇵🇸","Panama":"🇵🇦","Papua New Guinea":"🇵🇬",
+  "Paraguay":"🇵🇾","Peru":"🇵🇪","Philippines":"🇵🇭","Poland":"🇵🇱","Portugal":"🇵🇹","Puerto Rico":"🇵🇷",
+  "Qatar":"🇶🇦","Republic of the Congo":"🇨🇬","Romania":"🇷🇴","Rwanda":"🇷🇼","Réunion":"🇷🇪",
+  "Saint Barthélemy":"🇧🇱","Saint Kitts and Nevis":"🇰🇳","Saint Lucia":"🇱🇨","Saint Martin (French Part)":"🇲🇫",
+  "Saint Vincent and the Grenadines":"🇻🇨","Samoa":"🇼🇸","Saudi Arabia":"🇸🇦","Senegal":"🇸🇳","Serbia":"🇷🇸",
+  "Seychelles":"🇸🇨","Sierra Leone":"🇸🇱","Singapore":"🇸🇬","Sint Maarten (Dutch Part)":"🇸🇽","Slovakia":"🇸🇰",
+  "Slovenia":"🇸🇮","South Africa":"🇿🇦","South Korea":"🇰🇷","Spain":"🇪🇸","Sri Lanka":"🇱🇰","Sudan":"🇸🇩",
+  "Suriname":"🇸🇷","Sweden":"🇸🇪","Switzerland":"🇨🇭","Taiwan":"🇹🇼","Tajikistan":"🇹🇯","Tanzania":"🇹🇿",
+  "Thailand":"🇹🇭","Timor - Leste":"🇹🇱","Togo":"🇹🇬","Tonga":"🇹🇴","Trinidad and Tobago":"🇹🇹",
+  "Tunisia":"🇹🇳","Turkey":"🇹🇷","Turks and Caicos Islands":"🇹🇨","Uganda":"🇺🇬","Ukraine":"🇺🇦",
+  "United Arab Emirates":"🇦🇪","United Kingdom":"🇬🇧","United States":"🇺🇸","Uruguay":"🇺🇾","Uzbekistan":"🇺🇿",
+  "Vanuatu":"🇻🇺","Vatican City":"🇻🇦","Venezuela":"🇻🇪","Vietnam":"🇻🇳","Virgin Islands (U.S.)":"🇻🇮",
+  "Zambia":"🇿🇲","Zimbabwe":"🇿🇼"
+};
+const noFlag = new Set(["Azores","Madeira","Marie-Galante","Northern Cyprus","Saba","Scotland","Sint Eustatius"]);
+function flagFor(item){return flagOverrides[item.name]||""}
+function escapeHtml(value){
+ return String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;");
 }
-function renderOptions(query){
- const q=(query||'').trim().toLowerCase();
- const matches=destinations.filter(item=>item.name.toLowerCase().includes(q));
- const previous=Number(country.value);
- country.innerHTML=matches.map(item=>'<option value="'+item.id+'">'+flagFor(item.code)+' '+item.name+'</option>').join('');
- if(matches.some(item=>item.id===previous))country.value=String(previous);
- else if(matches.length)country.value=String(matches[0].id);
- country.disabled=matches.length===0;
- updateSelection();
+function renderCountries(query=""){
+ const q=query.trim().toLocaleLowerCase();
+ const matches=destinations.filter(d=>d.name.toLocaleLowerCase().includes(q));
+ if(!matches.length){
+  countryList.innerHTML='<div class="no-results">No countries found</div>';
+  return;
+ }
+ countryList.innerHTML=matches.map(item=>{
+  const flag=flagFor(item);
+  const flagClass=flag?"country-flag":"country-flag empty-flag";
+  return '<button class="country-row" type="button" data-id="'+item.id+'" aria-label="Select '+escapeHtml(item.name)+'">'+
+   '<span class="'+flagClass+'">'+(flag||"")+'</span>'+
+   '<span class="country-info"><span class="country-name">'+escapeHtml(item.name)+'</span><span class="country-price">From —</span></span>'+
+   '<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>'+
+   '</button>';
+ }).join("");
+ countryList.querySelectorAll(".country-row").forEach(row=>{
+  row.addEventListener("click",()=>openPlans(Number(row.dataset.id)));
+ });
 }
-function updateSelection(){
- const item=destinations.find(entry=>entry.id===Number(country.value));
- if(!item){countryName.textContent='No destination found';flag.textContent='🌍';selectedDestination.textContent='Choose a destination';return}
- countryName.textContent=item.name;
- flag.textContent=flagFor(item.code);
- selectedDestination.textContent=item.name+' · '+selectedKind;
+function openPlans(id){
+ selectedDestination=destinations.find(d=>d.id===id);
+ if(!selectedDestination)return;
+ document.getElementById("selectedCountryName").textContent=selectedDestination.name;
+ document.getElementById("selectedCountryFlag").textContent=flagFor(selectedDestination);
+ countryScreen.classList.remove("active");
+ plansScreen.classList.add("active");
+ window.scrollTo({top:0,behavior:"instant"});
 }
-function setKind(kind){
- selectedKind='Data';
- planHeading.textContent='DATA PLANS';
- updateSelection();
+function openCountryList(){
+ plansScreen.classList.remove("active");
+ countryScreen.classList.add("active");
+ searchInput.value="";
+ renderCountries("");
+ window.scrollTo({top:0,behavior:"instant"});
+ searchInput.blur();
 }
 async function init(){
  try{
-  const response=await fetch('/api/destinations');
-  if(!response.ok)throw new Error('Could not load destinations');
+  const response=await fetch("/api/destinations");
+  if(!response.ok)throw new Error("Destination catalogue unavailable");
   const payload=await response.json();
-  destinations=payload.items||[];
-  destinationCount.textContent=payload.total+' destinations';
-  renderOptions('');
-  const nigeria=destinations.find(item=>item.code==='NG');
-  if(nigeria){country.value=String(nigeria.id);updateSelection()}
+  destinations=Array.isArray(payload.items)?payload.items:[];
+  renderCountries("");
  }catch(error){
-  document.getElementById('empty').querySelector('h3').textContent='Destination list unavailable';
-  document.getElementById('empty').querySelector('p').textContent='Refresh this page to try again.';
+  countryList.innerHTML='<div class="no-results">Could not load destinations. Refresh to try again.</div>';
  }
 }
-search.addEventListener('input',()=>renderOptions(search.value));
-country.addEventListener('change',updateSelection);
-
-document.getElementById('back').addEventListener('click',()=>{if(history.length>1)history.back()});
+searchInput.addEventListener("input",()=>renderCountries(searchInput.value));
+document.getElementById("countryBack").addEventListener("click",()=>{if(history.length>1)history.back()});
+document.getElementById("plansBack").addEventListener("click",openCountryList);
 init();
 </script>
 </body>
