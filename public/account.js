@@ -63,13 +63,11 @@
       '<div class="card portal-card">' +
         '<div class="portal-row"><div class="portal-section">My devices and eSIM profiles</div><button class="portal-secondary" id="portalRefreshDevices" type="button">Refresh</button></div>' +
         '<div class="portal-good">Expert eSIM is designed to fund the mobile-data service. Users do not purchase data packages here. Each registered device receives its own separate eSIM profile. Global roaming and unlimited-data access become available only where the contracted network provider confirms them.</div>' +
-        '<form class="portal-form" id="portalDeviceForm">' +
-          '<div><label class="portal-label" for="portalDeviceName">Device name</label><input class="portal-input" id="portalDeviceName" maxlength="80" required placeholder="e.g. My phone"></div>' +
-          '<div><label class="portal-label" for="portalDevicePlatform">Device platform</label><select class="portal-select" id="portalDevicePlatform"><option value="android">Android</option><option value="ios">iPhone / iPad</option><option value="other">Other eSIM device</option></select></div>' +
-          '<div><label class="portal-label" for="portalDeviceModel">Device model (optional)</label><input class="portal-input" id="portalDeviceModel" maxlength="100" placeholder="Device model"></div>' +
-          '<button class="portal-action" type="submit" id="portalRegisterDevice">Register this device and request its profile</button>' +
+        '<div class="portal-form" id="portalDeviceForm">' +
+          '<div class="portal-item" id="portalDetectedDevice">Reading this phone automatically…</div>' +
+          '<button class="portal-action" id="portalRegisterDevice" type="button">Request eSIM profile for this device</button>' +
           '<div class="portal-status" id="portalDeviceStatus" aria-live="polite"></div>' +
-        '</form>' +
+        '</div>' +
         '<div id="portalDevices"><div class="portal-empty">Loading registered devices…</div></div>' +
       '</div>' +
       '<div class="card portal-card">' +
@@ -203,16 +201,76 @@
     return "other";
   }
   let activeUser = null;
+  let currentDeviceInfo = null;
+  let currentDeviceRecord = null;
+  async function readCurrentDevice(user) {
+    const native = window.ExpertESimNative;
+    if (native && typeof native.getDeviceInfo === "function") {
+      try {
+        const info = JSON.parse(native.getDeviceInfo());
+        if (info && info.clientDeviceId && info.platform) return info;
+      } catch (error) {}
+    }
+    const platform = detectPlatform();
+    let model = "";
+    let osVersion = "";
+    if (navigator.userAgentData && typeof navigator.userAgentData.getHighEntropyValues === "function") {
+      try {
+        const high = await navigator.userAgentData.getHighEntropyValues(["model","platformVersion"]);
+        model = String(high.model || "");
+        osVersion = String(high.platformVersion || "");
+      } catch (error) {}
+    }
+    const fallbackName = model || (platform === "android" ? "Android device" : platform === "ios" ? "Apple mobile device" : "This device");
+    return {
+      clientDeviceId: currentDeviceClientId(user),
+      deviceName: fallbackName,
+      manufacturer: "",
+      model,
+      platform,
+      osVersion,
+      eSimSupportKnown: false,
+      hasEuiccHardware: null,
+      euiccEnabled: null,
+      detectionSource: "browser"
+    };
+  }
+  function renderDetectedDevice(info) {
+    const target = $("portalDetectedDevice");
+    if (!target || !info) return;
+    const name = [info.manufacturer,info.model].filter(Boolean).join(" ") || info.deviceName || "This device";
+    let capability = "eSIM capability is not exposed by this browser.";
+    if (info.eSimSupportKnown && info.hasEuiccHardware === false) capability = "No eSIM hardware detected on this phone.";
+    else if (info.eSimSupportKnown && info.hasEuiccHardware === true && info.euiccEnabled === false) capability = "eSIM hardware detected, but eSIM support is disabled.";
+    else if (info.eSimSupportKnown && info.hasEuiccHardware === true && info.euiccEnabled === true) capability = "eSIM hardware detected and enabled.";
+    target.innerHTML = '<div class="portal-title">' + escapeHtml(name) + '</div>' +
+      '<div class="portal-meta">' + escapeHtml(String(info.platform || "unknown").toUpperCase()) +
+      (info.osVersion ? " · OS " + escapeHtml(info.osVersion) : "") + '</div>' +
+      '<div class="portal-meta">' + escapeHtml(capability) + '</div>';
+  }
+  async function registerCurrentDevice(user) {
+    currentDeviceInfo = await readCurrentDevice(user);
+    renderDetectedDevice(currentDeviceInfo);
+    const result = await api("/devices",{method:"POST",body:JSON.stringify(currentDeviceInfo)});
+    currentDeviceRecord = result.device;
+    return currentDeviceRecord;
+  }
   function renderDevice(device) {
     const profile = device.latestProfile;
     const state = profile ? profile.status : "not_requested";
-    const request = !profile || ["provider_error","cancelled","awaiting_partners","awaiting_verification","verification_required"].includes(state)
-      ? '<button class="portal-action" data-device-request="' + escapeHtml(device.id) + '" type="button">Request / check profile</button>' : "";
+    const unsupported = device.eSimSupportKnown === true && (device.hasEuiccHardware === false || device.euiccEnabled === false);
+    const request = !unsupported && (!profile || ["provider_error","cancelled","awaiting_partners","awaiting_verification","verification_required"].includes(state))
+      ? '<button class="portal-action" data-device-request="' + escapeHtml(device.id) + '" type="button">Request profile for this device</button>' : "";
     const install = profile && ["profile_issued","active"].includes(state)
       ? '<button class="portal-action" data-device-install="' + escapeHtml(device.id) + '" type="button">Install eSIM profile</button>' : "";
+    const capability = device.eSimSupportKnown
+      ? (device.hasEuiccHardware ? (device.euiccEnabled ? "eSIM hardware available" : "eSIM hardware disabled") : "No eSIM hardware")
+      : "eSIM capability not exposed";
     return '<article class="portal-item"><div class="portal-row"><span class="portal-title">' + escapeHtml(device.deviceName) + '</span><span class="portal-chip">' + escapeHtml(String(state).replaceAll("_"," ").toUpperCase()) + '</span></div>' +
-      '<div class="portal-meta">' + escapeHtml(String(device.platform || "other").toUpperCase()) + (device.model ? " · " + escapeHtml(device.model) : "") + '</div>' +
-      '<div class="portal-meta">' + escapeHtml(profile ? profile.message : "This device is registered. Request its own sponsored profile.") + '</div>' + request + install + '</article>';
+      '<div class="portal-meta">' + escapeHtml([device.manufacturer,device.model].filter(Boolean).join(" ") || String(device.platform || "device").toUpperCase()) +
+      (device.osVersion ? " · OS " + escapeHtml(device.osVersion) : "") + '</div>' +
+      '<div class="portal-meta">' + escapeHtml(capability) + '</div>' +
+      '<div class="portal-meta">' + escapeHtml(unsupported ? "This phone cannot install an eSIM profile. Register an eSIM-compatible device instead." : (profile ? profile.message : "This device was detected automatically.")) + '</div>' + request + install + '</article>';
   }
   async function refreshDevices(existing) {
     const target = $("portalDevices");
@@ -281,28 +339,29 @@
       button.textContent = "Install eSIM profile";
     }
   }
-  $("portalDeviceForm").addEventListener("submit",async event => {
-    event.preventDefault();
+  $("portalRegisterDevice").addEventListener("click",async () => {
     const button = $("portalRegisterDevice");
     button.disabled = true;
-    $("portalDeviceStatus").textContent = "Registering this device…";
+    $("portalDeviceStatus").textContent = "Reading this phone and checking eSIM support…";
     try {
-      const result = await api("/devices",{method:"POST",body:JSON.stringify({
-        clientDeviceId:currentDeviceClientId(activeUser),
-        deviceName:$("portalDeviceName").value.trim(),
-        platform:$("portalDevicePlatform").value || detectPlatform(),
-        model:$("portalDeviceModel").value.trim()
-      })});
-      $("portalDeviceStatus").textContent = "Device registered. Requesting its separate sponsored eSIM profile…";
-      const profile = await api("/devices/" + encodeURIComponent(result.device.id) + "/profile",{method:"POST"});
-      $("portalDeviceStatus").textContent = profile.profile.message || profile.message || "Profile request received.";
+      if (!activeUser) throw new Error("Sign in to continue.");
+      if (!currentDeviceRecord) await registerCurrentDevice(activeUser);
+      if (currentDeviceInfo && currentDeviceInfo.eSimSupportKnown && currentDeviceInfo.hasEuiccHardware === false) {
+        throw new Error("This phone does not have eSIM hardware. An eSIM-compatible phone is required.");
+      }
+      if (currentDeviceInfo && currentDeviceInfo.eSimSupportKnown && currentDeviceInfo.euiccEnabled === false) {
+        throw new Error("eSIM hardware was detected, but eSIM support is disabled on this phone.");
+      }
+      $("portalDeviceStatus").textContent = "Requesting the separate eSIM profile for " + (currentDeviceInfo.deviceName || "this phone") + "…";
+      const result = await api("/devices/" + encodeURIComponent(currentDeviceRecord.id) + "/profile",{method:"POST"});
+      $("portalDeviceStatus").textContent = result.profile.message || result.message || "Profile request received.";
       await refreshDevices();
     } catch (error) {
       $("portalDeviceStatus").textContent = error.message;
       await refreshDevices();
     } finally {
       button.disabled = false;
-      button.textContent = "Register this device and request its profile";
+      button.textContent = "Request eSIM profile for this device";
     }
   });
   $("portalSupportForm").addEventListener("submit", async event => {
@@ -386,8 +445,13 @@
         $("portalMemberStatus").textContent = "Secure identity verification is awaiting the contracted global verification partner.";
       }
       activeUser = user;
-      $("portalDevicePlatform").value = detectPlatform();
-      await Promise.all([refreshDevices(data.devices || []),refreshTickets(data.tickets || []),refreshPrivacyRequests(data.privacyRequests || [])]);
+      try {
+        await registerCurrentDevice(user);
+        $("portalDeviceStatus").textContent = "This phone was detected and registered automatically.";
+      } catch (deviceError) {
+        $("portalDeviceStatus").textContent = "Could not register this phone automatically: " + deviceError.message;
+      }
+      await Promise.all([refreshDevices(),refreshTickets(data.tickets || []),refreshPrivacyRequests(data.privacyRequests || [])]);
     } catch (error) {
       $("portalMember").hidden = true;
       if (error.status === 401) {
