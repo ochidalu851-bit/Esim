@@ -707,6 +707,211 @@ function getDestinationNetworkInfo(destination) {
   };
 }
 
+
+let AIRALO_ACCESS_TOKEN = null;
+let AIRALO_TOKEN_EXPIRES_AT = 0;
+let AIRALO_PACKAGE_CACHE = new Map();
+let ESIM_GO_PACKAGE_CACHE = new Map();
+const PROVIDER_CATALOGUE_CACHE_MS = 10 * 60 * 1000;
+
+function extractProviderRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  if (Array.isArray(payload.data)) return payload.data;
+  if (payload.data && typeof payload.data === "object") {
+    for (const key of ["packages", "bundles", "items", "results"]) {
+      if (Array.isArray(payload.data[key])) return payload.data[key];
+    }
+  }
+  for (const key of ["packages", "bundles", "items", "results"]) {
+    if (Array.isArray(payload[key])) return payload[key];
+  }
+  return [];
+}
+
+function countryIsInPackage(item, countryCode) {
+  const code = String(countryCode || "").toUpperCase();
+  const direct = [
+    item.country_code, item.countryCode, item.iso, item.iso2,
+    item.country_iso, item.countryIso
+  ].filter(Boolean).map((value) => String(value).toUpperCase());
+  if (direct.includes(code)) return true;
+  const countries = Array.isArray(item.countries) ? item.countries : [];
+  return countries.some((country) =>
+    String(country.iso || country.iso2 || country.code || "").toUpperCase() === code
+  );
+}
+
+function formatMb(value) {
+  const mb = Number(value);
+  if (!Number.isFinite(mb) || mb <= 0) return "";
+  if (mb >= 1024) {
+    const gb = mb / 1024;
+    return (Number.isInteger(gb) ? gb.toFixed(0) : gb.toFixed(1)) + " GB";
+  }
+  return Math.round(mb) + " MB";
+}
+
+function normalizeAiraloPackage(item) {
+  const pkg = item.package || item;
+  const priceValue = Number(pkg.price ?? pkg.net_price ?? pkg.retail_price);
+  const currency = String(pkg.currency || pkg.currency_code || item.currency || "USD");
+  const priceDisplay = Number.isFinite(priceValue)
+    ? new Intl.NumberFormat("en", { style: "currency", currency }).format(priceValue)
+    : "";
+  const operators = Array.isArray(pkg.operators)
+    ? pkg.operators.map((operator) => operator.title || operator.name || operator.operator_name).filter(Boolean)
+    : [];
+  const data = pkg.data || pkg.data_amount || pkg.amount || "";
+  const validityDays = Number(pkg.validity || pkg.validity_days || pkg.day || 0);
+  return {
+    provider: "Airalo",
+    packageId: String(pkg.package_id || pkg.id || ""),
+    name: String(pkg.title || pkg.name || pkg.package_name || "Airalo eSIM"),
+    dataAllowance: typeof data === "string" ? data : formatMb(data),
+    validity: validityDays > 0 ? validityDays + " days" : String(pkg.validity_text || ""),
+    price: Number.isFinite(priceValue) ? priceValue : null,
+    currency,
+    priceDisplay,
+    operator: operators.join(", "),
+    countryCode: String(pkg.country_code || pkg.countryCode || (pkg.countries?.[0]?.iso || "")).toUpperCase(),
+    source: "Airalo Partner API"
+  };
+}
+
+async function getAiraloAccessToken() {
+  if (!process.env.AIRALO_CLIENT_ID || !process.env.AIRALO_CLIENT_SECRET) {
+    throw new Error("Airalo Partner API credentials are not configured.");
+  }
+  if (AIRALO_ACCESS_TOKEN && Date.now() < AIRALO_TOKEN_EXPIRES_AT) {
+    return AIRALO_ACCESS_TOKEN;
+  }
+  const form = new URLSearchParams({
+    client_id: process.env.AIRALO_CLIENT_ID,
+    client_secret: process.env.AIRALO_CLIENT_SECRET,
+    grant_type: "client_credentials"
+  });
+  const response = await fetch("https://partners-api.airalo.com/v2/token", {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+    body: form,
+    signal: AbortSignal.timeout(20000)
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.data?.access_token) {
+    throw new Error("Airalo authentication failed with HTTP " + response.status + ".");
+  }
+  AIRALO_ACCESS_TOKEN = payload.data.access_token;
+  const expiresIn = Number(payload.data.expires_in || 86400);
+  AIRALO_TOKEN_EXPIRES_AT = Date.now() + Math.max(60, expiresIn - 300) * 1000;
+  return AIRALO_ACCESS_TOKEN;
+}
+
+async function getAiraloPackages(countryCode) {
+  const key = String(countryCode).toUpperCase();
+  const cached = AIRALO_PACKAGE_CACHE.get(key);
+  if (cached && Date.now() - cached.savedAt < PROVIDER_CATALOGUE_CACHE_MS) return cached.items;
+  const token = await getAiraloAccessToken();
+  const endpoint = new URL("https://partners-api.airalo.com/v2/packages");
+  endpoint.searchParams.set("limit", "1000");
+  endpoint.searchParams.set("page", "1");
+  endpoint.searchParams.set("filter[country]", key);
+  const response = await fetch(endpoint, {
+    headers: {
+      accept: "application/json",
+      authorization: "Bearer " + token,
+      "accept-language": "en",
+      url: "https://partners-api.airalo.com"
+    },
+    signal: AbortSignal.timeout(25000)
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error("Airalo package catalogue failed with HTTP " + response.status + ".");
+  const rows = extractProviderRows(payload).filter((item) => countryIsInPackage(item, key));
+  const items = rows.map(normalizeAiraloPackage).filter((item) => item.packageId);
+  AIRALO_PACKAGE_CACHE.set(key, { savedAt: Date.now(), items });
+  return items;
+}
+
+function normalizeEsimGoPackage(item) {
+  const countries = Array.isArray(item.countries) ? item.countries : [];
+  const priceValue = Number(item.price);
+  const allowance = (item.allowances || []).find((entry) => String(entry.type || "").toUpperCase() === "DATA");
+  const dataAllowance = item.unlimited || allowance?.unlimited
+    ? "Unlimited data"
+    : formatMb(item.dataAmount || allowance?.amount);
+  const validityDays = Number(item.duration || item.validity || 0);
+  const profile = String(item.profileName || item.operator || "");
+  return {
+    provider: "eSIM Go",
+    packageId: String(item.name || item.bundleName || ""),
+    name: String(item.description || item.name || "eSIM Go plan"),
+    dataAllowance,
+    validity: validityDays > 0 ? validityDays + " days" : "",
+    price: Number.isFinite(priceValue) ? priceValue : null,
+    currency: String(item.currency || ""),
+    priceDisplay: Number.isFinite(priceValue)
+      ? new Intl.NumberFormat("en", {
+          style: "currency",
+          currency: String(item.currency || "USD")
+        }).format(priceValue)
+      : "",
+    operator: profile,
+    countryCode: countries.map((country) => String(country.iso || "").toUpperCase()).join(","),
+    source: "eSIM Go API"
+  };
+}
+
+async function getEsimGoPackages(countryCode) {
+  if (!process.env.ESIM_GO_API_KEY) {
+    throw new Error("eSIM Go API key is not configured.");
+  }
+  const key = String(countryCode).toUpperCase();
+  const cached = ESIM_GO_PACKAGE_CACHE.get(key);
+  if (cached && Date.now() - cached.savedAt < PROVIDER_CATALOGUE_CACHE_MS) return cached.items;
+  const endpoint = new URL("https://api.esim-go.com/v2.5/catalogue");
+  endpoint.searchParams.set("countries", key);
+  endpoint.searchParams.set("page", "1");
+  endpoint.searchParams.set("perPage", "100");
+  const response = await fetch(endpoint, {
+    headers: { accept: "application/json", "X-API-Key": process.env.ESIM_GO_API_KEY },
+    signal: AbortSignal.timeout(25000)
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error("eSIM Go catalogue failed with HTTP " + response.status + ".");
+  const rows = extractProviderRows(payload).filter((item) => countryIsInPackage(item, key));
+  const items = rows.map(normalizeEsimGoPackage).filter((item) => item.packageId);
+  ESIM_GO_PACKAGE_CACHE.set(key, { savedAt: Date.now(), items });
+  return items;
+}
+
+function getProvisioningStatus() {
+  const airaloConfigured = Boolean(process.env.AIRALO_CLIENT_ID && process.env.AIRALO_CLIENT_SECRET);
+  const esimGoConfigured = Boolean(process.env.ESIM_GO_API_KEY);
+  const paymentConfigured = Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET);
+  return {
+    providers: [
+      {
+        id: "airalo",
+        name: "Airalo",
+        configured: airaloConfigured,
+        capabilities: ["live_packages", "eSIM_ordering", "installation_instructions"]
+      },
+      {
+        id: "esim-go",
+        name: "eSIM Go",
+        configured: esimGoConfigured,
+        capabilities: ["live_catalogue", "eSIM_ordering", "QR_installation", "suspend_unsuspend"]
+      }
+    ],
+    paymentConfigured,
+    customerAccountsConfigured: false,
+    directPhoneProfileControl: false,
+    canProvisionLive: airaloConfigured || esimGoConfigured
+  };
+}
+
+
 function sendJson(res, status, payload) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -859,25 +1064,55 @@ async function runExternalSourceDiagnostics() {
     return sendJson(res, 200, getDestinationNetworkInfo(destination));
   }
 
+  if (req.method === "GET" && url.pathname === "/api/provisioning/status") {
+    return sendJson(res, 200, getProvisioningStatus());
+  }
+
   if (req.method === "GET" && url.pathname === "/api/plans") {
     const id = Number(url.searchParams.get("destinationId"));
-    const kind = "Data";
     const destination = DESTINATION_ROWS.find((item) => item.id === id);
     if (!destination) {
       return sendJson(res, 400, { error: "Choose a valid destination." });
     }
-    return sendJson(res, 200, {
-      available: false,
-      destination: destination.name,
-      kind,
-      items: [],
-      message: "Live eSIM plans have not been connected yet. No sample plans or prices are displayed."
+    const status = getProvisioningStatus();
+    const jobs = [];
+    if (status.providers.find((provider) => provider.id === "airalo").configured) {
+      jobs.push(getAiraloPackages(destination.code).catch((error) => {
+        console.warn("Airalo packages unavailable for " + destination.code + ": " + error.message);
+        return [];
+      }));
+    }
+    if (status.providers.find((provider) => provider.id === "esim-go").configured) {
+      jobs.push(getEsimGoPackages(destination.code).catch((error) => {
+        console.warn("eSIM Go packages unavailable for " + destination.code + ": " + error.message);
+        return [];
+      }));
+    }
+    return Promise.all(jobs).then((catalogues) => {
+      const items = catalogues.flat().sort((a, b) => {
+        const providerOrder = a.provider.localeCompare(b.provider);
+        return providerOrder || (Number(a.price || 0) - Number(b.price || 0));
+      });
+      return sendJson(res, 200, {
+        available: items.length > 0,
+        destination: destination.name,
+        items,
+        provisioning: status
+      });
     });
   }
 
   if (req.method === "POST" && url.pathname === "/api/activate") {
-    return sendJson(res, 503, {
-      error: "eSIM activation is not enabled. A live mobile connectivity service must issue the eSIM profile before activation can be offered."
+    const provisioning = getProvisioningStatus();
+    if (!provisioning.paymentConfigured) {
+      return sendJson(res, 503, {
+        error: "Payment processing and verified customer checkout must be connected before live eSIM orders can be placed.",
+        provisioning
+      });
+    }
+    return sendJson(res, 501, {
+      error: "Checkout verification is not implemented for this project yet.",
+      provisioning
     });
   }
 
