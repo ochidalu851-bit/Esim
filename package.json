@@ -2,7 +2,7 @@
   "name": "expert-esim",
   "version": "1.0.0",
   "private": true,
-  "description": "Standalone eSIM destination catalogue and plan browser",
+  "description": "Expert eSIM unified internet browsing, preferred network and speed testing app",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
