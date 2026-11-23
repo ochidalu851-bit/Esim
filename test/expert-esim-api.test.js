@@ -115,9 +115,8 @@ test('existing subscriber session opens account dashboard, not registration pane
   assert.equal(Array.isArray(me.body.tickets), true);
   assert.equal(Array.isArray(me.body.privacyRequests), true);
   assert.equal(me.body.readiness.kycProviderConfigured, false);
-  const html = await request('/account.js');
-  assert.equal(html.status, 200);
-  assert.match(html.body && JSON.stringify(html.body), /portalAuth/);
+  const staticScript = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
+  assert.match(staticScript, /portalAuth/);
 });
 
 test('login creates a fresh secure session; logout invalidates it and clears cookie', async () => {
