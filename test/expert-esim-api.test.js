@@ -350,8 +350,13 @@ test('Expert eSIM rewards, wallet, coupons, referrals, airtime requests, inbox a
   assert.ok(fulfilmentRecord);
   const fulfilment = await request('/api/v1/admin/features/fulfilment', {
     method: 'POST', headers: { 'x-expert-admin-key': adminKey },
-    body: JSON.stringify({ type: 'airtime', id: airtime.body.request.id, status: 'delivered', message: 'Test only: supplier confirmation recorded.' })
+    body: JSON.stringify({ type: 'airtime', id: airtime.body.request.id, status: 'delivered', supplierReference: 'TEST-SUPPLIER-REF-2026', message: 'Test only: supplier confirmation recorded.' })
   });
+  const unreferencedFulfilment = await request('/api/v1/admin/features/fulfilment', {
+    method: 'POST', headers: { 'x-expert-admin-key': adminKey },
+    body: JSON.stringify({ type: 'airtime', id: airtime.body.request.id, status: 'delivered' })
+  });
+  assert.equal(unreferencedFulfilment.status, 400);
   assert.equal(fulfilment.status, 200);
   assert.equal(fulfilment.body.record.status, 'delivered');
   const fulfilmentAgain = await request('/api/v1/admin/features/fulfilment', {
