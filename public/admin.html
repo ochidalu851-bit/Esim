@@ -6,7 +6,7 @@
 main{max-width:1000px;margin:auto;padding:24px 16px 60px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.brand{font-size:21px;font-weight:900;letter-spacing:-.04em}.muted{color:var(--muted);font-size:12px;line-height:1.55}
 .card{background:linear-gradient(145deg,#151d28,#10151d);border:1px solid var(--line);border-radius:17px;padding:17px;margin-top:16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.metric{padding:13px;border:1px solid #2b3748;background:#0c131c;border-radius:12px}.metric strong{display:block;font-size:24px;margin-top:7px}.label{display:block;font-size:11px;color:#aab8cb;font-weight:800;margin-bottom:6px}.input{width:100%;padding:12px;border-radius:10px;border:1px solid #3b4a5f;background:#0b121b;color:#f4f7fb;font:inherit}.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.wide{grid-column:1/-1}.btn{border:1px solid #8ca5ce;background:#b8ccec;color:#101827;padding:12px 15px;border-radius:11px;font-weight:850;cursor:pointer}.btn.secondary{background:#182536;border-color:#3b4b62;color:#e0e9f7}.item{padding:13px 0;border-bottom:1px solid #293547}.pill{display:inline-block;padding:5px 8px;border:1px solid #40536d;background:#18283b;color:#c7d7ef;border-radius:99px;font-size:10px;font-weight:800}.status{font-size:12px;color:#c9d7e8;margin-top:10px;white-space:pre-wrap}.warning{padding:12px;border:1px solid #5a4829;background:#231d12;color:#e0d1a9;border-radius:12px;font-size:12px;line-height:1.55}
 </style></head><body><main>
-<div class="head"><div><div class="brand">Expert eSIM · Administration</div><div class="muted">Subscribers, data packages, provisioning and order status</div></div><a class="muted" href="/">Open customer app</a></div>
+<div class="head"><div><div class="brand">Expert eSIM · Administration</div><div class="muted">Subscribers, devices, eSIM provisioning and Expert Points</div></div><a class="muted" href="/">Open customer app</a></div>
 <section class="card" id="loginCard"><label class="label" for="adminKey">Admin access key</label><input class="input" id="adminKey" type="password" autocomplete="off" placeholder="Enter the Expert eSIM admin key"><button class="btn" id="login" style="margin-top:10px">Open admin dashboard</button><div class="status" id="loginStatus"></div></section>
 <div id="adminPanel" hidden>
 <section class="card"><div class="head"><strong>Platform overview</strong><button class="btn secondary" id="refresh">Refresh</button></div><div class="grid" id="metrics" style="margin-top:14px"></div></section>
@@ -14,6 +14,49 @@ main{max-width:1000px;margin:auto;padding:24px 16px 60px}.head{display:flex;just
 <section class="card"><strong>Registered devices and eSIM profiles</strong><p class="muted">Each profile request belongs to one subscriber device. The profile is not marked issued until the global provider confirms unlimited data and roaming coverage.</p><div id="devices" class="muted" style="margin-top:10px">Not loaded.</div></section>
 <section class="card"><strong>Subscriber accounts and identity verification</strong><div id="subscribers" class="muted" style="margin-top:10px">Not loaded.</div></section>
 <section class="card"><strong>Customer support and complaints</strong><div id="tickets" class="muted" style="margin-top:10px">Not loaded.</div></section>
+<section class="card">
+<strong>Rewards, wallet and sponsored engagement</strong>
+<p class="muted">Manage Expert Points, coupons, reward codes and announcements. Points are not cash. Data rewards and airtime requests stay pending until an authorised supplier confirms fulfilment.</p>
+<div id="featureStats" class="grid" style="margin-top:12px"></div>
+<div class="form" style="margin-top:14px">
+ <form id="adminCouponForm" class="card"><strong>Create coupon</strong>
+  <label class="label">Title</label><input class="input" name="title" required maxlength="100">
+  <label class="label">Reward type</label><select class="input" name="type"><option value="points">Expert Points</option><option value="data_bonus">Sponsored data request</option></select>
+  <label class="label">Points</label><input class="input" name="points" type="number" min="1" max="100000" value="10">
+  <label class="label">Data MB</label><input class="input" name="dataMb" type="number" min="1" max="100000000">
+  <label class="label">Description</label><input class="input" name="description" maxlength="500">
+  <button class="btn" type="submit">Publish coupon</button><div class="status" id="couponStatus"></div>
+ </form>
+ <form id="adminRewardForm" class="card"><strong>Create store reward</strong>
+  <label class="label">Title</label><input class="input" name="title" required maxlength="100">
+  <label class="label">Reward type</label><select class="input" name="type"><option value="digital">Sponsor-fulfilled item</option><option value="data_bonus">Sponsored data request</option></select>
+  <label class="label">Points cost</label><input class="input" name="pointsCost" type="number" min="0" max="1000000" value="25">
+  <label class="label">Description</label><input class="input" name="description" maxlength="500">
+  <button class="btn" type="submit">Add reward</button><div class="status" id="rewardStatus"></div>
+ </form>
+ <form id="adminCodeForm" class="card"><strong>Create reward code</strong>
+  <label class="label">Code</label><input class="input" name="code" required minlength="6" maxlength="80">
+  <label class="label">Type</label><select class="input" name="type"><option value="points">Expert Points</option><option value="data_bonus">Sponsored data request</option></select>
+  <label class="label">Points</label><input class="input" name="points" type="number" min="1" max="100000" value="10">
+  <label class="label">Data MB</label><input class="input" name="dataMb" type="number" min="1" max="100000000">
+  <label class="label">Maximum redemptions (0 = no limit)</label><input class="input" name="maxRedemptions" type="number" min="0" max="100000" value="1">
+  <button class="btn" type="submit">Create code</button><div class="status" id="codeStatus"></div>
+ </form>
+ <form id="adminMessageForm" class="card"><strong>Send announcement</strong>
+  <label class="label">Title</label><input class="input" name="title" required maxlength="100">
+  <label class="label">Message</label><input class="input" name="message" required maxlength="2000">
+  <label class="label">Subscriber ID (leave blank for everyone)</label><input class="input" name="userId" maxlength="36">
+  <button class="btn" type="submit">Send message</button><div class="status" id="messageStatus"></div>
+ </form>
+ <form id="adminPointsForm" class="card"><strong>Adjust member points</strong>
+  <label class="label">Subscriber ID</label><input class="input" name="userId" required maxlength="36">
+  <label class="label">Points adjustment (positive or negative)</label><input class="input" name="points" type="number" required min="-1000000" max="1000000">
+  <label class="label">Reason</label><input class="input" name="reason" required maxlength="160">
+  <button class="btn" type="submit">Apply points adjustment</button><div class="status" id="pointsStatus"></div>
+ </form>
+</div>
+<div class="card"><strong>Reward fulfilment and airtime queues</strong><div id="featureQueues" class="muted" style="margin-top:10px">Not loaded.</div></div>
+</section>
 <section class="card"><strong>Privacy and data-rights requests</strong><div id="privacyRequests" class="muted" style="margin-top:10px">Not loaded.</div></section>
 </div>
 </main>
@@ -52,7 +95,28 @@ $("tickets").querySelectorAll("[data-save-ticket]").forEach(function(button){but
 $("privacyRequests").innerHTML=(data.recentPrivacyRequests||[]).length?data.recentPrivacyRequests.map(function(x){return '<div class="item"><strong>'+esc(x.reference)+'</strong> · '+esc(x.type)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">Subscriber '+esc(x.userId)+' · '+esc(x.details||"No additional details")+'</div><div class="form" style="margin-top:8px"><select class="input" data-privacy-status="'+esc(x.id)+'"><option value="received" '+(x.status==="received"?"selected":"")+'>Received</option><option value="in_review" '+(x.status==="in_review"?"selected":"")+'>In review</option><option value="fulfilled" '+(x.status==="fulfilled"?"selected":"")+'>Fulfilled</option><option value="rejected" '+(x.status==="rejected"?"selected":"")+'>Rejected</option></select><button class="btn secondary" data-save-privacy="'+esc(x.id)+'" type="button">Update request</button></div></div>';}).join(""):'No privacy requests yet.';
 $("privacyRequests").querySelectorAll("[data-save-privacy]").forEach(function(button){button.addEventListener("click",function(){var id=button.dataset.savePrivacy;var status=$("privacyRequests").querySelector('[data-privacy-status="'+id+'"]').value;api("/privacy/requests/"+encodeURIComponent(id)+"/status",{method:"POST",body:JSON.stringify({status:status})}).then(refresh).catch(function(e){$("loginStatus").textContent=e.message;});});});
 }
-function refresh(){api("/dashboard").then(function(d){render(d.dashboard);$("loginStatus").textContent="Dashboard loaded."; $("loginCard").hidden=true; $("adminPanel").hidden=false;}).catch(function(e){$("loginStatus").textContent=e.message;});}
+function formData(form){var d={};new FormData(form).forEach(function(v,k){d[k]=v;});return d;}
+function renderFeatureData(data){
+ var e=data.engagement||{},stats=[["Members with points",e.membersWithPoints],["Points issued",e.totalPointsIssued],["Coupons",e.coupons],["Reward items",e.rewardItems],["Reward codes",e.rewardCodes],["Point transfers",e.pointTransfers],["Airtime requests",e.airtimeRequests],["Pending data grants",e.pendingDataGrants]];
+ $("featureStats").innerHTML=stats.map(function(x){return '<div class="metric"><span class="muted">'+esc(x[0])+'</span><strong>'+Number(x[1]||0).toLocaleString()+'</strong></div>';}).join("");
+ var r=data.records||{};
+ var rows=[];
+ (r.orders||[]).forEach(function(x){rows.push('<div class="item"><strong>'+esc(x.reference)+'</strong> · '+esc(x.title)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">'+esc(x.message)+'</div></div>');});
+ (r.airtimeRequests||[]).forEach(function(x){rows.push('<div class="item"><strong>'+esc(x.reference)+'</strong> · '+esc(x.phone)+' · '+esc(x.amount)+' '+esc(x.currency)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">'+esc(x.message)+'</div></div>');});
+ (r.dataGrants||[]).forEach(function(x){rows.push('<div class="item"><strong>Data grant</strong> · '+esc(x.source)+' · '+esc(x.dataMb)+' MB <span class="pill">'+esc(x.status)+'</span></div>');});
+ $("featureQueues").innerHTML=rows.length?rows.join(""):"No reward, airtime or data-grant orders yet.";
+}
+function refreshFeatures(){api("/features").then(function(d){renderFeatureData(d);}).catch(function(e){$("featureQueues").textContent=e.message;});}
+function submitAdminForm(id,path,statusId,mapper){
+ $(id).addEventListener("submit",function(event){event.preventDefault();var form=event.currentTarget;var data=mapper?mapper(formData(form)):formData(form);api(path,{method:"POST",body:JSON.stringify(data)}).then(function(){ $(statusId).textContent="Saved to the Expert eSIM Railway database.";form.reset();refreshFeatures(); }).catch(function(e){$(statusId).textContent=e.message;});});
+}
+submitAdminForm("adminCouponForm","/coupons","couponStatus",function(d){d.points=Number(d.points||0);d.dataMb=Number(d.dataMb||0);return d;});
+submitAdminForm("adminRewardForm","/rewards/items","rewardStatus",function(d){d.pointsCost=Number(d.pointsCost||0);return d;});
+submitAdminForm("adminCodeForm","/rewards/codes","codeStatus",function(d){d.points=Number(d.points||0);d.dataMb=Number(d.dataMb||0);d.maxRedemptions=Number(d.maxRedemptions||0);return d;});
+submitAdminForm("adminMessageForm","/messages","messageStatus");
+submitAdminForm("adminPointsForm","/users/"+encodeURIComponent("PLACEHOLDER")+"/points","pointsStatus");
+$("adminPointsForm").addEventListener("submit",function(event){event.preventDefault();var d=formData(event.currentTarget);api("/users/"+encodeURIComponent(d.userId)+"/points",{method:"POST",body:JSON.stringify({points:Number(d.points),reason:d.reason})}).then(function(r){$("pointsStatus").textContent="Adjustment saved. New balance: "+r.pointsBalance;event.currentTarget.reset();refreshFeatures();}).catch(function(e){$("pointsStatus").textContent=e.message;});});
+function refresh(){api("/dashboard").then(function(d){render(d.dashboard);refreshFeatures();$("loginStatus").textContent="Dashboard loaded."; $("loginCard").hidden=true; $("adminPanel").hidden=false;}).catch(function(e){$("loginStatus").textContent=e.message;});}
 $("login").addEventListener("click",function(){key=$("adminKey").value.trim();if(!key){$("loginStatus").textContent="Enter the admin key.";return;}refresh();});
 $("refresh").addEventListener("click",refresh);
 var oldRefresh=refresh; 
