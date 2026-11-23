@@ -161,6 +161,33 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun getDeviceInfo(): String {
+            val hasEuicc = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)
+            val euiccEnabled = runCatching {
+                getSystemService(EuiccManager::class.java)?.isEnabled == true
+            }.getOrDefault(false)
+            val installationId = esimPrefs.getString("device_installation_id", null)
+                ?: java.util.UUID.randomUUID().toString().replace("-", "").also {
+                    esimPrefs.edit().putString("device_installation_id", it).apply()
+                }
+            val manufacturer = Build.MANUFACTURER?.trim().orEmpty()
+            val model = Build.MODEL?.trim().orEmpty()
+            val deviceName = listOf(manufacturer, model).filter { it.isNotBlank() }.distinct().joinToString(" ")
+            return JSONObject()
+                .put("clientDeviceId", "android_" + installationId)
+                .put("deviceName", deviceName.ifBlank { "Android device" })
+                .put("manufacturer", manufacturer)
+                .put("model", model)
+                .put("platform", "android")
+                .put("osVersion", Build.VERSION.RELEASE ?: "unknown")
+                .put("sdkInt", Build.VERSION.SDK_INT)
+                .put("eSimSupportKnown", true)
+                .put("hasEuiccHardware", hasEuicc)
+                .put("euiccEnabled", euiccEnabled)
+                .toString()
+        }
+
+        @JavascriptInterface
         fun openSimSettings() {
             runOnUiThread { openAndroidSimSettings() }
         }
