@@ -117,15 +117,30 @@ test('existing subscriber session opens account dashboard, not registration pane
   const addedDevice = await request('/api/v1/devices', {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ clientDeviceId: 'device_test_reference_000001', deviceName: 'Test phone', platform: 'android', model: 'Test model' })
+    body: JSON.stringify({ clientDeviceId: 'android_test_reference_000001', deviceName: 'OPPO CPH2127', manufacturer: 'OPPO', platform: 'android', model: 'CPH2127', osVersion: '11', eSimSupportKnown: true, hasEuiccHardware: true, euiccEnabled: true })
   });
   assert.equal(addedDevice.status, 201);
   const devices = await request('/api/v1/devices', { headers: authHeaders() });
   assert.equal(devices.status, 200);
   assert.equal(devices.body.devices.length, 1);
+  assert.equal(devices.body.devices[0].manufacturer, 'OPPO');
+  assert.equal(devices.body.devices[0].model, 'CPH2127');
+  assert.equal(devices.body.devices[0].hasEuiccHardware, true);
+  assert.equal(devices.body.devices[0].euiccEnabled, true);
+
   const profileRequest = await request('/api/v1/devices/' + addedDevice.body.device.id + '/profile', { method: 'POST', headers: authHeaders() });
   assert.equal(profileRequest.status, 202);
   assert.equal(profileRequest.body.profile.status, 'awaiting_verification');
+  const incompatibleDevice = await request('/api/v1/devices', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ clientDeviceId: 'android_no_esim_reference_00001', deviceName: 'Basic phone', manufacturer: 'Example', model: 'No-eSIM', platform: 'android', eSimSupportKnown: true, hasEuiccHardware: false, euiccEnabled: false })
+  });
+  assert.equal(incompatibleDevice.status, 201);
+  const incompatibleProfile = await request('/api/v1/devices/' + incompatibleDevice.body.device.id + '/profile', { method: 'POST', headers: authHeaders() });
+  assert.equal(incompatibleProfile.status, 409);
+  assert.match(incompatibleProfile.body.error, /does not have eSIM hardware/);
+
 
   assert.equal(Array.isArray(me.body.tickets), true);
   assert.equal(Array.isArray(me.body.privacyRequests), true);
@@ -273,6 +288,8 @@ test('unsigned or unconfigured provider callbacks cannot create live service', a
 
 test('the subscriber UI hides authentication when a session exists and keeps it available for signed-out users', () => {
   const accountJs = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
+  assert.match(accountJs, /getDeviceInfo/);
+  assert.doesNotMatch(accountJs, /portalDeviceName|portalDevicePlatform|portalDeviceModel/);
   assert.match(accountJs, /#activateView \[hidden\]\{display:none!important\}/);
   assert.match(accountJs, /portalAuth"\)\.hidden = true/);
   assert.match(accountJs, /portalMember"\)\.hidden = false/);
@@ -280,6 +297,7 @@ test('the subscriber UI hides authentication when a session exists and keeps it 
   assert.match(accountJs, /credentials:"same-origin"/);
 
   const mainHtml = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
+  assert.doesNotMatch(mainHtml, /<span>My eSIM<\/span>/);
   const inline = mainHtml.match(/<script>([\s\S]*?)<\/script>/);
   assert.ok(inline, 'main inline script exists');
   assert.doesNotThrow(() => new Function(inline[1]));
