@@ -10,8 +10,15 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
       issuedAt: profile.issuedAt || null, activatedAt: profile.activatedAt || null };
   }
   function deviceView(device, profile) {
-    return { id: device.id, deviceName: device.deviceName, platform: device.platform, model: device.model || null,
-      status: device.status, createdAt: device.createdAt, latestProfile: profile ? profileView(profile) : null };
+    return {
+      id: device.id, deviceName: device.deviceName, manufacturer: device.manufacturer || null,
+      platform: device.platform, model: device.model || null, osVersion: device.osVersion || null,
+      eSimSupportKnown: device.eSimSupportKnown === true,
+      hasEuiccHardware: typeof device.hasEuiccHardware === 'boolean' ? device.hasEuiccHardware : null,
+      euiccEnabled: typeof device.euiccEnabled === 'boolean' ? device.euiccEnabled : null,
+      status: device.status, createdAt: device.createdAt,
+      latestProfile: profile ? profileView(profile) : null
+    };
   }
   async function listDevices(user) {
     const store = await loadStore();
@@ -26,15 +33,21 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
     if (!/^[a-zA-Z0-9_-]{16,128}$/.test(clientId)) throw Object.assign(new Error('Device identification is invalid.'), { statusCode: 400 });
     const platform = String(data.platform || 'other').toLowerCase();
     if (!['android','ios','other'].includes(platform)) throw Object.assign(new Error('Unsupported device platform.'), { statusCode: 400 });
-    const name = String(data.deviceName || 'My device').trim().slice(0,80);
+    const manufacturer = String(data.manufacturer || '').trim().slice(0,80);
     const model = String(data.model || '').trim().slice(0,100);
+    const name = String(data.deviceName || [manufacturer, model].filter(Boolean).join(' ') || 'This device').trim().slice(0,100);
+    const osVersion = String(data.osVersion || '').trim().slice(0,40);
+    const eSimSupportKnown = data.eSimSupportKnown === true;
+    const hasEuiccHardware = eSimSupportKnown ? data.hasEuiccHardware === true : null;
+    const euiccEnabled = eSimSupportKnown ? data.euiccEnabled === true : null;
     const clientHash = hashToken(clientId);
     return transact(store => {
       let device = store.devices.find(x => x.userId === user.id && x.clientDeviceHash === clientHash);
-      if (device) { device.deviceName = name; device.platform = platform; device.model = model; device.updatedAt = new Date().toISOString(); }
-      else {
+      if (device) {
+        Object.assign(device, { deviceName: name, manufacturer, platform, model, osVersion, eSimSupportKnown, hasEuiccHardware, euiccEnabled, updatedAt: new Date().toISOString() });
+      } else {
         const now = new Date().toISOString();
-        device = { id: crypto.randomUUID(), userId: user.id, clientDeviceHash: clientHash, deviceName: name, platform, model, status: 'registered', createdAt: now, updatedAt: now };
+        device = { id: crypto.randomUUID(), userId: user.id, clientDeviceHash: clientHash, deviceName: name, manufacturer, platform, model, osVersion, eSimSupportKnown, hasEuiccHardware, euiccEnabled, status: 'registered', createdAt: now, updatedAt: now };
         store.devices.push(device);
         store.audit.push({ id: crypto.randomUUID(), event: 'device.registered', subject: device.id, at: now });
       }
@@ -115,6 +128,12 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
     const crypto = require('node:crypto');
     const snapshot = await loadStore(), device = snapshot.devices.find(x => x.id === deviceId && x.userId === user.id);
     if (!device) throw Object.assign(new Error('This device is not registered to your account.'), { statusCode: 404 });
+    if (device.eSimSupportKnown === true && device.hasEuiccHardware === false) {
+      throw Object.assign(new Error('This phone does not have eSIM hardware. Use an eSIM-compatible phone to request a profile.'), { statusCode: 409 });
+    }
+    if (device.eSimSupportKnown === true && device.hasEuiccHardware === true && device.euiccEnabled === false) {
+      throw Object.assign(new Error('eSIM hardware was detected, but eSIM support is disabled on this phone.'), { statusCode: 409 });
+    }
     let profile = snapshot.profiles.filter(x => x.deviceId === device.id && x.userId === user.id && !['provider_error','cancelled'].includes(x.status)).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
     if (profile) {
       if (profile.status === 'verification_required' && user.kycStatus === 'verified') {
