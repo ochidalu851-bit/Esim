@@ -206,7 +206,7 @@
   function renderDevice(device) {
     const profile = device.latestProfile;
     const state = profile ? profile.status : "not_requested";
-    const request = !profile || ["provider_error","cancelled","awaiting_partners"].includes(state)
+    const request = !profile || ["provider_error","cancelled","awaiting_partners","awaiting_verification","verification_required"].includes(state)
       ? '<button class="portal-action" data-device-request="' + escapeHtml(device.id) + '" type="button">Request / check profile</button>' : "";
     const install = profile && ["profile_issued","active"].includes(state)
       ? '<button class="portal-action" data-device-install="' + escapeHtml(device.id) + '" type="button">Install eSIM profile</button>' : "";
