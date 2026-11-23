@@ -14,7 +14,7 @@ body{min-height:100svh;overscroll-behavior-y:contain}
 button,input{font:inherit}
 button{color:inherit}
 .app{width:100%;max-width:760px;min-height:100svh;margin:0 auto;background:var(--bg);position:relative}
-.screen{min-height:100svh;display:none;flex-direction:column}
+.screen{min-height:100svh;display:none;flex-direction:column}.screen#countryScreen{height:100svh;height:100dvh;min-height:0;overflow:hidden}
 .screen.active{display:flex}
 .country-head{position:sticky;top:0;z-index:5;background:var(--bg);padding:20px 16px 0}
 .back-row{height:48px;display:flex;align-items:center}
@@ -25,7 +25,7 @@ button{color:inherit}
 .search-wrap svg{width:19px;height:19px;flex:none;color:#8e98ad}
 .search-wrap input{border:0;outline:0;background:transparent;color:#f4f5f9;width:100%;font-size:13px;padding:0}
 .search-wrap input::placeholder{color:#7e879a;opacity:1}
-.country-list{padding:0 16px 28px;overflow-y:auto;overscroll-behavior:contain;flex:1}
+.country-list{padding:0 16px 28px;overflow-y:auto;overscroll-behavior:contain;flex:1;min-height:0}
 .country-row{min-height:48px;width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) 18px;align-items:center;gap:9px;padding:5px 0;border:0;background:transparent;text-align:left;border-radius:9px}
 .country-row:active{background:#151820}
 .country-flag{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:27px;line-height:1;background:#161820;flex:none}
@@ -177,7 +177,7 @@ function openPlans(id){
  document.getElementById("selectedCountryFlag").textContent=flagFor(selectedDestination);
  countryScreen.classList.remove("active");
  plansScreen.classList.add("active");
- window.scrollTo({top:0,behavior:"instant"});
+ window.scrollTo(0,0);
 }
 function openCountryList(){
  plansScreen.classList.remove("active");
