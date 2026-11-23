@@ -49,14 +49,6 @@ button{color:inherit}
 .network-stat span{font-size:13px;color:#f0f1f6;white-space:nowrap}
 .network-stat strong{font-size:13px;color:#a9b5d1;font-weight:550;min-width:0;overflow-wrap:anywhere}
 .network-divider{width:1px;height:27px;background:#353843;flex:none}
-.local-networks-wrap{margin:22px 16px 0}
-.local-networks-title{font-size:12px;font-weight:750;letter-spacing:.05em;color:#8490aa;margin-bottom:10px}
-.operator-list{display:flex;flex-wrap:wrap;gap:8px}
-.operator-card{display:flex;align-items:center;gap:8px;max-width:100%;padding:9px 10px;background:#111319;border:1px solid #252934;border-radius:11px}
-.operator-name{font-size:12px;color:#e8eaf0;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.operator-generations{font-size:10px;color:#a3b3d9;white-space:nowrap}
-.network-disclaimer{font-size:10px;line-height:1.5;color:#737f97;margin:10px 1px 0}
-.network-disclaimer a{color:#9aabd5;text-decoration:underline}
 .plan-content{padding:0 16px;flex:1}
 .plan-section{margin:82px 0 13px;color:#8490aa;font-size:14px;line-height:18px;font-weight:700;letter-spacing:.035em}
 .no-plans{border:1px solid #20232b;background:#0d0f13;border-radius:20px;padding:22px 18px;color:#a2abc0;line-height:1.55;font-size:13px}
@@ -105,11 +97,6 @@ button{color:inherit}
   <div class="plan-type" role="tablist" aria-label="Plan type">
     <button type="button" role="tab" aria-selected="true" class="active">Data</button>
   </div>
-  <section class="local-networks-wrap" aria-live="polite">
-    <div class="local-networks-title">LOCAL NETWORK OPERATORS</div>
-    <div class="operator-list" id="localNetworkOperators"><div class="no-results">Checking country network records…</div></div>
-    <p class="network-disclaimer" id="networkDisclaimer">These are local mobile-network records, not confirmation that an eSIM plan can roam on them. Actual access depends on the eSIM provider's agreements and local coverage. <a href="https://mcc-mnc.org" target="_blank" rel="noopener noreferrer">Network data source</a>.</p>
-  </section>
   <main class="plan-content">
     <div class="plan-section">DATA PLANS</div>
     <div class="no-plans">
@@ -207,33 +194,15 @@ function openPlans(id){
 async function loadNetworkInfo(destination){
  const provider=document.getElementById("esimProviderName");
  const speed=document.getElementById("networkSpeed");
- const operatorList=document.getElementById("localNetworkOperators");
- const disclaimer=document.getElementById("networkDisclaimer");
  provider.textContent="Not connected";
  speed.textContent="Checking…";
- operatorList.innerHTML='<div class="no-results">Checking country network records…</div>';
- disclaimer.innerHTML='These are local mobile-network records, not confirmation that an eSIM plan can roam on them. Actual access depends on the eSIM provider\'s agreements and local coverage. <a href="https://mcc-mnc.org" target="_blank" rel="noopener noreferrer">Network data source</a>.';
  try{
   const response=await fetch("/api/network-info?destinationId="+encodeURIComponent(destination.id));
   const data=await response.json();
   if(!response.ok||data.available!==true) throw new Error(data.message||"Country network information is unavailable.");
-  if(data.provider&&data.provider.name) provider.textContent=data.provider.name;
   speed.textContent=Array.isArray(data.generations)&&data.generations.length?data.generations.join(" / "):"Not verified";
-  const operators=Array.isArray(data.operators)?data.operators:[];
-  if(operators.length){
-   operatorList.innerHTML=operators.map(item=>{
-    const gens=Array.isArray(item.generations)?item.generations:[];
-    return '<div class="operator-card"><span class="operator-name">'+escapeHtml(item.name)+'</span><span class="operator-generations">'+gens.map(escapeHtml).join(" / ")+'</span></div>';
-   }).join("");
-  }else{
-   operatorList.innerHTML='<div class="no-results">No verified 3G+ operator records for this destination.</div>';
-  }
-  const registerCountry=data.sourceCountryName||destination.name;
-  disclaimer.innerHTML='Network register: '+escapeHtml(registerCountry)+'. 2G-only records are omitted. These local capabilities do not guarantee eSIM roaming or coverage in every area. <a href="https://mcc-mnc.org" target="_blank" rel="noopener noreferrer">Network data source</a>.';
  }catch(error){
   speed.textContent="Not verified";
-  operatorList.innerHTML='<div class="no-results">Country network data could not be verified. Please try again later.</div>';
-  disclaimer.innerHTML='The app could not retrieve a verified operator list for this destination. No provider or speed claims are being made. <a href="https://mcc-mnc.org" target="_blank" rel="noopener noreferrer">Network data source</a>.';
  }
 }
 
