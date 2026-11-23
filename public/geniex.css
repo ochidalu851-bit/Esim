@@ -3,3 +3,23 @@
 @media(min-width:560px){.app-shell{border-left:1px solid #263649;border-right:1px solid #263649}.screen{padding-left:20px;padding-right:20px}}
 @media(max-width:360px){.screen{padding:13px 12px 22px}.home-connect{gap:10px;padding:13px 11px}.power-button{width:94px;height:94px;flex-basis:94px}.connection-copy h1{font-size:19px}.home-tile{padding:12px 10px}.tile-value{font-size:24px}.quick-grid{gap:7px}.quick-item{font-size:9px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+body.light-theme{color-scheme:light;background:#e9eef3;color:#172332}
+body.light-theme .app-shell{background:#f4f7fa;color:#172332}
+body.light-theme .app-header{background:linear-gradient(180deg,#fff,#f3f7fa);border-bottom-color:#dce4eb}
+body.light-theme .brand{color:#152536}
+body.light-theme .brand-copy small,body.light-theme .eyebrow,body.light-theme .muted{color:#64778a}
+body.light-theme .screen .panel,body.light-theme .home-tile,body.light-theme .list-row,body.light-theme .menu-action,body.light-theme .stat-box,body.light-theme .quick-item{background:#fff;color:#1c2b3b;border-color:#dfe7ee;box-shadow:0 5px 14px #14283a0a}
+body.light-theme .home-connect{box-shadow:0 10px 26px #193a2b1c}
+body.light-theme .home-tile .tile-note,body.light-theme .row-copy small,body.light-theme .menu-action .muted{color:#65798d}
+body.light-theme .bottom-nav{background:#fffffff2;border-top-color:#d9e2e9}
+body.light-theme .nav-item{color:#66798d}
+body.light-theme .nav-item.active{color:#009d60}
+body.light-theme .field input,body.light-theme .field select,body.light-theme .field textarea{background:#fff;color:#172332;border-color:#cbd7e1}
+body.light-theme .data-tabs,body.light-theme .auth-switch{background:#e3eaf1}
+body.light-theme .data-tabs button,body.light-theme .auth-switch button{color:#52667c}
+body.light-theme .data-tabs button.active,body.light-theme .auth-switch button.active{background:#d1dde8;color:#172332}
+body.light-theme .back-button,body.light-theme .secondary-button,body.light-theme .small-button{background:#eef3f7;color:#203247;border-color:#d1dce6}
+body.light-theme .status-banner{background:#fff8e8;color:#705a23;border-color:#e6d49e}
+body.light-theme .balance-card{background:linear-gradient(125deg,#e2f5ea,#deedf4);color:#18352b;border-color:#b8e1ce}
+body.light-theme .balance-card small,body.light-theme .balance-card .balance-label{color:#436e5b}
+body.reduce-motion *,body.reduce-motion *:before,body.reduce-motion *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
