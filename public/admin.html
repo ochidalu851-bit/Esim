@@ -108,15 +108,21 @@ function renderFeatureData(data){
  function addFulfilmentActions(collection,type,finalStatus,label){
   (collection||[]).forEach(function(x){
    if(!["awaiting_sponsor_fulfilment","awaiting_provider","awaiting_airtime_partner"].includes(x.status))return;
-   var button=document.createElement("button");button.className="btn secondary";button.type="button";button.textContent=label;
+   var evidence=document.createElement("input");evidence.className="input";evidence.placeholder="Supplier / sponsor transaction reference";evidence.maxLength=120;evidence.required=true;
+   evidence.setAttribute("aria-label","Supplier or sponsor fulfilment reference");
+   var note=document.createElement("input");note.className="input";note.placeholder="Fulfilment note (optional)";note.maxLength=500;
+   var button=document.createElement("button");button.className="btn secondary";button.type="button";button.textContent=label;button.disabled=true;
+   evidence.addEventListener("input",function(){button.disabled=evidence.value.trim().length<3;});
    button.addEventListener("click",function(){
-    if(!window.confirm("Only confirm this after the supplier or sponsor has actually completed the delivery. Continue?"))return;
+    var supplierReference=evidence.value.trim();
+    if(supplierReference.length<3){$("featureQueues").textContent="A real supplier or sponsor reference is required.";return;}
+    if(!window.confirm("Confirm only after the supplier or sponsor has completed the delivery and provided this reference: "+supplierReference))return;
     button.disabled=true;
-    api("/features/fulfilment",{method:"POST",body:JSON.stringify({type:type,id:x.id,status:finalStatus})})
+    api("/features/fulfilment",{method:"POST",body:JSON.stringify({type:type,id:x.id,status:finalStatus,supplierReference:supplierReference,message:note.value.trim()})})
       .then(function(){refreshFeatures();})
       .catch(function(e){$("featureQueues").textContent=e.message;button.disabled=false;});
    });
-   $("featureQueues").appendChild(button);
+   var control=document.createElement("div");control.className="form";control.style.marginTop="8px";control.appendChild(evidence);control.appendChild(note);control.appendChild(button);$("featureQueues").appendChild(control);
   });
  }
  addFulfilmentActions(r.orders,"store_order","fulfilled","Confirm sponsor fulfilment");
