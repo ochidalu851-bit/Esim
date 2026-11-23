@@ -527,7 +527,7 @@ async function route(req, res, url) {
   const legacyCheckout = url.pathname === '/api/v1/plans' ||
     url.pathname === '/api/v1/esim/orders' ||
     url.pathname.startsWith('/api/v1/esim/orders/') ||
-    url.pathname === '/api/v1/payments/paystack/webhook' ||
+    url.pathname.startsWith('/api/v1/payments/') ||
     url.pathname === '/api/v1/admin/plans' ||
     url.pathname.startsWith('/api/v1/admin/plans/');
   if (legacyCheckout) return send(res, 410, { ok: false, code: 'SPONSORED_DEVICE_PROFILE_FLOW', error: 'Customer data-package sales are disabled. Register a device and request its sponsored eSIM profile.' });
@@ -565,6 +565,22 @@ async function route(req, res, url) {
     const result = await login(await body(req));
     return send(res, 200, { ok: true, user: result.user }, { 'set-cookie': sessionCookie(result.token) });
   }
+  if (p === '/api/v1/auth/change-password' && m === 'POST') {
+    const user = await signedIn(req), data = await body(req);
+    const currentPassword = String(data.currentPassword || ''), newPassword = String(data.newPassword || '');
+    if (!verifyPassword(currentPassword, user.passwordHash)) throw Object.assign(new Error('Current password is incorrect.'), { statusCode: 403 });
+    if (newPassword.length < 10 || newPassword.length > 256 || newPassword === currentPassword) throw Object.assign(new Error('Choose a different password with at least 10 characters.'), { statusCode: 400 });
+    const keepTokenHash = hashToken(tokenFrom(req));
+    await transact(store => {
+      const member = store.users.find(x => x.id === user.id && x.status === 'active');
+      if (!member) throw Object.assign(new Error('Account is unavailable.'), { statusCode: 403 });
+      member.passwordHash = hashPassword(newPassword);
+      member.passwordChangedAt = new Date().toISOString();
+      store.sessions = store.sessions.filter(x => x.userId !== user.id || x.tokenHash === keepTokenHash);
+      store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.password_changed', subject: user.id, at: member.passwordChangedAt });
+    });
+    return send(res, 200, { ok: true, message: 'Your password was changed. Other signed-in sessions were signed out.' });
+  }
   if (p === '/api/v1/auth/logout' && m === 'POST') {
     const token = tokenFrom(req), tokenHash = token ? hashToken(token) : '';
     await transact(store => { store.sessions = store.sessions.filter(x => x.tokenHash !== tokenHash); });
@@ -595,6 +611,9 @@ async function route(req, res, url) {
   }
   if (p === '/api/v1/app/check-in' && m === 'POST') {
     return send(res, 201, { ok: true, ...(await expertFeatures.checkIn(await signedIn(req))) });
+  }
+  if (p === '/api/v1/app/spin' && m === 'POST') {
+    return send(res, 201, { ok: true, ...(await expertFeatures.spinReward(await signedIn(req))) });
   }
   const taskClaim = p.match(/^\/api\/v1\/app\/tasks\/([a-z0-9_-]+)\/claim$/i);
   if (taskClaim && m === 'POST') return send(res, 201, { ok: true, ...(await expertFeatures.claimTask(await signedIn(req), taskClaim[1])) });
@@ -723,7 +742,6 @@ async function route(req, res, url) {
       });
       return send(res, 200, { ok: true, request: updated });
     }
-    if (publish && m === 'POST') return send(res, 200, { ok: true, plan: await publishPlan(publish[1]) });
     return send(res, 404, { ok: false, error: 'Admin endpoint not found.' });
   }
   if (p === '/api/esim/connect' && m === 'POST') return send(res, 503, { ok: false, connected: false, code: 'ESIM_SERVICE_NOT_PROVISIONED', message: 'No authorised Expert eSIM subscription is assigned to this device yet.' });
