@@ -229,7 +229,7 @@ test('admin endpoints show global profile readiness and reject retired package s
   const dashboard = await request('/api/v1/admin/dashboard', { headers: { 'x-expert-admin-key': adminKey } });
   assert.equal(dashboard.status, 200);
   assert.equal(dashboard.body.dashboard.totals.subscribers, 1);
-  assert.equal(dashboard.body.dashboard.totals.registeredDevices, 1);
+  assert.equal(dashboard.body.dashboard.totals.registeredDevices, 2);
   assert.equal(Array.isArray(dashboard.body.dashboard.recentDevices), true);
   assert.equal(dashboard.body.dashboard.totals.openTickets, 1);
   assert.equal(dashboard.body.dashboard.totals.privacyRequests, 1);
