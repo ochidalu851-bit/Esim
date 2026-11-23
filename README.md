@@ -1,91 +1,106 @@
 # Expert eSIM
 
-Expert eSIM is a mobile-first customer app and technical foundation for a Nigeria-first branded mobile-data/eSIM service.
+Expert eSIM is a global, sponsor-funded mobile-data/eSIM platform. The intended model is that Expert eSIM pays its contracted connectivity provider, while eligible users receive an individual eSIM profile for each registered device. The customer app is not designed as a data-package shop and does not ask users to purchase data.
 
 ## Customer experience
 
-- Create an account once; after a valid session, My eSIM opens the subscriber dashboard rather than showing the registration/sign-in panel.
-- Secure sign-in sessions use an HttpOnly, Secure, SameSite cookie.
-- Subscriber email verification is available through the configured email provider.
-- Telecom identity verification is handed off to a configured authorised provider; Expert eSIM does not collect raw NIN or biometric images in its own form.
-- Customer data packages, eSIM orders, payment status and profile installation are shown in My eSIM.
-- Payments use Paystack server-side initialization and signed webhook/transaction verification.
-- My eSIM includes support cases, privacy-rights requests and a personal-data export.
-- Preferred Network supports Automatic, 4G LTE and 5G preferences, targeted to the saved eSIM subscription where Android and carrier privileges permit.
-- Speed testing measures the phone's active internet connection.
+- One account per customer, with a secure HttpOnly session cookie.
+- A user registers each device separately from that device's installation of Expert eSIM.
+- Each device receives its own profile request and independent lifecycle state.
+- The app can show profile requested, awaiting partners, provisioning, profile issued, active, provider error and partner-review states.
+- An activation code is released only to the owning subscriber after the provider confirms that the profile carries the contracted unlimited-data and global-roaming attributes.
+- Identity checks are routed through a generic authorised provider when required by the connectivity partner or applicable market rules.
+- Users can request support and privacy actions and export their account data.
+- Preferred Network and Speed Test remain separate features. A speed test measures the connection currently active on the phone; it does not prove that the Expert eSIM profile is supplying connectivity.
 
-## Backend and operations
+## Global coverage and unlimited-data boundary
 
-The Node.js API stores subscriber, consent, session, plan, order, payment-event, support and privacy-request records in a persistent Railway volume mounted at /data.
+“Global” means the platform is designed to use a global roaming/connectivity partner. It does **not** mean every country, territory, network, device or radio band is automatically covered. The live provider's country/territory coverage, local restrictions, permanent-roaming rules, fair-use policy, traffic management, tethering policy and supported radio technologies must be confirmed in the signed agreement.
 
-Important routes:
+The backend will only issue a profile after all these production conditions are confirmed:
+- Global connectivity provider name and active agreement.
+- Authorised consumer eSIM / SM-DP+ provisioning partner.
+- Global coverage confirmation.
+- Contractual unlimited-data confirmation.
+- Profile API credentials and signed profile callback.
+- Profile encryption key.
+- Configured identity verification partner.
+- Privacy governance and customer-support readiness.
+- Explicit service launch switch.
 
-- GET /health and GET /api/v1/status — health and launch readiness.
-- POST /api/v1/auth/register, /login, /logout, /verification/send — customer access.
-- GET /api/v1/auth/verify-email — one-time email verification.
-- GET /api/v1/me — authenticated customer dashboard data.
-- POST /api/v1/kyc/start and POST /api/v1/kyc/webhook — hosted identity verification.
-- GET /api/v1/plans — packages that passed the publication gate.
-- POST and GET /api/v1/esim/orders — customer subscription orders.
-- POST /api/v1/esim/orders/:id/pay and POST /api/v1/payments/paystack/webhook — payments.
-- GET /api/v1/esim/orders/:id/profile — profile details only for the owning subscriber after payment and provider issuance.
-- POST /api/v1/provider/webhook — signed SM-DP+/eSIM-provider lifecycle callback.
-- POST /api/v1/support/tickets and POST /api/v1/privacy/requests — customer service and data-rights workflow.
-- GET /api/v1/privacy/export — authenticated subscriber data export.
-- /admin — protected operations dashboard.
+A provider response must independently confirm `unlimitedData: true` (or `dataPolicy: "unlimited"`) and `coverageScope: "global"` (or `roamingScope: "global"`) before activation details are released. A label in the app or an environment flag cannot create unlimited service or expand a provider's real coverage.
 
-Passwords are scrypt-hashed, session tokens are stored as SHA-256 hashes, profile activation material is AES-256-GCM encrypted at rest, provider callbacks are signature-checked, mutating browser APIs enforce same-origin requests, and login/registration/admin requests are rate-limited.
+## API routes
 
-## Railway secrets and partner readiness
+- `GET /health` and `GET /api/v1/status` — health and global connectivity readiness.
+- `POST /api/v1/auth/register`, `/login`, `/logout`, `/verification/send` — account access.
+- `GET /api/v1/auth/verify-email` — one-time email verification.
+- `GET /api/v1/me` — authenticated account and registered devices.
+- `POST /api/v1/kyc/start` and `POST /api/v1/kyc/webhook` — generic market/partner identity verification.
+- `GET /api/v1/devices` and `POST /api/v1/devices` — list/register the subscriber's devices.
+- `POST /api/v1/devices/:id/profile` — request or resume that device's individual sponsored eSIM profile.
+- `GET /api/v1/devices/:id/profile` — retrieve activation details only after provider-confirmed issuance.
+- `POST /api/v1/global-esim/webhook` — signed global profile lifecycle callback.
+- `POST /api/v1/support/tickets` and `POST /api/v1/privacy/requests` — customer support and privacy workflow.
+- `GET /api/v1/privacy/export` — authenticated personal-data export.
+- `/admin` — protected operations dashboard.
 
-Already provisioned:
-- DATA_DIR=/data
-- EXPERT_ESIM_ADMIN_KEY
-- ESIM_PROFILE_ENCRYPTION_KEY (32-byte base64url key)
-- ESIM_PROVIDER_WEBHOOK_SECRET
+The older package/payment endpoints remain in the backend for compatibility with prior records, but they are not part of the current sponsored customer workflow. Customer-side package checkout has been removed from My eSIM.
 
-Required after selecting and contracting partners:
-- ESIM_PROVIDER_CREATE_ORDER_URL and ESIM_PROVIDER_API_KEY
-- HOST_NETWORK_NAME and HOST_NETWORK_AGREEMENT_ACTIVE=true, only after the signed wholesale agreement is effective
-- SMDP_PARTNER_ACTIVE=true, only after the authorised SM-DP+ partner is operational
-- KYC_PROVIDER_START_URL, KYC_PROVIDER_API_KEY and KYC_PROVIDER_WEBHOOK_SECRET for an authorised identity-verification route
-- PAYSTACK_SECRET_KEY and PAYSTACK_WEBHOOK_SECRET
-- RESEND_API_KEY and EXPERT_ESIM_EMAIL_FROM
-- NCC_MVNO_LICENCE_CONFIRMED=true, PRIVACY_GOVERNANCE_READY=true, CONSUMER_SUPPORT_READY=true and EXPERT_ESIM_SERVICE_ENABLED=true only after the actual licence, privacy and operating controls are in place
+## Global provider integration contract
 
-The service will not publish data plans or issue profiles merely because a variable is set. The company officer must only set the launch flags after the underlying documents, partner integrations and controls have been verified.
+Required Railway variables (do not paste secrets into chat or commit them):
+- `GLOBAL_ESIM_PROFILE_API_URL`
+- `GLOBAL_ESIM_PROFILE_API_KEY`
+- `ESIM_PROVIDER_WEBHOOK_SECRET`
+- `GLOBAL_CONNECTIVITY_PROVIDER_NAME`
+- `GLOBAL_CONNECTIVITY_AGREEMENT_ACTIVE=true` only after the agreement is signed and effective
+- `GLOBAL_ESIM_GLOBAL_COVERAGE_CONFIRMED=true` only after the provider's coverage matrix has been checked
+- `GLOBAL_ESIM_UNLIMITED_DATA_CONFIRMED=true` only after the commercial agreement explicitly provides sponsored unlimited data and its fair-use conditions are documented
+- `SMDP_PARTNER_ACTIVE=true` only after the authorised consumer profile provider is operational
+- `GLOBAL_IDENTITY_PROVIDER_START_URL`, `GLOBAL_IDENTITY_PROVIDER_API_KEY`, `GLOBAL_IDENTITY_PROVIDER_WEBHOOK_SECRET` where partner or market rules require checks
+- `RESEND_API_KEY`, `EXPERT_ESIM_EMAIL_FROM` for account email verification
+- `ESIM_PROFILE_ENCRYPTION_KEY` (32-byte base64url key)
+- `PRIVACY_GOVERNANCE_READY=true`, `CONSUMER_SUPPORT_READY=true`, `EXPERT_ESIM_SERVICE_ENABLED=true` only after the actual controls and service readiness have been approved
 
-## Provider integration contracts
+The profile API receives a subscriber reference, a unique Expert eSIM device reference, device name/platform/model, a requested `unlimited` data policy, `sponsored-by-expert-esim` funding and a `global` roaming scope. The provider must return a profile activation code and explicitly confirm the service attributes, or send an equivalent signed callback. Vendor-specific APIs may need a dedicated adapter before production use.
 
-The eSIM order adapter sends order reference, subscriber reference, plan details, network preference and the minimum customer fields required by the provider. The provider may return a profile in its synchronous result or later send signed lifecycle events:
-- esim.profile.issued
-- esim.profile.activated
-- esim.profile.failed
+Signed callbacks use HMAC-SHA256 over the raw JSON body in the `x-expert-signature` header. Supported lifecycle events are:
+- `esim.profile.issued` — must include activation details plus explicit unlimited/global confirmation.
+- `esim.profile.activated` — marks the device profile active only after confirmed issuance.
+- `esim.profile.failed` — records a provisioning failure.
 
-The Paystack adapter checks the raw webhook payload, timestamp/signature, reference, amount and currency, then verifies the transaction through Paystack before marking an order paid and starting provisioning.
+The API and callback contract is a generic integration boundary. No global connectivity provider, roaming footprint, unlimited-data entitlement or eSIM profile is represented as live until a real partner is selected, contracted, configured and tested.
 
-The KYC adapter sends the subscriber to a hosted verification URL and accepts signed partner status callbacks. It does not request raw NIN, fingerprint or facial images inside the Expert eSIM application.
+## Global partner selection
 
-These are integration adapters. No host MNO, SM-DP+, KYC or payment partner is represented as live until their credentials and commercial agreements are supplied and tested.
+Potential providers to approach for commercial discussions include 1GLOBAL Connect and Telna. Their public materials describe partner APIs and multi-country/global connectivity capabilities; this is not proof that either has accepted Expert eSIM, offers unlimited data in every territory, or has issued credentials. See:
+- 1GLOBAL Connect: https://docs.connect-api.1global.com/getting-started/
+- Telna global network: https://www.telna.com/network
+- GSMA consumer eSIM specifications: https://www.gsma.com/solutions-and-impact/technologies/esim/esim-specification/
 
-## Regulatory and operational launch requirements
+## Security and storage
 
-See PARTNER_ONBOARDING.md for the detailed work register. The key external prerequisites are:
-1. Registered Nigerian operating company and the appropriate NCC MVNO authorisation.
-2. Completed host-network wholesale agreement and network/APN/data-plan integration.
-3. Authorised consumer SM-DP+ profile provisioning and end-to-end device testing.
-4. NIMC-connected telecom subscriber identity verification, audit and retention.
-5. NDPC privacy governance, DPO contact, DPIA and processor agreements where applicable.
-6. Live payment merchant account, refunds, billing reconciliation and customer support.
-7. Production database, backups, observability, independent security review and signed Android release.
+Passwords are scrypt-hashed, session tokens are stored as SHA-256 hashes, profile activation material is AES-256-GCM encrypted at rest, provider callbacks are signature-checked, browser state-changing APIs enforce same-origin requests, and authentication/admin requests are rate-limited.
 
-The public Terms and Privacy Notice at /legal.html is an interim pre-launch draft with explicit placeholders. It must be completed and reviewed by Nigerian telecom and data-protection counsel before commercial use.
+The JSON store on the persistent Railway volume is currently a single-instance early-stage store. Before scaling, move to managed PostgreSQL with migrations, unique indexes, transaction semantics, encrypted backups and restore drills, plus a shared rate-limit store, queues, monitoring and independent security review.
+
+## Legal and operational launch requirements
+
+See `PARTNER_ONBOARDING.md` for the global work register. Before enabling live service, the operating company must:
+1. Select the intended connectivity business model and obtain required legal authorisations in the countries where the service will be offered.
+2. Sign a wholesale/global roaming connectivity agreement that lists supported countries and partner networks.
+3. Confirm the sponsored unlimited-data policy, including fair-use, speed, tethering and permanent-roaming conditions.
+4. Contract an authorised consumer eSIM/SM-DP+ provider and test real profile issuance, download, activation, suspension and replacement.
+5. Configure market-appropriate identity verification where required.
+6. Complete privacy governance, data-processing agreements, cross-border transfer safeguards, incident response and customer support.
+7. Run device, country, network and service acceptance tests before public launch.
+
+The public Terms and Privacy Notice at `/legal.html` is a global pre-launch draft with legal-entity and contact placeholders. It must be completed and reviewed for each operating market before live customer onboarding.
 
 ## Critical service boundary
 
-The app does not generate valid mobile-network subscriber credentials by itself. Live internet access over an Expert eSIM requires an authorised host network, a real subscriber provisioning record, a valid SM-DP+ profile, successful NIMC/telecom identity checks, a compatible eUICC phone, a paid data plan and host-network confirmation. These conditions are not yet complete, so the product does not claim to provide live Expert eSIM mobile data.
-
-The current JSON store on a 500 MB Railway volume is an early single-instance implementation. It must move to managed PostgreSQL with tested encrypted backups and a shared rate-limit store before multi-replica or commercial-scale operation.
+Software cannot create mobile spectrum, roaming access, subscriber authentication, an authorised eSIM profile or an unlimited-data contract. Live Expert eSIM internet requires a contracted global connectivity provider, real coverage in the user's location, an authorised profile provider, an issued and installed profile, provider-confirmed activation and a compatible device. These conditions are not yet complete in production, so the app does not claim to provide live Expert eSIM mobile data.
 
 ## Run locally
 
