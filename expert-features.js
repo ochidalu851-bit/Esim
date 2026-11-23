@@ -235,9 +235,14 @@ function createExpertFeatures({ loadStore, transact }) {
     const hash = crypto.createHash('sha256').update(code).digest('hex');
     return transact(store => {
       ensure(store);
-      const item = store.redeemCodes.find(x => x.codeHash === hash && ['active','exhausted'].includes(x.status) && (!x.expiresAt || Date.parse(x.expiresAt) > Date.now()));
-      if (!item) throw Object.assign(new Error('This code is invalid, expired or disabled.'), { statusCode: 404 });
-      if (item.status === 'exhausted') throw Object.assign(new Error('This reward code has reached its redemption limit.'), { statusCode: 409 });
+      const item = store.redeemCodes.find(x => x.codeHash === hash);
+      if (!item || !['active','exhausted'].includes(item.status) || (item.expiresAt && Date.parse(item.expiresAt) <= Date.now())) {
+        throw Object.assign(new Error('This code is invalid, expired or disabled.'), { statusCode: 404 });
+      }
+      if (item.status === 'exhausted' || (item.maxRedemptions > 0 && Number(item.redemptionCount || 0) >= item.maxRedemptions)) {
+        item.status = 'exhausted';
+        throw Object.assign(new Error('This reward code has reached its redemption limit.'), { statusCode: 409 });
+      }
       if (store.rewardClaims.some(x => x.userId === user.id && x.codeId === item.id)) throw Object.assign(new Error('This code has already been redeemed by your account.'), { statusCode: 409 });
       const claim = { id: crypto.randomUUID(), userId: user.id, codeId: item.id, type: 'redeem_code', points: item.points || 0, status: item.type === 'data_bonus' ? 'awaiting_provider' : 'redeemed', createdAt: new Date().toISOString() };
       store.rewardClaims.push(claim);
