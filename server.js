@@ -850,8 +850,12 @@ async function route(req, res, url) {
     return res.end(crypto.randomBytes(bytes));
   }
   if (url.pathname === '/api/v1/tools/speedtest/upload' && req.method === 'POST') {
-    const uploaded = await rawBody(req);
-    return send(res, 200, { ok: true, receivedBytes: uploaded.length, measuredAt: new Date().toISOString() });
+    let receivedBytes = 0;
+    for await (const chunk of req) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > 10000000) throw Object.assign(new Error('Speed-test upload is larger than 10 MB.'), { statusCode: 413 });
+    }
+    return send(res, 200, { ok: true, receivedBytes, measuredAt: new Date().toISOString() });
   }
   const legacyCheckout = url.pathname === '/api/v1/plans' ||
     url.pathname === '/api/v1/esim/orders' ||
