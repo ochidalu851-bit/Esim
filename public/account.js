@@ -139,6 +139,8 @@
       payload.phone = $("portalPhone").value.trim();
       payload.acceptedTerms = $("portalTerms").checked;
       payload.acceptedPrivacy = $("portalTerms").checked;
+      const inviteCode = new URLSearchParams(window.location.search).get("ref");
+      if (inviteCode) payload.referralCode = inviteCode;
     }
     try {
       const result = await api("/auth/" + (authMode === "register" ? "register" : "login"), {method:"POST", body:JSON.stringify(payload)});
