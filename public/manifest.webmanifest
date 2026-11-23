@@ -1,7 +1,7 @@
 {
   "name": "Expert eSIM",
   "short_name": "Expert eSIM",
-  "description": "Internet browsing, preferred network and connection speed testing.",
+  "description": "One-button Expert eSIM mobile connection and speed testing.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
