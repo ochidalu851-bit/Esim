@@ -151,7 +151,7 @@ main{flex:1;display:flex;flex-direction:column}
   networkStatus.textContent="Install the Expert eSIM Android app to request network-mode changes on the phone.";
  }
  modeButtons.forEach(btn=>btn.addEventListener("click",()=>{
-  const mode=btn.dataset.mode;networkStatus.textContent="Requesting "+({auto:"automatic",4g:"4G LTE",5g:"5G"}[mode])+" network mode…";
+  const mode=btn.dataset.mode;networkStatus.textContent="Requesting "+({auto:"automatic","4g":"4G LTE","5g":"5G"}[mode])+" network mode…";
   const native=window.ExpertESimNative;
   if(native&&typeof native.setPreferredNetwork==="function"){native.setPreferredNetwork(mode);}
   else networkStatus.textContent="This website cannot change the phone's radio mode. Open it in the Expert eSIM Android app to request this change.";
