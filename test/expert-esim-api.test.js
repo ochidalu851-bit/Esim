@@ -145,9 +145,10 @@ test('existing subscriber session opens account dashboard, not registration pane
   assert.equal(Array.isArray(me.body.tickets), true);
   assert.equal(Array.isArray(me.body.privacyRequests), true);
   assert.equal(me.body.readiness.identityProviderConfigured, false);
-  const staticScript = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
-  assert.match(staticScript, /portalAuth/);
-  assert.doesNotThrow(() => new Function(staticScript));
+  const mobileScript = fs.readFileSync(path.join(root, 'public/geniex-app.js'), 'utf8');
+  assert.ok(mobileScript.includes('getDeviceInfo'));
+  assert.ok(mobileScript.includes('getCurrentNetworkInfo'));
+  assert.doesNotThrow(() => new Function(mobileScript));
 });
 
 test('login creates a fresh secure session; logout invalidates it and clears cookie', async () => {
