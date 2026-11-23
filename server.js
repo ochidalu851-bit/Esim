@@ -361,40 +361,177 @@ async function attachProviderResult(reference, result) {
     return orderView(order);
   });
 }
+async function startOrderProvisioning(orderId) {
+  const snapshot = await loadStore();
+  const found = snapshot.orders.find(item => item.id === orderId);
+  if (!found) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+  if (found.paymentStatus !== 'paid') throw Object.assign(new Error('Payment must be verified before a profile is provisioned.'), { statusCode: 409 });
+  if (!readyToSell()) {
+    await transact(store => {
+      const order = store.orders.find(item => item.id === orderId);
+      if (order) {
+        order.status = 'awaiting_partner';
+        order.message = 'Payment is verified. Waiting for the authorised host network and SM-DP+ provider before issuing your profile.';
+        order.updatedAt = new Date().toISOString();
+      }
+    });
+    return;
+  }
+  const order = snapshot.orders.find(item => item.id === orderId);
+  const user = snapshot.users.find(item => item.id === order.userId);
+  const plan = snapshot.plans.find(item => item.id === order.planId);
+  if (!user || !plan) throw new Error('Order subscriber or plan record is unavailable.');
+  if (user.kycStatus !== 'verified') throw Object.assign(new Error('Telecom identity verification must be confirmed before provisioning.'), { statusCode: 409 });
+  await transact(store => {
+    const current = store.orders.find(item => item.id === orderId);
+    if (current) {
+      current.status = 'provisioning';
+      current.message = 'Payment and identity checks are confirmed. Submitting your subscription to the authorised eSIM provider.';
+      current.updatedAt = new Date().toISOString();
+    }
+  });
+  try {
+    const result = await providerProvision(order, user, plan);
+    await attachProviderResult(order.reference, result);
+  } catch (error) {
+    await transact(store => {
+      const current = store.orders.find(item => item.id === orderId);
+      if (current) {
+        current.status = 'provider_error';
+        current.message = 'The authorised eSIM provider did not accept the provisioning request. No profile was issued.';
+        current.updatedAt = new Date().toISOString();
+      }
+      store.audit.push({ id: crypto.randomUUID(), event: 'esim.provider_request_failed', subject: orderId, at: new Date().toISOString() });
+    });
+    throw error;
+  }
+}
 async function createOrder(user, data) {
+  if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before ordering mobile service.'), { statusCode: 403 });
+  if (user.kycStatus !== 'verified') throw Object.assign(new Error('Complete the authorised subscriber identity verification before ordering an eSIM.'), { statusCode: 403 });
   const snapshot = await loadStore();
   const plan = snapshot.plans.find(x => x.id === String(data.planId || '') && x.status === 'published');
   if (!plan) throw Object.assign(new Error('This data package is not available.'), { statusCode: 404 });
   const preferredNetwork = String(data.preferredNetwork || 'auto');
   if (!['auto', '4g', '5g'].includes(preferredNetwork)) throw Object.assign(new Error('Select Automatic, 4G or 5G.'), { statusCode: 400 });
   if (!plan.networkModes.includes(preferredNetwork) && !plan.networkModes.includes('auto')) throw Object.assign(new Error('This plan does not support the selected network mode.'), { statusCode: 400 });
-  const providerReady = readyToSell();
   const now = new Date().toISOString();
+  const paid = Number(plan.priceMinor) === 0;
   const order = {
     id: crypto.randomUUID(), reference: refCode(), userId: user.id, planId: plan.id,
     planName: plan.name, dataMb: plan.dataMb, validityDays: plan.validityDays,
     priceMinor: plan.priceMinor, currency: plan.currency, preferredNetwork,
-    status: providerReady ? 'provisioning' : 'awaiting_partner',
+    paymentStatus: paid ? 'paid' : 'pending',
+    paymentReference: null,
+    status: paid ? (readyToSell() ? 'provisioning' : 'awaiting_partner') : 'awaiting_payment',
     providerOrderId: null, encryptedActivationCode: null, encryptedConfirmationCode: null,
-    message: providerReady ? 'Provisioning request is being submitted.' : 'Awaiting an authorised host-network and eSIM provisioning partner. No profile has been issued and no mobile data is active.',
+    message: paid
+      ? (readyToSell() ? 'Order is being submitted for eSIM provisioning.' : 'The order is recorded. Live eSIM provisioning is waiting for the authorised host-network and SM-DP+ partners.')
+      : 'Your eSIM order is awaiting payment. After payment is verified, provisioning will continue when the required host-network and eSIM partners are connected.',
     createdAt: now, updatedAt: now
   };
   await transact(store => {
     store.orders.push(order);
     store.audit.push({ id: crypto.randomUUID(), event: 'esim.order.created', subject: order.id, at: now });
   });
-  if (providerReady) {
-    try { await attachProviderResult(order.reference, await providerProvision(order, user, plan)); }
-    catch {
-      await transact(store => {
-        const current = store.orders.find(x => x.id === order.id);
-        if (current) { current.status = 'provider_error'; current.message = 'Provider did not accept the request. No profile was issued.'; current.updatedAt = new Date().toISOString(); }
-      });
-    }
+  if (paid && readyToSell()) {
+    try { await startOrderProvisioning(order.id); } catch {}
   }
   const current = await loadStore();
   return orderView(current.orders.find(x => x.id === order.id));
 }
+async function initializePaystackPayment(user, orderId) {
+  if (!process.env.PAYSTACK_SECRET_KEY || !process.env.PAYSTACK_WEBHOOK_SECRET) throw Object.assign(new Error('Paystack is not configured yet. Payments are not enabled.'), { statusCode: 503 });
+  const snapshot = await loadStore();
+  const order = snapshot.orders.find(x => x.id === orderId && x.userId === user.id);
+  if (!order) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+  if (order.paymentStatus === 'paid') throw Object.assign(new Error('This order has already been paid.'), { statusCode: 409 });
+  if (!Number.isSafeInteger(order.priceMinor) || order.priceMinor < 1) throw Object.assign(new Error('This order does not require payment.'), { statusCode: 400 });
+  const reference = 'EXPAY-' + crypto.randomBytes(16).toString('hex').toUpperCase();
+  const callbackUrl = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')) + '/';
+  const response = await fetch('https://api.paystack.co/transaction/initialize', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY, 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      email: user.email, amount: order.priceMinor, currency: order.currency, reference,
+      callback_url: callbackUrl,
+      metadata: { orderId: order.id, orderReference: order.reference, customerId: user.id }
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.status !== true || !result.data || !result.data.authorization_url) throw Object.assign(new Error('Paystack could not initialise this payment.'), { statusCode: 502 });
+  await transact(store => {
+    const current = store.orders.find(x => x.id === order.id && x.userId === user.id);
+    if (!current || current.paymentStatus === 'paid') throw Object.assign(new Error('Order payment state changed.'), { statusCode: 409 });
+    current.paymentReference = reference;
+    current.paymentStatus = 'pending';
+    current.updatedAt = new Date().toISOString();
+    store.audit.push({ id: crypto.randomUUID(), event: 'payment.initialized', subject: order.id, at: current.updatedAt });
+  });
+  return { authorizationUrl: result.data.authorization_url, accessCode: result.data.access_code, reference, amount: order.priceMinor, currency: order.currency };
+}
+function verifyPaystackSignature(raw, headers) {
+  const key = process.env.PAYSTACK_WEBHOOK_SECRET || '';
+  if (!key) return false;
+  const modern = String(headers['paystack-signature'] || '');
+  if (modern) {
+    const fields = modern.split(',').map(x => x.trim());
+    const timestampField = fields.find(x => x.startsWith('t='));
+    const time = timestampField ? Number(timestampField.slice(2)) : 0;
+    if (!time || Math.abs(Date.now() / 1000 - time) > 300) return false;
+    const expected = crypto.createHmac('sha512', key).update(String(time) + '.').update(raw).digest('hex');
+    const signatures = fields.filter(x => x.startsWith('v1=')).map(x => x.slice(3).split(':').pop());
+    return signatures.some(signature => /^[a-f0-9]{128}$/i.test(signature) && equal(expected, signature.toLowerCase()));
+  }
+  const legacy = String(headers['x-paystack-signature'] || '');
+  if (!/^[a-f0-9]{128}$/i.test(legacy)) return false;
+  const expected = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY || key).update(raw).digest('hex');
+  return equal(expected, legacy.toLowerCase());
+}
+async function verifyPaystackTransaction(reference) {
+  const response = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(reference), {
+    headers: { authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY, accept: 'application/json' },
+    signal: AbortSignal.timeout(15000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.status !== true || !result.data) throw new Error('Paystack transaction verification failed.');
+  return result.data;
+}
+async function paystackWebhook(raw, headers) {
+  if (!verifyPaystackSignature(raw, headers)) throw Object.assign(new Error('Invalid Paystack webhook signature.'), { statusCode: 401 });
+  let event;
+  try { event = JSON.parse(raw.toString('utf8')); } catch { throw Object.assign(new Error('Webhook body must be valid JSON.'), { statusCode: 400 }); }
+  if (event.event !== 'charge.success') return { received: true, ignored: true, event: event.event || 'unknown' };
+  const reference = String(event.data && event.data.reference || '');
+  if (!reference) throw Object.assign(new Error('Payment reference is missing.'), { statusCode: 400 });
+  const verification = await verifyPaystackTransaction(reference);
+  const snapshot = await loadStore();
+  const order = snapshot.orders.find(x => x.paymentReference === reference);
+  if (!order) throw Object.assign(new Error('No Expert eSIM order matches this payment reference.'), { statusCode: 404 });
+  if (verification.status !== 'success' || Number(verification.amount) !== Number(order.priceMinor) || String(verification.currency) !== String(order.currency) || String(verification.reference) !== reference) {
+    throw Object.assign(new Error('Verified payment does not match the order amount, currency or reference.'), { statusCode: 409 });
+  }
+  const eventId = String(event.data.id || reference);
+  const updated = await transact(store => {
+    if (store.paymentEvents.some(item => item.providerEventId === eventId)) {
+      const existing = store.orders.find(x => x.id === order.id);
+      return { duplicate: true, order: orderView(existing) };
+    }
+    const current = store.orders.find(x => x.id === order.id);
+    if (!current) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+    current.paymentStatus = 'paid';
+    current.paidAt = new Date().toISOString();
+    current.paymentProvider = 'paystack';
+    current.updatedAt = current.paidAt;
+    store.paymentEvents.push({ id: crypto.randomUUID(), providerEventId: eventId, reference, orderId: current.id, receivedAt: current.paidAt });
+    store.audit.push({ id: crypto.randomUUID(), event: 'payment.verified', subject: current.id, at: current.paidAt });
+    return { duplicate: false, order: orderView(current) };
+  });
+  if (!updated.duplicate) await startOrderProvisioning(order.id);
+  return { received: true, duplicate: updated.duplicate, order: updated.order };
+}
+
 async function providerWebhook(raw, signature) {
   const secret = process.env.ESIM_PROVIDER_WEBHOOK_SECRET || '';
   if (!secret) throw Object.assign(new Error('Provider webhook authentication is not configured.'), { statusCode: 503 });
