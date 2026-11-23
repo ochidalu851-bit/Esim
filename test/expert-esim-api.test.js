@@ -12,10 +12,11 @@ const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'expert-esim-test-'));
 const port = 19000 + (process.pid % 10000);
 const adminKey = 'test-admin-secret-please-change';
 let child;
+let subscriberCookie = '';
 const base = 'http://127.0.0.1:' + port;
 
 async function waitForServer() {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 80; i++) {
     try {
       const response = await fetch(base + '/health');
       if (response.ok) return;
@@ -46,65 +47,162 @@ after(async () => {
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
-async function json(route, options = {}) {
+async function request(route, options = {}) {
   const response = await fetch(base + route, {
     ...options,
     headers: { 'content-type': 'application/json', ...(options.headers || {}) }
   });
-  return { status: response.status, body: await response.json() };
+  const body = await response.json().catch(() => ({}));
+  return { status: response.status, body, headers: response.headers };
 }
+function cookieFrom(result) {
+  const header = result.headers.get('set-cookie') || '';
+  return header ? header.split(';')[0] : '';
+}
+const authHeaders = () => ({ cookie: subscriberCookie });
 
-test('health reports the persistent store and provider remains unconfigured', async () => {
-  const result = await json('/health');
+test('health and readiness show that no live eSIM provider is configured', async () => {
+  const result = await request('/health');
   assert.equal(result.status, 200);
   assert.equal(result.body.persistentStoreReady, true);
   assert.equal(result.body.provider.adapterConfigured, false);
+  assert.equal(result.body.provider.hostNetworkAgreement, false);
+
+  const status = await request('/api/v1/status');
+  assert.equal(status.status, 200);
+  assert.equal(status.body.providerProvisioning, 'awaiting-authorised-partner');
+  assert.equal(status.body.cellularDataProvisioning, 'not-active-until-host-network-confirms');
 });
 
-test('subscriber can register, sign in, access account and sign out', async () => {
-  const created = await json('/api/v1/auth/register', {
+test('subscriber must accept privacy and terms and receives a secure HttpOnly cookie', async () => {
+  const noConsent = await request('/api/v1/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ fullName: 'Test Subscriber', email: 'subscriber@example.com', phone: '+2348000000000', password: 'a-strong-test-password' })
+    body: JSON.stringify({ fullName: 'Test Subscriber', email: 'subscriber@example.com', password: 'strong-test-password-2026' })
+  });
+  assert.equal(noConsent.status, 400);
+
+  const created = await request('/api/v1/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      fullName: 'Test Subscriber',
+      email: 'subscriber@example.com',
+      phone: '+2348000000000',
+      password: 'strong-test-password-2026',
+      acceptedTerms: true,
+      acceptedPrivacy: true
+    })
   });
   assert.equal(created.status, 201);
   assert.equal(created.body.user.email, 'subscriber@example.com');
-  assert.equal(typeof created.body.token, 'string');
+  assert.equal(created.body.user.emailVerified, false);
+  assert.equal(Object.hasOwn(created.body, 'token'), false);
   assert.equal(Object.hasOwn(created.body.user, 'passwordHash'), false);
+  const setCookie = created.headers.get('set-cookie') || '';
+  assert.match(setCookie, /HttpOnly/);
+  assert.match(setCookie, /Secure/);
+  assert.match(setCookie, /SameSite=Strict/);
+  subscriberCookie = cookieFrom(created);
+  assert.ok(subscriberCookie.startsWith('expert_esim_session='));
+});
 
-  const token = created.body.token;
-  const account = await json('/api/v1/me', { headers: { authorization: 'Bearer ' + token } });
-  assert.equal(account.status, 200);
-  assert.equal(account.body.user.fullName, 'Test Subscriber');
+test('existing subscriber session opens account dashboard, not registration panel', async () => {
+  const me = await request('/api/v1/me', { headers: authHeaders() });
+  assert.equal(me.status, 200);
+  assert.equal(me.body.user.fullName, 'Test Subscriber');
+  assert.equal(me.body.user.emailVerified, false);
+  assert.equal(me.body.user.kycStatus, 'not_started');
+  assert.equal(Array.isArray(me.body.orders), true);
+  assert.equal(Array.isArray(me.body.tickets), true);
+  assert.equal(Array.isArray(me.body.privacyRequests), true);
+  assert.equal(me.body.readiness.kycProviderConfigured, false);
+  const html = await request('/account.js');
+  assert.equal(html.status, 200);
+  assert.match(html.body && JSON.stringify(html.body), /portalAuth/);
+});
 
-  const login = await json('/api/v1/auth/login', {
+test('login creates a fresh secure session; logout invalidates it and clears cookie', async () => {
+  const login = await request('/api/v1/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email: 'subscriber@example.com', password: 'a-strong-test-password' })
+    body: JSON.stringify({ email: 'subscriber@example.com', password: 'strong-test-password-2026' })
   });
   assert.equal(login.status, 200);
-  assert.ok(login.body.token);
+  assert.equal(Object.hasOwn(login.body, 'token'), false);
+  const loginCookie = cookieFrom(login);
+  assert.match(login.headers.get('set-cookie') || '', /HttpOnly/);
+  assert.ok(loginCookie.startsWith('expert_esim_session='));
 
-  const logout = await json('/api/v1/auth/logout', { method: 'POST', headers: { authorization: 'Bearer ' + token } });
+  const account = await request('/api/v1/me', { headers: { cookie: loginCookie } });
+  assert.equal(account.status, 200);
+  const logout = await request('/api/v1/auth/logout', { method: 'POST', headers: { cookie: loginCookie } });
   assert.equal(logout.status, 200);
-  const expired = await json('/api/v1/me', { headers: { authorization: 'Bearer ' + token } });
+  assert.match(logout.headers.get('set-cookie') || '', /Max-Age=0/);
+  const expired = await request('/api/v1/me', { headers: { cookie: loginCookie } });
   assert.equal(expired.status, 401);
 });
 
-test('data catalogue is empty until partner-enabled packages are published', async () => {
-  const result = await json('/api/v1/plans');
-  assert.equal(result.status, 200);
-  assert.equal(result.body.plans.length, 0);
-  assert.equal(result.body.availability, 'awaiting-network-partner');
+test('cross-origin state-changing requests are rejected', async () => {
+  const result = await request('/api/v1/auth/register', {
+    method: 'POST',
+    headers: { origin: 'https://attacker.invalid' },
+    body: JSON.stringify({ fullName: 'Cross Site', email: 'bad@example.com', password: 'another-strong-password', acceptedTerms: true, acceptedPrivacy: true })
+  });
+  assert.equal(result.status, 403);
 });
 
-test('admin endpoints reject unauthorised access and save plans as draft', async () => {
-  const rejected = await json('/api/v1/admin/dashboard');
+test('KYC, plans and provisioning stay disabled until authorised partners are configured', async () => {
+  const kyc = await request('/api/v1/kyc/start', { method: 'POST', headers: authHeaders() });
+  assert.equal(kyc.status, 503);
+
+  const plans = await request('/api/v1/plans');
+  assert.equal(plans.status, 200);
+  assert.equal(plans.body.plans.length, 0);
+  assert.equal(plans.body.availability, 'awaiting-network-partner');
+
+  const payInit = await request('/api/v1/esim/orders/00000000-0000-4000-8000-000000000000/pay', {
+    method: 'POST',
+    headers: authHeaders()
+  });
+  assert.equal(payInit.status, 404);
+});
+
+test('subscriber can raise a support case and privacy request and export their own account data', async () => {
+  const ticket = await request('/api/v1/support/tickets', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ category: 'activation', subject: 'Cannot activate eSIM', message: 'The activation screen does not show an available eSIM profile after I sign in.' })
+  });
+  assert.equal(ticket.status, 201);
+  assert.match(ticket.body.ticket.reference, /^EXSUP-/);
+
+  const privacy = await request('/api/v1/privacy/requests', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ type: 'access', details: 'Please provide the personal information held for my account.' })
+  });
+  assert.equal(privacy.status, 201);
+  assert.match(privacy.body.request.reference, /^EXPR-/);
+
+  const exported = await request('/api/v1/privacy/export', { headers: authHeaders() });
+  assert.equal(exported.status, 200);
+  assert.equal(exported.body.account.email, 'subscriber@example.com');
+  assert.equal(exported.body.orders.length, 0);
+  assert.equal(exported.body.supportTickets.length, 1);
+  assert.equal(exported.body.privacyRequests.length, 1);
+  assert.equal(Object.hasOwn(exported.body.account, 'passwordHash'), false);
+});
+
+test('admin endpoints reject unauthorised access and cannot publish plans before launch readiness', async () => {
+  const rejected = await request('/api/v1/admin/dashboard');
   assert.equal(rejected.status, 401);
 
-  const dashboard = await json('/api/v1/admin/dashboard', { headers: { 'x-expert-admin-key': adminKey } });
+  const dashboard = await request('/api/v1/admin/dashboard', { headers: { 'x-expert-admin-key': adminKey } });
   assert.equal(dashboard.status, 200);
   assert.equal(dashboard.body.dashboard.totals.subscribers, 1);
+  assert.equal(dashboard.body.dashboard.totals.openTickets, 1);
+  assert.equal(dashboard.body.dashboard.totals.privacyRequests, 1);
+  assert.equal(dashboard.body.dashboard.provider.nccLicenceConfirmed, false);
 
-  const plan = await json('/api/v1/admin/plans', {
+  const plan = await request('/api/v1/admin/plans', {
     method: 'POST',
     headers: { 'x-expert-admin-key': adminKey },
     body: JSON.stringify({ name: 'Test 3 GB', dataMb: 3072, validityDays: 30, priceMinor: 100000, currency: 'NGN', networkModes: ['auto', '4g', '5g'] })
@@ -112,31 +210,70 @@ test('admin endpoints reject unauthorised access and save plans as draft', async
   assert.equal(plan.status, 201);
   assert.equal(plan.body.plan.status, 'draft');
 
-  const publish = await json('/api/v1/admin/plans/' + plan.body.plan.id + '/publish', {
+  const publish = await request('/api/v1/admin/plans/' + plan.body.plan.id + '/publish', {
     method: 'POST',
     headers: { 'x-expert-admin-key': adminKey }
   });
   assert.equal(publish.status, 409);
+
+  const ticketStatus = await request('/api/v1/admin/support/tickets/' + dashboard.body.dashboard.recentTickets[0].id + '/status', {
+    method: 'POST',
+    headers: { 'x-expert-admin-key': adminKey },
+    body: JSON.stringify({ status: 'in_progress' })
+  });
+  assert.equal(ticketStatus.status, 200);
+
+  const privacyId = dashboard.body.dashboard.recentPrivacyRequests[0].id;
+  const privacyStatus = await request('/api/v1/admin/privacy/requests/' + privacyId + '/status', {
+    method: 'POST',
+    headers: { 'x-expert-admin-key': adminKey },
+    body: JSON.stringify({ status: 'in_review' })
+  });
+  assert.equal(privacyStatus.status, 200);
 });
 
-test('provider webhook requires a valid signature', async () => {
-  const result = await json('/api/v1/provider/webhook', {
+test('unsigned or unconfigured provider callbacks cannot create live service', async () => {
+  const esim = await request('/api/v1/provider/webhook', {
     method: 'POST',
     headers: { 'x-expert-signature': 'deadbeef' },
     body: JSON.stringify({ type: 'esim.profile.issued', reference: 'not-a-real-order', data: { activationCode: 'LPA:1$example' } })
   });
-  assert.equal(result.status, 401);
+  assert.equal(esim.status, 401);
+
+  const pay = await request('/api/v1/payments/paystack/webhook', {
+    method: 'POST',
+    body: JSON.stringify({ event: 'charge.success', data: { reference: 'not-real' } })
+  });
+  assert.equal(pay.status, 401);
+
+  const kyc = await request('/api/v1/kyc/webhook', {
+    method: 'POST',
+    headers: { 'x-kyc-signature': 'deadbeef' },
+    body: JSON.stringify({ event: 'subscriber.kyc.verified', data: { subscriberReference: 'not-real' } })
+  });
+  assert.equal(kyc.status, 503);
 });
 
-test('front-end and admin JavaScript parse successfully', () => {
+test('the subscriber UI hides authentication when a session exists and keeps it available for signed-out users', () => {
+  const accountJs = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
+  assert.match(accountJs, /#activateView \[hidden\]\{display:none!important\}/);
+  assert.match(accountJs, /portalAuth"\)\.hidden = true/);
+  assert.match(accountJs, /portalMember"\)\.hidden = false/);
+  assert.match(accountJs, /portalChecking"\)\.hidden = false/);
+  assert.match(accountJs, /credentials:"same-origin"/);
+
   const mainHtml = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
   const inline = mainHtml.match(/<script>([\s\S]*?)<\/script>/);
   assert.ok(inline, 'main inline script exists');
   assert.doesNotThrow(() => new Function(inline[1]));
-  const accountJs = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
-  assert.doesNotThrow(() => new Function(accountJs));
+  assert.match(mainHtml, /<script src="\/account\.js"><\/script>/);
+
   const adminHtml = fs.readFileSync(path.join(root, 'public/admin.html'), 'utf8');
   const adminScript = adminHtml.match(/<script>([\s\S]*?)<\/script>/);
   assert.ok(adminScript, 'admin script exists');
   assert.doesNotThrow(() => new Function(adminScript[1]));
+
+  const legal = fs.readFileSync(path.join(root, 'public/legal.html'), 'utf8');
+  assert.match(legal, /PRE-LAUNCH DRAFT/);
+  assert.match(legal, /Privacy Notice/);
 });
