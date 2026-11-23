@@ -50,6 +50,13 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
     const user = snapshot.users.find(x => x.id === profile.userId);
     const device = snapshot.devices.find(x => x.id === profile.deviceId);
     if (!user || !device) throw new Error('Subscriber device is unavailable.');
+    if (!user.emailVerified) {
+      await transact(store => {
+        const item = store.profiles.find(x => x.id === profileId);
+        if (item) { item.status = 'awaiting_verification'; item.message = 'Verify the email address on your Expert eSIM account before the provider can issue this profile.'; item.updatedAt = new Date().toISOString(); }
+      });
+      return;
+    }
     if (!isReady()) return;
     await transact(store => {
       const item = store.profiles.find(x => x.id === profileId);
@@ -111,7 +118,7 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
     if (!device) throw Object.assign(new Error('This device is not registered to your account.'), { statusCode: 404 });
     let profile = snapshot.profiles.filter(x => x.deviceId === device.id && x.userId === user.id && !['provider_error','cancelled'].includes(x.status)).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
     if (profile) {
-      if (profile.status === 'awaiting_partners' && isReady()) {
+      if (['awaiting_partners','awaiting_verification'].includes(profile.status) && isReady()) {
         await provisionProfile(profile.id);
         const latest = await loadStore(); profile = latest.profiles.find(x => x.id === profile.id) || profile;
       }
