@@ -156,6 +156,115 @@ def match_carrier(name, records):
       "matchedNetworkCount":len(matched)
     }
 
+AIRALO_LOCAL_DESTINATION_CODES={
+    # Airalo's public Local eSIM directory explicitly lists local packages for
+    # these destinations, which Apple does not list in its iPhone carrier table.
+    "DZ","CV","TD","SZ","ET","GF","GA","GM","LS","NE","BL","SX","SD","TG","VA","VE"
+}
+
+TERRITORY_NETWORK_OVERRIDES={
+    "CW":{
+        "generations":["4G"],
+        "operators":[{"name":"Flow","generations":["4G"]},{"name":"Digicel","generations":["4G"]}],
+        "source":"https://rac.cw/wp-content/uploads/2025/02/Annual-report-telecommunications_Policy-and-Market-Regulation_20feb2025.pdf",
+        "note":"Curaçao regulator annual telecommunications report identifies Flow and Digicel mobile LTE (4G) networks. No 5G generation is added."
+    },
+    "GF":{
+        "generations":["3G","4G","5G"],
+        "operators":[
+            {"name":"Orange Caraïbe","generations":["3G","4G","5G"]},
+            {"name":"Outremer Télécom","generations":["3G","4G","5G"]},
+            {"name":"Digicel","generations":["3G","4G"]},
+            {"name":"Free Caraïbe","generations":["3G","4G"]}
+        ],
+        "source":"https://en.arcep.fr/news/press-releases/view/n/mobile-quality-of-service-qos-2026-antilles-guiana-221026.html",
+        "note":"ARCEP's 2026 Antilles/Guiana audit names the operators and confirms 5G deployments by Orange and Outremer Télécom in French Guiana; the other listed operators are shown at 3G/4G."
+    },
+    "GP":{
+        "generations":["3G","4G"],
+        "operators":[{"name":"Orange Caraïbe","generations":["3G","4G"]},{"name":"SFR / Outremer Télécom","generations":["3G","4G"]}],
+        "source":"https://antennes-relais-france.fr/antennes-en-projet?dep=971&operateur=free&techno=4g",
+        "note":"Marie-Galante-specific antenna records show Orange and SFR 3G/4G sites on the island. 5G is not added because the cited Marie-Galante site records do not establish local 5G service."
+    },
+    "MQ":{
+        "generations":["3G","4G","5G"],
+        "operators":[
+            {"name":"Orange Caraïbe","generations":["3G","4G","5G"]},
+            {"name":"Outremer Télécom","generations":["3G","4G","5G"]},
+            {"name":"Digicel","generations":["3G","4G"]},
+            {"name":"Free Caraïbe","generations":["3G","4G"]}
+        ],
+        "source":"https://en.arcep.fr/news/press-releases/view/n/mobile-quality-of-service-qos-2026-antilles-guiana-221026.html",
+        "note":"ARCEP's 2026 mobile audit confirms 5G deployment by Orange and Outremer Télécom in Martinique and measures the island's mobile networks."
+    },
+    "MS":{
+        "generations":["3G","4G"],
+        "operators":[{"name":"Flow","generations":["3G","4G"]},{"name":"Digicel","generations":["3G","4G"]}],
+        "source":"https://blog.sparkroam.com/montserrat-mobile-network-coverage/",
+        "note":"2026 Montserrat network guide describes Digicel and Flow 3G/4G-class service. No 5G is claimed; the regulator confirms licensed Flow and Digicel networks."
+    },
+    "PS":{
+        "generations":["3G"],
+        "operators":[{"name":"Jawwal","generations":["3G"]},{"name":"Ooredoo Palestine","generations":["3G"]}],
+        "source":"https://www.jawwal.ps/ar/individuals/about-us/public-relations/11582",
+        "note":"Jawwal's August 2026 results still described 4G as being prepared for launch. West Bank services are recorded as 3G; Gaza service conditions differ and should not be inferred from this country-level indicator."
+    },
+    "RE":{
+        "generations":["3G","4G","5G"],
+        "operators":[
+            {"name":"Orange Réunion","generations":["3G","4G","5G"]},
+            {"name":"SFR Réunion","generations":["3G","4G","5G"]},
+            {"name":"Free Réunion","generations":["3G","4G","5G"]},
+            {"name":"Zeop","generations":["3G","4G","5G"]}
+        ],
+        "source":"https://www.reunionenclair.re/reseau-mobile",
+        "note":"Réunion's 2026 ANFR-based network report records active 3G/4G sites and 5G sites across the island for Orange, SFR, Free and Zeop."
+    },
+    "MF":{
+        "generations":["3G","4G","5G"],
+        "operators":[
+            {"name":"Dauphin Telecom","generations":["3G","4G"]},
+            {"name":"Orange","generations":["3G","4G","5G"]},
+            {"name":"Digicel","generations":["3G","4G","5G"]},
+            {"name":"Free Caraïbe","generations":["3G","4G","5G"]},
+            {"name":"Flow","generations":["3G"]}
+        ],
+        "source":"https://www.sogudo.com/fr/saint-martin-partie-francaise",
+        "note":"October 2026 ANFR-derived operator records for French Saint-Martin show 3G/4G on the listed networks and active 5G sites for Orange, Digicel and Free."
+    },
+    "SX":{
+        "generations":["3G","4G","5G"],
+        "operators":[
+            {"name":"UTS","generations":["4G"]},
+            {"name":"Cable & Wireless (Flow)","generations":["3G","4G"]},
+            {"name":"Chippie","generations":["3G","4G"]},
+            {"name":"Digicel","generations":["4G"]},
+            {"name":"Liberty","generations":["4G"]},
+            {"name":"TelCell","generations":["4G"]},
+            {"name":"TelEm","generations":["3G","4G"]}
+        ],
+        "source":"https://esimdata.app/sint-maarten/",
+        "note":"November 2026 eSIM network directory records local 3G/4G/LTE networks and reports at least one provider listing 5G for Sint Maarten; 5G availability is plan and network dependent."
+    },
+    "VA":{
+        "generations":["4G","5G"],
+        "operators":[
+            {"name":"TIM (Italy)","generations":["4G","5G"]},
+            {"name":"Vodafone Italia","generations":["4G","5G"]},
+            {"name":"WindTre","generations":["4G","5G"]},
+            {"name":"Iliad Italia","generations":["4G","5G"]}
+        ],
+        "source":"https://esimwatchdog.com/cheapest-esim-vatican-city/",
+        "note":"Vatican City has no indigenous public mobile network; its mobile service is provided by Italian networks extending coverage from Rome. This records the surrounding 4G/5G networks, not a Vatican-owned carrier."
+    },
+    "VI":{
+        "generations":["4G","5G"],
+        "operators":[{"name":"T-Mobile","generations":["4G","5G"]}],
+        "source":"https://carrierlytics.com/state/u-s-virgin-islands/",
+        "note":"FCC Broadband Data Collection coverage processed in June 2026 shows T-Mobile 4G LTE and 5G coverage in the U.S. Virgin Islands; this is coverage evidence, not a claim that every carrier covers every island."
+    }
+}
+
 def main():
     rows=destinations()
     session=requests.Session(); session.headers.update(HEADERS)
@@ -164,6 +273,15 @@ def main():
     if "Nigeria" not in html or "Find wireless carriers" not in html:
         raise RuntimeError("Apple carrier directory response did not contain its expected article")
     carriers,global_providers,apple_date=apple_directory(html,rows)
+    airalo_source="https://www.airalo.com/local-esim"
+    airalo_record=next((item for item in global_providers if norm(item["name"])=="airalo"),{"name":"Airalo","website":"https://www.airalo.com"})
+    for code in AIRALO_LOCAL_DESTINATION_CODES:
+        entry={**airalo_record,"providerType":"global_travel_esim",
+               "activationMethods":["Local eSIM package listed in Airalo's Local eSIM directory"],
+               "coverageSource":airalo_source}
+        existing=carriers[code]
+        if not any(norm(item["name"])=="airalo" for item in existing):
+            existing.append(entry)
     networks,network_meta=fetch_networks()
     by_country=defaultdict(list)
     for network in networks:
@@ -215,6 +333,29 @@ def main():
             "networkRecordCount":len(local),"networkSourceUpdatedAt":max(updated) if updated else None,
             "networkDataVerified":bool(all_gens),"sourceNotes":source_notes
         }
+        override=TERRITORY_NETWORK_OVERRIDES.get(code)
+        if override:
+            all_gens=override["generations"]
+            operators=override["operators"]
+            source_notes.append(override["note"])
+            for carrier in esim:
+                carrier["radioEvidenceSource"]=override["source"]
+            # Replace the arrays in the country record with the territory-specific evidence.
+            local_carriers=[item for item in esim if item.get("providerType")=="local_mobile_carrier"]
+            travel_providers=[item for item in esim if item.get("providerType")=="global_travel_esim"]
+            updated=[str(r.get("updatedAt")) for r in local if r.get("updatedAt")]
+            countries[code]={
+                "country":destination["name"],"code":code,
+                "esimCarrierCount":len(esim),"esimCarriers":esim,
+                "localEsimCarrierCount":len(local_carriers),"localEsimCarriers":local_carriers,
+                "travelEsimProviderCount":len(travel_providers),"travelEsimProviders":travel_providers,
+                "generations":all_gens,"operatorCount":len(operators),"operators":operators,
+                "networkRecordCount":len(local),"networkSourceUpdatedAt":max(updated) if updated else None,
+                "networkDataVerified":bool(all_gens),"sourceNotes":source_notes,
+                "networkOverrideSource":override["source"]
+            }
+
+
     now=dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     data={
       "schemaVersion":1,"generatedAt":now,"destinationCount":len(rows),
@@ -223,6 +364,8 @@ def main():
           "publishedDate":apple_date,"scope":"Local wireless carriers listed by Apple as supporting eSIM activation on iPhone; device, plan and activation eligibility may vary."},
         "mobileNetworks":{"name":"MCC-MNC.org Networks API","url":MCC,
           "license":"Free for commercial and non-commercial use; attribute mcc-mnc.org",**network_meta},
+        "airaloLocalDirectory":{"name":"Airalo Local eSIM catalogue","url":"https://www.airalo.com/local-esim","scope":"Country destinations explicitly listed in Airalo's Local eSIM catalogue; no plan prices are copied into this app."},
+        "territoryNetworkOverrides":{"scope":"Source-specific radio-generation records for destinations missing from MCC-MNC's country list; the source and caveat are attached per country."},
         "nigeriaRadioEnrichment":{"name":"Nigerian Communications Commission and Ookla — Network Performance Report","url":"https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf","scope":"Observed 5G-capable device activity using 5G by operator in Lagos and Abuja, August 2026; T2 sample is small."}
       },
       "globalTravelProviders":global_providers,"countries":countries
