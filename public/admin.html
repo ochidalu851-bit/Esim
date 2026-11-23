@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080a0d"><title>Expert eSIM Admin</title>
+<style>
+:root{color-scheme:dark;--bg:#080a0d;--panel:#111720;--line:#2b3748;--muted:#9aa9bd;--text:#f4f7fb}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% 0,#1e3048,transparent 45%),var(--bg);color:var(--text);font:14px system-ui,Arial,sans-serif}
+main{max-width:1000px;margin:auto;padding:24px 16px 60px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.brand{font-size:21px;font-weight:900;letter-spacing:-.04em}.muted{color:var(--muted);font-size:12px;line-height:1.55}
+.card{background:linear-gradient(145deg,#151d28,#10151d);border:1px solid var(--line);border-radius:17px;padding:17px;margin-top:16px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.metric{padding:13px;border:1px solid #2b3748;background:#0c131c;border-radius:12px}.metric strong{display:block;font-size:24px;margin-top:7px}.label{display:block;font-size:11px;color:#aab8cb;font-weight:800;margin-bottom:6px}.input{width:100%;padding:12px;border-radius:10px;border:1px solid #3b4a5f;background:#0b121b;color:#f4f7fb;font:inherit}.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}.wide{grid-column:1/-1}.btn{border:1px solid #8ca5ce;background:#b8ccec;color:#101827;padding:12px 15px;border-radius:11px;font-weight:850;cursor:pointer}.btn.secondary{background:#182536;border-color:#3b4b62;color:#e0e9f7}.item{padding:13px 0;border-bottom:1px solid #293547}.pill{display:inline-block;padding:5px 8px;border:1px solid #40536d;background:#18283b;color:#c7d7ef;border-radius:99px;font-size:10px;font-weight:800}.status{font-size:12px;color:#c9d7e8;margin-top:10px;white-space:pre-wrap}.warning{padding:12px;border:1px solid #5a4829;background:#231d12;color:#e0d1a9;border-radius:12px;font-size:12px;line-height:1.55}
+</style></head><body><main>
+<div class="head"><div><div class="brand">Expert eSIM · Administration</div><div class="muted">Subscribers, data packages, provisioning and order status</div></div><a class="muted" href="/">Open customer app</a></div>
+<section class="card" id="loginCard"><label class="label" for="adminKey">Admin access key</label><input class="input" id="adminKey" type="password" autocomplete="off" placeholder="Enter the Expert eSIM admin key"><button class="btn" id="login" style="margin-top:10px">Open admin dashboard</button><div class="status" id="loginStatus"></div></section>
+<div id="adminPanel" hidden>
+<section class="card"><div class="head"><strong>Platform overview</strong><button class="btn secondary" id="refresh">Refresh</button></div><div class="grid" id="metrics" style="margin-top:14px"></div></section>
+<section class="card"><strong>Provider readiness</strong><p class="muted">These switches are not changed by the admin screen. They represent the real Railway credentials and signed agreements configured for the Expert eSIM backend.</p><div id="providerStatus" class="warning" style="margin-top:12px"></div></section>
+<section class="card"><strong>Create a data package</strong><p class="muted">Prices are entered in minor currency units. For NGN, enter kobo: ₦1,500 = 150000. New packages remain drafts until all provider requirements are configured.</p>
+<form class="form" id="planForm">
+<div><label class="label" for="planName">Package name</label><input class="input" id="planName" required placeholder="e.g. Expert 5 GB"></div>
+<div><label class="label" for="planData">Data allowance (MB)</label><input class="input" id="planData" required type="number" min="1" placeholder="5120"></div>
+<div><label class="label" for="planDays">Validity (days)</label><input class="input" id="planDays" required type="number" min="1" max="3650" placeholder="30"></div>
+<div><label class="label" for="planPrice">Price (minor units)</label><input class="input" id="planPrice" required type="number" min="0" placeholder="150000"></div>
+<div><label class="label" for="planCurrency">Currency</label><input class="input" id="planCurrency" value="NGN" maxlength="3"></div>
+<div><label class="label" for="planModes">Network modes</label><select class="input" id="planModes"><option value="auto,4g,5g">Automatic, 4G and 5G</option><option value="4g">4G only</option><option value="5g">5G only</option><option value="auto,4g">Automatic and 4G</option></select></div>
+<div class="wide"><label class="label" for="planDescription">Description</label><input class="input" id="planDescription" placeholder="Package details (optional)"></div>
+<div class="wide"><button class="btn" type="submit">Save data package</button></div>
+</form><div class="status" id="planStatus"></div></section>
+<section class="card"><strong>Data packages</strong><div id="plans" class="muted" style="margin-top:10px">Not loaded.</div></section>
+<section class="card"><strong>Recent eSIM orders</strong><div id="orders" class="muted" style="margin-top:10px">Not loaded.</div></section>
+</div>
+</main>
+<script>
+(function(){
+"use strict";
+var key="", $=function(id){return document.getElementById(id);};
+function api(path,options){options=options||{};var headers=Object.assign({"content-type":"application/json","x-expert-admin-key":key},options.headers||{});return fetch("/api/v1/admin"+path,Object.assign({},options,{headers:headers})).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||"Request failed "+r.status);return d;});});}
+function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+function render(data){
+var t=data.totals, metrics=[["Subscribers",t.subscribers],["Data plans",t.plans],["Published plans",t.publishedPlans],["eSIM orders",t.orders],["Awaiting provider",t.awaitingPartner],["Provisioning",t.provisioning],["Profiles issued",t.profilesIssued],["Active profiles",t.activeProfiles],["Provider errors",t.providerErrors]];
+$("metrics").innerHTML=metrics.map(function(x){return '<div class="metric"><span class="muted">'+esc(x[0])+'</span><strong>'+x[1]+'</strong></div>';}).join("");
+var p=data.provider;
+$("providerStatus").textContent="Provider API: "+(p.adapterConfigured?"configured":"missing")+"\\nProfile encryption: "+(p.profileEncryptionConfigured?"configured":"missing")+"\\nSigned provider webhook: "+(p.webhookConfigured?"configured":"missing")+"\\nHost-network agreement: "+(p.hostNetworkAgreement?"active":"not confirmed")+"\\nSM-DP+ partner: "+(p.smdpPartnerConfigured?"active":"not confirmed")+"\\nService activation: "+(p.serviceEnabled?"enabled":"disabled");
+$("plans").innerHTML=data.plans.length?data.plans.map(function(x){return '<div class="item"><strong>'+esc(x.name)+'</strong> · '+(x.dataMb/1024).toFixed(1)+' GB · '+x.validityDays+' days · '+esc(x.currency)+' '+(x.priceMinor/100).toFixed(2)+' <span class="pill">'+esc(x.status)+'</span></div>';}).join(""):'No packages created yet.';
+$("orders").innerHTML=data.recentOrders.length?data.recentOrders.map(function(x){return '<div class="item"><strong>'+esc(x.planName)+'</strong> · '+esc(x.reference)+' <span class="pill">'+esc(x.status)+'</span><div class="muted">'+esc(x.message||"")+'</div></div>';}).join(""):'No eSIM orders yet.';
+}
+function refresh(){api("/dashboard").then(function(d){render(d.dashboard);$("loginStatus").textContent="Dashboard loaded.";}).catch(function(e){$("loginStatus").textContent=e.message;});}
+$("login").addEventListener("click",function(){key=$("adminKey").value.trim();if(!key){$("loginStatus").textContent="Enter the admin key.";return;}refresh();});
+$("refresh").addEventListener("click",refresh);
+$("planForm").addEventListener("submit",function(e){
+e.preventDefault();
+var data={name:$("planName").value,dataMb:Number($("planData").value),validityDays:Number($("planDays").value),priceMinor:Number($("planPrice").value),currency:$("planCurrency").value,networkModes:$("planModes").value.split(","),description:$("planDescription").value};
+api("/plans",{method:"POST",body:JSON.stringify(data)}).then(function(r){$("planStatus").textContent=r.message;refresh();$("planForm").reset();$("planCurrency").value="NGN";}).catch(function(err){$("planStatus").textContent=err.message;});
+});
+var oldRefresh=refresh; 
+var watch=setInterval(function(){if(key){oldRefresh();clearInterval(watch);}},2500);
+})();
+</script></body></html>
