@@ -93,7 +93,6 @@ main{flex:1;display:flex;flex-direction:column}
  <div class="drawer-label">MENU</div>
  <button class="nav-button active" data-page="home" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg><span>Dashboard</span></button>
  <button class="nav-button" data-page="network" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16V8M10 16V4M15 16v-6M20 16V2"/></svg><span>Preferred Network</span></button>
- <button class="nav-button" data-page="activate" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M9 7h6M9 11h6M9 15h2"/></svg><span>My eSIM</span></button>
  <button class="nav-button" data-page="speed" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a9 9 0 1 1 16 0M12 13l5-5M12 13l-2 4"/></svg><span>Speed Test</span></button>
  <div class="drawer-foot">Expert eSIM · Mobile connection</div>
 </aside>
@@ -135,7 +134,7 @@ main{flex:1;display:flex;flex-direction:column}
    busy=false;renderConnection();
    connectionState.textContent=result.ok?"eSIM profile installed":"Profile installation not completed";
    connectionDetail.textContent=result.message||"Android returned an eSIM profile installation result.";
-   if(window.ExpertAccountPortal){window.ExpertAccountPortal.refreshOrders();}
+   if(window.ExpertAccountPortal){window.ExpertAccountPortal.refreshDevices();}
    return;
   }
   if(result.connected===true){connected=true;busy=false;renderConnection();connectionDetail.textContent=result.message||"Android confirmed the Expert eSIM connection.";}
