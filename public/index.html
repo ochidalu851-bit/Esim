@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#090a0d">
+<meta name="description" content="Browse eSIM destinations and plan categories.">
+<title>Expert eSIM</title>
+<style>
+:root{color-scheme:dark;--bg:#090a0d;--panel:#171920;--line:#292d38;--muted:#8993aa;--text:#f4f5f8;--blue:#94a9db}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.shell{max-width:760px;min-height:100dvh;margin:0 auto;padding:20px 18px 150px}
+.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:45px}
+.back{border:0;background:transparent;color:#eef0f7;font-size:30px;padding:4px 8px}
+.brand{font-size:13px;color:#aab3ca;background:#171920;border:1px solid #292d38;border-radius:30px;padding:9px 13px;letter-spacing:.04em}
+.brand b{color:#fff}
+.heading{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-bottom:22px}
+.eyebrow{font-size:12px;letter-spacing:.13em;color:var(--muted);text-transform:uppercase}
+.heading h1{font-size:35px;line-height:1.12;margin:7px 0 5px;letter-spacing:-.04em}
+.countryName{font-size:23px;color:var(--blue)}
+.flag{font-size:48px}
+.count{display:inline-flex;align-items:center;gap:7px;background:#171920;border:1px solid #292d38;border-radius:30px;padding:8px 12px;color:#aab3ca;font-size:12px;margin-top:12px}
+.search{width:100%;margin:22px 0 10px;background:#15171d;border:1px solid var(--line);border-radius:14px;padding:15px 16px;color:#f4f5f8;outline:none}
+.search:focus,.country:focus{border-color:#7186ba}
+.country{width:100%;appearance:none;background:#15171d;border:1px solid var(--line);border-radius:15px;color:#f3f4f7;padding:17px 42px 17px 16px;outline:none}
+.selectwrap{position:relative}
+.selectwrap:after{content:"⌄";position:absolute;right:18px;top:12px;color:var(--blue);font-size:23px;pointer-events:none}
+.tabs{display:grid;grid-template-columns:1fr 1fr;padding:4px;background:#191b21;border:1px solid #292d38;border-radius:18px;margin:25px 0 32px}
+.tabs button{border:0;background:transparent;color:#929bb0;padding:16px 8px;border-radius:14px;font-weight:600}
+.tabs button.active{background:#0d0f13;color:#f5f6f9;box-shadow:0 0 0 1px #30343e}
+.sectionhead{color:#8993ab;font-size:14px;font-weight:700;letter-spacing:.055em;margin:26px 0 12px}
+.empty{border:1px solid #2a2e39;border-radius:18px;padding:24px 20px;color:#b8bfd0;line-height:1.55;background:#101217}
+.emptyIcon{font-size:25px;margin-bottom:12px}
+.empty h3{margin:0 0 8px;font-size:17px;color:white}
+.empty p{margin:0;color:#9ca5b8;font-size:14px}
+.info{font-size:11px;color:#8791a8;line-height:1.5;margin:16px 2px}
+.bottom{position:fixed;z-index:5;bottom:0;left:0;right:0;background:linear-gradient(180deg,rgba(9,10,13,0),#090a0d 25%);padding:25px 18px 18px}
+.bottominner{max-width:724px;margin:auto;display:flex;align-items:center;gap:14px;background:#202127;border:1px solid #2a2d36;border-radius:17px;padding:10px 12px 10px 16px}
+.total{flex:1;min-width:0}
+.total small{display:block;color:#929bad;font-size:11px;margin-bottom:4px}
+.total strong{font-size:15px}
+.primary{border:0;background:#41444d;color:#aeb3be;font-weight:750;padding:15px 20px;border-radius:13px;min-width:148px;cursor:not-allowed}
+.footer{max-width:724px;margin:18px auto 0;color:#686f80;font-size:11px;text-align:center}
+@media(min-width:650px){.shell{padding-top:35px}.heading h1{font-size:40px}.bottom{padding-left:24px;padding-right:24px}}
+</style>
+</head>
+<body>
+<main class="shell">
+<header class="top"><button class="back" id="back" aria-label="Back">←</button><div class="brand"><b>EXPERT</b> eSIM</div></header>
+<section class="heading">
+ <div><div class="eyebrow">Global mobile connectivity</div><h1>Available plans</h1><div class="countryName" id="countryName">Nigeria</div><div class="count"><span>◈</span><span id="destinationCount">206 destinations</span></div></div>
+ <div class="flag" id="flag" aria-hidden="true">🇳🇬</div>
+</section>
+<input class="search" id="search" type="search" placeholder="Search destinations" autocomplete="off" aria-label="Search destinations">
+<div class="selectwrap"><select class="country" id="country" aria-label="Choose destination"></select></div>
+<div class="tabs" role="tablist" aria-label="Plan type">
+ <button class="active" id="dataTab" type="button" role="tab" aria-selected="true">Data</button>
+ <button id="fullTab" type="button" role="tab" aria-selected="false">Data + Calls + Text</button>
+</div>
+<div class="sectionhead" id="planHeading">DATA PLANS</div>
+<div class="empty" id="empty">
+ <div class="emptyIcon">◎</div>
+ <h3>Plans are not connected yet</h3>
+ <p>This app currently includes the destination catalogue and plan categories. Real plan names, data allowances, prices and eSIM activation will be added after a mobile connectivity service is connected. No sample offers are being displayed.</p>
+</div>
+<div class="info">Availability, coverage, supported networks, plan validity and pricing will be shown only after live plan data is connected. Choosing a destination here does not install or activate an eSIM.</div>
+<div class="footer">Expert eSIM · Destination catalogue</div>
+</main>
+<div class="bottom"><div class="bottominner"><div class="total"><small>SELECTED DESTINATION</small><strong id="selectedDestination">Nigeria · Data</strong></div><button class="primary" type="button" disabled>Plans not loaded</button></div></div>
+<script>
+let destinations=[];
+const country=document.getElementById('country');
+const search=document.getElementById('search');
+const countryName=document.getElementById('countryName');
+const flag=document.getElementById('flag');
+const selectedDestination=document.getElementById('selectedDestination');
+const destinationCount=document.getElementById('destinationCount');
+const planHeading=document.getElementById('planHeading');
+let selectedKind='Data';
+function flagFor(code){
+ if(!code||code.length!==2)return '🌍';
+ return String.fromCodePoint(...code.toUpperCase().split('').map(ch=>127397+ch.charCodeAt(0)));
+}
+function renderOptions(query){
+ const q=(query||'').trim().toLowerCase();
+ const matches=destinations.filter(item=>item.name.toLowerCase().includes(q));
+ const previous=Number(country.value);
+ country.innerHTML=matches.map(item=>'<option value="'+item.id+'">'+flagFor(item.code)+' '+item.name+'</option>').join('');
+ if(matches.some(item=>item.id===previous))country.value=String(previous);
+ else if(matches.length)country.value=String(matches[0].id);
+ country.disabled=matches.length===0;
+ updateSelection();
+}
+function updateSelection(){
+ const item=destinations.find(entry=>entry.id===Number(country.value));
+ if(!item){countryName.textContent='No destination found';flag.textContent='🌍';selectedDestination.textContent='Choose a destination';return}
+ countryName.textContent=item.name;
+ flag.textContent=flagFor(item.code);
+ selectedDestination.textContent=item.name+' · '+selectedKind;
+}
+function setKind(kind){
+ selectedKind=kind;
+ const data=kind==='Data';
+ document.getElementById('dataTab').classList.toggle('active',data);
+ document.getElementById('fullTab').classList.toggle('active',!data);
+ document.getElementById('dataTab').setAttribute('aria-selected',String(data));
+ document.getElementById('fullTab').setAttribute('aria-selected',String(!data));
+ planHeading.textContent=(data?'DATA':'DATA + CALLS + TEXT')+' PLANS';
+ updateSelection();
+}
+async function init(){
+ try{
+  const response=await fetch('/api/destinations');
+  if(!response.ok)throw new Error('Could not load destinations');
+  const payload=await response.json();
+  destinations=payload.items||[];
+  destinationCount.textContent=payload.total+' destinations';
+  renderOptions('');
+  const nigeria=destinations.find(item=>item.code==='NG');
+  if(nigeria){country.value=String(nigeria.id);updateSelection()}
+ }catch(error){
+  document.getElementById('empty').querySelector('h3').textContent='Destination list unavailable';
+  document.getElementById('empty').querySelector('p').textContent='Refresh this page to try again.';
+ }
+}
+search.addEventListener('input',()=>renderOptions(search.value));
+country.addEventListener('change',updateSelection);
+document.getElementById('dataTab').addEventListener('click',()=>setKind('Data'));
+document.getElementById('fullTab').addEventListener('click',()=>setKind('Data + Calls + Text'));
+document.getElementById('back').addEventListener('click',()=>{if(history.length>1)history.back()});
+init();
+</script>
+</body>
+</html>
