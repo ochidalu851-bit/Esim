@@ -90,6 +90,7 @@ function createExpertFeatures({ loadStore, transact }) {
       activeProfiles: profiles.filter(x => x.status === 'active').length,
       pendingProfiles: profiles.filter(x => !['active','profile_issued','provider_error','cancelled'].includes(x.status)).length,
       dailyCheckinAvailable: !store.rewardClaims.some(x => x.userId === user.id && x.type === 'daily_checkin' && x.day === today()),
+      dailySpinAvailable: !store.rewardClaims.some(x => x.userId === user.id && x.type === 'daily_spin' && x.day === today()),
       tasks: taskState(store,user),
       referralCode: user.referralCode,
       referralCount: store.referrals.filter(x => x.referrerUserId === user.id).length,
@@ -108,6 +109,22 @@ function createExpertFeatures({ loadStore, transact }) {
       store.rewardClaims.push(claim);
       addPoints(store, user.id, 10, 'Daily check-in', 'daily-checkin:' + user.id + ':' + date);
       return { claim, pointsBalance: balance(store,user.id), message: '10 Expert Points added to your rewards wallet.' };
+    });
+  }
+
+  async function spinReward(user) {
+    return transact(store => {
+      ensure(store);
+      const date = today();
+      if (store.rewardClaims.some(x => x.userId === user.id && x.type === 'daily_spin' && x.day === date)) {
+        throw Object.assign(new Error('You have already used today’s free rewards spin.'), { statusCode: 409 });
+      }
+      const prizes = [5, 10, 15, 20, 30];
+      const points = prizes[crypto.randomInt(prizes.length)];
+      const claim = { id: crypto.randomUUID(), userId: user.id, type: 'daily_spin', day: date, points, createdAt: new Date().toISOString() };
+      store.rewardClaims.push(claim);
+      addPoints(store, user.id, points, 'Free daily rewards spin', 'daily-spin:' + user.id + ':' + date);
+      return { claim, pointsBalance: balance(store,user.id), message: 'Your free spin awarded ' + points + ' Expert Points.' };
     });
   }
 
@@ -391,7 +408,7 @@ function createExpertFeatures({ loadStore, transact }) {
   }
 
   return {
-    summary, checkIn, claimTask, recordSpeedTest, wallet, transferPoints, referrals,
+    summary, checkIn, spinReward, claimTask, recordSpeedTest, wallet, transferPoints, referrals,
     coupons, claimCoupon, redeemCode, storeCatalog, redeemItem, airtimeRequest, airtimeHistory,
     messages, markMessageRead, adminSummary, adminCreateCoupon, adminCreateStoreItem,
     adminCreateCode, adminSendMessage, adminAdjustPoints, adminListOrders
