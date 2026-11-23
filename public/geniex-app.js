@@ -2,7 +2,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const screen=$("screen"),toast=$("toast");
-const S={page:"home",user:null,status:null,summary:null,wallet:null,catalog:{plans:[],bundles:[]},usage:null,network:null,authMode:"login",speed:{download:null,upload:null,ping:null,jitter:null},connecting:false,connected:false,preferences:null};
+const S={page:"home",user:null,status:null,summary:null,wallet:null,catalog:{plans:[],bundles:[]},usage:null,network:null,authMode:"login",speed:{download:null,upload:null,ping:null,jitter:null},connecting:false,connected:false,preferences:null,device:null};
 const icons={
 back:'<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
 bolt:'<svg viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7l0-7Z"/></svg>',
@@ -96,7 +96,7 @@ function accountPage(){
  return '<div class="eyebrow">WELCOME TO EXPERT</div><h1 class="section-title" style="font-size:22px;margin:6px 0">Account</h1><div class="panel"><div class="auth-switch"><button class="'+(S.authMode==="login"?"active":"")+'" data-action="auth-mode" data-mode="login">Sign in</button><button class="'+(S.authMode==="register"?"active":"")+'" data-action="auth-mode" data-mode="register">Sign up</button></div><form id="authForm" class="form-stack">'+(S.authMode==="register"?'<div class="field"><label>Full name</label><input name="fullName" required minlength="2" autocomplete="name" placeholder="Your full name"></div>':"")+'<div class="field"><label>Email address</label><input type="email" name="email" required autocomplete="email" placeholder="you@example.com"></div>'+(S.authMode==="register"?'<div class="field"><label>Phone number (optional)</label><input name="phone" autocomplete="tel" placeholder="+ country code"></div>':"")+'<div class="field"><label>Password</label><input type="password" name="password" required minlength="10" autocomplete="'+(S.authMode==="register"?"new-password":"current-password")+'" placeholder="At least 10 characters"></div>'+(S.authMode==="register"?'<label class="check-label"><input type="checkbox" name="terms" required> I agree to the Terms of Service and Privacy Notice.</label>':"")+'<button class="primary-button" type="submit">'+(S.authMode==="register"?"Create account":"Sign in")+'</button><p class="tiny muted" id="authMessage">Your account unlocks reward tasks, vouchers, order history and settings.</p></form><div class="separator"></div><p class="tiny muted">Google sign-in will appear when an authorised Google OAuth client is configured.</p></div>';
  }
  const u=S.user, initial=(u.fullName||u.email||"E").trim().slice(0,1).toUpperCase();
- return '<div class="profile-head"><div class="avatar">'+esc(initial)+'</div><div><b>'+esc(u.fullName||"Expert member")+'</b><small>'+esc(u.email||"")+'</small></div><span class="pill green" style="margin-left:auto">SIGNED IN</span></div><div class="panel"><div class="eyebrow">MEMBER ACCOUNT</div><div class="section-row" style="margin:7px 0"><b>'+esc(u.referralCode||"Member")+'</b><button class="small-button" data-action="share-referral">Share</button></div><p class="tiny muted">Your personal account, reward code and service activity.</p></div><div class="menu-list">'+row(icons.person,"My Account","Account information and password","","my-account")+row(icons.gift,"My Rewards","Tasks, check-in and G-Coins","","rewards")+row(icons.wallet,"My Balance","Wallet status and transactions","","balance")+row(icons.gift,"My Vouchers","Collected coupons and gift codes","","vouchers")+row(icons.wallet,"My Orders","Data, app bundle and airtime history","","orders")+row(icons.help,"Messages","Service announcements and inbox","","messages")+row(icons.signal,"Network Tools","Speedtest, analyzer and SIM settings","","network")+row(icons.help,"Settings","Appearance, notifications and preferences","","settings")+row(icons.help,"Contact Us","FAQ and support tickets","","help")+'</div><div style="margin-top:16px"><button class="danger-button" data-action="logout">Log out</button></div>';
+ return '<div class="profile-head"><div class="avatar">'+esc(initial)+'</div><div><b>'+esc(u.fullName||"Expert member")+'</b><small>'+esc(u.email||"")+'</small></div><span class="pill green" style="margin-left:auto">SIGNED IN</span></div><div class="panel"><div class="eyebrow">MEMBER ACCOUNT</div><div class="section-row" style="margin:7px 0"><b>'+esc(u.referralCode||"Member")+'</b><button class="small-button" data-action="share-referral">Share</button></div><p class="tiny muted">Your personal account, reward code and service activity.</p></div><div class="panel"><div class="eyebrow">THIS DEVICE · AUTO DETECTED</div><b>'+esc(S.device&&S.device.deviceName||"Device details unavailable")+'</b><p class="tiny muted">'+esc(S.device?[S.device.manufacturer,S.device.model,S.device.osVersion].filter(Boolean).join(" · "):"Device information is read automatically by the Android app; nothing to type in.")+'</p><span class="pill">'+(S.device&&S.device.hasEuiccHardware?"eSIM hardware detected":"eSIM hardware not confirmed")+'</span></div><div class="menu-list">'+row(icons.person,"My Account","Account information and password","","my-account")+row(icons.gift,"My Rewards","Tasks, check-in and G-Coins","","rewards")+row(icons.wallet,"My Balance","Wallet status and transactions","","balance")+row(icons.gift,"My Vouchers","Collected coupons and gift codes","","vouchers")+row(icons.wallet,"My Orders","Data, app bundle and airtime history","","orders")+row(icons.help,"Messages","Service announcements and inbox","","messages")+row(icons.signal,"Network Tools","Speedtest, analyzer and SIM settings","","network")+row(icons.help,"Settings","Appearance, notifications and preferences","","settings")+row(icons.help,"Contact Us","FAQ and support tickets","","help")+'</div><div style="margin-top:16px"><button class="danger-button" data-action="logout">Log out</button></div>';
 }
 function rewardsPage(){
  const s=S.summary||{}, tasks=s.tasks||[];
@@ -161,6 +161,11 @@ async function loadMe(){
 async function refreshAccount(){
  if(!S.user)return;
  try{const r=await api("/app/summary");S.summary=r.summary;}catch(e){}
+}
+async function registerDetectedDevice(){
+ if(!S.user||!S.device||!S.device.clientDeviceId)return;
+ try{await api("/devices",{method:"POST",body:JSON.stringify(S.device)});await refreshAccount();}
+ catch(e){notify("Device registration: "+e.message);}
 }
 async function loadCatalog(){
  try{const r=await api("/geniex/catalog");S.catalog={plans:r.plans||[],bundles:r.bundles||[]};if(S.page==="data"||S.page==="apps")render();}
@@ -261,7 +266,7 @@ async function authSubmit(form){
  const payload={email:data.email,password:data.password};
  if(register){payload.fullName=data.fullName;payload.phone=data.phone||"";payload.acceptedTerms=data.terms==="on";payload.acceptedPrivacy=data.terms==="on";}
  const msg=$("authMessage");if(msg)msg.textContent=register?"Creating account…":"Signing in…";
- try{const r=await api("/auth/"+(register?"register":"login"),{method:"POST",body:JSON.stringify(payload)});S.user=r.user;await refreshAccount();if(register&&r.emailVerification&&!r.emailVerification.sent)notify("Account created. Email delivery is not configured yet.");else notify(register?"Account created.":"Signed in.");S.page="home";render();}
+ try{const r=await api("/auth/"+(register?"register":"login"),{method:"POST",body:JSON.stringify(payload)});S.user=r.user;await registerDetectedDevice();await refreshAccount();if(register&&r.emailVerification&&!r.emailVerification.sent)notify("Account created. Email delivery is not configured yet.");else notify(register?"Account created.":"Signed in.");S.page="home";render();}
  catch(e){if(msg)msg.textContent=e.message;else notify(e.message);}
 }
 async function shareReferral(){
@@ -360,10 +365,10 @@ document.addEventListener("submit",async e=>{
 });
 async function init(){
  render();loadStatus();loadCatalog();loadUsage();
- try{const m=await api("/me");S.user=m.user;await refreshAccount();}catch(e){S.user=null;}
- if(S.user){try{const [sum,wal]=await Promise.all([api("/app/summary"),api("/app/wallet")]);S.summary=sum.summary;S.wallet=wal.wallet;}catch(e){}}
  const n=window.ExpertESimNative;
- if(n&&typeof n.getDeviceInfo==="function"){try{const d=JSON.parse(n.getDeviceInfo());document.documentElement.dataset.device=d.deviceName||d.model||"android";}catch(e){}}
+ if(n&&typeof n.getDeviceInfo==="function"){try{S.device=JSON.parse(n.getDeviceInfo());document.documentElement.dataset.device=S.device.deviceName||S.device.model||"android";}catch(e){}}
+ try{const m=await api("/me");S.user=m.user;await registerDetectedDevice();await refreshAccount();}catch(e){S.user=null;}
+ if(S.user){try{const [sum,wal]=await Promise.all([api("/app/summary"),api("/app/wallet")]);S.summary=sum.summary;S.wallet=wal.wallet;}catch(e){}}
  render();
  const ref=new URLSearchParams(location.search).get("ref");if(ref&&!S.user){S.authMode="register";}
  if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{});}
