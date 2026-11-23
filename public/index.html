@@ -250,6 +250,7 @@ main{flex:1;display:flex;flex-direction:column}
   const duration=Math.max(1,performance.now()-start);
   const average=total*8/duration*1000/1000000;
   $("speedMain").textContent=fmt(average);progress(58);
+  return average;
  }
  async function runUploadTest(bytes){
   const payload=new Uint8Array(bytes);
