@@ -905,9 +905,10 @@ function getProvisioningStatus() {
       }
     ],
     paymentConfigured,
-    customerAccountsConfigured: false,
+    customerAccountsConfigured: Boolean(process.env.AUTH_SECRET && process.env.DATABASE_URL),
     directPhoneProfileControl: false,
-    canProvisionLive: airaloConfigured || esimGoConfigured
+    catalogueConnected: airaloConfigured || esimGoConfigured,
+    liveOrdersReady: false
   };
 }
 
@@ -978,7 +979,7 @@ async function runExternalSourceDiagnostics() {
   }
 
   if (req.method === "GET" && url.pathname === "/api/status") {
-    const countryRecords = Object.values(COUNTRY_CARRIER_DATA?.countries || {});
+    const provisioning = getProvisioningStatus();
     return sendJson(res, 200, {
       state: "country_catalogue_with_source_data",
       destinationCount: DESTINATION_ROWS.length,
@@ -999,10 +1000,11 @@ async function runExternalSourceDiagnostics() {
         const item = COUNTRY_CARRIER_DATA?.countries?.[destination.code];
         return Boolean(item?.networkDataVerified);
       }).length,
-      providerIntegrations: 0,
-      livePlansEnabled: false,
-      paymentsEnabled: false,
-      eSIMProvisioningEnabled: false
+      providerIntegrations: provisioning.providers.filter((provider) => provider.configured).length,
+      livePlansEnabled: provisioning.providers.some((provider) => provider.configured),
+      paymentsEnabled: provisioning.paymentConfigured,
+      eSIMProvisioningEnabled: provisioning.liveOrdersReady,
+      provisioning
     });
   }
 
