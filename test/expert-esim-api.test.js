@@ -123,9 +123,9 @@ test('existing subscriber session opens account dashboard, not registration pane
   const devices = await request('/api/v1/devices', { headers: authHeaders() });
   assert.equal(devices.status, 200);
   assert.equal(devices.body.devices.length, 1);
-  const blockedProfile = await request('/api/v1/devices/' + addedDevice.body.device.id + '/profile', { method: 'POST', headers: authHeaders() });
-  assert.equal(blockedProfile.status, 202);
-  assert.equal(blockedProfile.body.profile.status, 'awaiting_verification');
+  const profileRequest = await request('/api/v1/devices/' + addedDevice.body.device.id + '/profile', { method: 'POST', headers: authHeaders() });
+  assert.equal(profileRequest.status, 202);
+  assert.equal(profileRequest.body.profile.status, 'awaiting_verification');
 
   assert.equal(Array.isArray(me.body.tickets), true);
   assert.equal(Array.isArray(me.body.privacyRequests), true);
