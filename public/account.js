@@ -96,7 +96,11 @@
     const headers = Object.assign({"content-type":"application/json"}, options.headers || {});
     const response = await fetch("/api/v1" + route, Object.assign({}, options, {headers, credentials:"same-origin"}));
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "Request failed (" + response.status + ")");
+    if (!response.ok) {
+      const error = new Error(data.error || "Request failed (" + response.status + ")");
+      error.status = response.status;
+      throw error;
+    }
     return data;
   }
   function setMode(next) {
@@ -357,10 +361,17 @@
       }
       await Promise.all([refreshPlans(user,data.readiness),refreshOrders(),refreshTickets(data.tickets || []),refreshPrivacyRequests(data.privacyRequests || [])]);
     } catch (error) {
-      $("portalChecking").hidden = true;
-      $("portalAuth").hidden = false;
       $("portalMember").hidden = true;
-      if (error.message !== "Sign in to continue.") $("portalAuthStatus").textContent = error.message;
+      if (error.status === 401) {
+        $("portalChecking").hidden = true;
+        $("portalAuth").hidden = false;
+        $("portalAuthStatus").textContent = "Sign in or create an account to access My eSIM.";
+      } else {
+        $("portalAuth").hidden = true;
+        $("portalChecking").hidden = false;
+        $("portalChecking").innerHTML = '<div class="card portal-card"><div class="portal-title">My eSIM is temporarily unavailable</div><div class="portal-meta">' + escapeHtml(error.message) + '</div><button class="portal-action" id="portalRetry" type="button">Try again</button></div>';
+        $("portalRetry").addEventListener("click", refresh);
+      }
     }
   }
   async function refreshTickets(existing) {
