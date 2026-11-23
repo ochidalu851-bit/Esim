@@ -324,7 +324,6 @@ async function loadLivePlans(destination){
     '<div class="live-plan-meta">'+escapeHtml(meta)+'</div></div>'+
     '<div class="live-plan-price">'+escapeHtml(price)+'</div></div>'+
     '<div class="live-plan-operator">'+escapeHtml([plan.provider,plan.operator].filter(Boolean).join(" · "))+'</div>'+
-    '<button type="button" class="live-plan-buy" disabled>Purchase integration pending</button>'+
    '</article>';
   }).join("");
  }catch(error){
