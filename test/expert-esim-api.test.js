@@ -374,6 +374,7 @@ test('Expert eSIM rewards, wallet, coupons, referrals, airtime requests, inbox a
   assert.equal(unreferencedFulfilment.status, 400);
   assert.equal(fulfilment.status, 200);
   assert.equal(fulfilment.body.record.status, 'delivered');
+  assert.equal(fulfilment.body.record.supplierReference, 'TEST-SUPPLIER-REF-2026');
   const fulfilmentAgain = await request('/api/v1/admin/features/fulfilment', {
     method: 'POST', headers: { 'x-expert-admin-key': adminKey },
     body: JSON.stringify({ type: 'airtime', id: airtime.body.request.id, status: 'delivered' })
@@ -414,6 +415,9 @@ test('the subscriber UI hides authentication when a session exists and keeps it 
   assert.match(mainHtml, /expert-features\.js/);
   assert.doesNotMatch(mainHtml, /speed\.cloudflare\.com/);
   assert.match(mainHtml, /api\/v1\/tools\/speedtest/);
+  assert.doesNotMatch(accountJs, /https?:\/\//);
+  assert.doesNotMatch(featureJs, /https?:\/\//);
+  assert.match(mainHtml, /return average;/);
   assert.match(accountJs, /getDeviceInfo/);
   assert.doesNotMatch(accountJs, /portalDeviceName|portalDevicePlatform|portalDeviceModel/);
   assert.match(accountJs, /#activateView \[hidden\]\{display:none!important\}/);
@@ -429,6 +433,7 @@ test('the subscriber UI hides authentication when a session exists and keeps it 
   assert.match(mainHtml, /<script src="\/account\.js"><\/script>/);
 
   const adminHtml = fs.readFileSync(path.join(root, 'public/admin.html'), 'utf8');
+  assert.match(adminHtml, /Supplier \/ sponsor transaction reference/);
   const adminScript = adminHtml.match(/<script>([\s\S]*?)<\/script>/);
   assert.ok(adminScript, 'admin script exists');
   assert.doesNotThrow(() => new Function(adminScript[1]));
