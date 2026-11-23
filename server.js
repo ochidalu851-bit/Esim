@@ -642,6 +642,10 @@ async function route(req, res, url) {
   }
   if (deviceProfilePath && m === 'GET') return send(res, 200, { ok: true, profile: await globalEsim.getProfile(await signedIn(req), deviceProfilePath[1]) });
   if (p === '/api/v1/global-esim/webhook' && m === 'POST') return send(res, 200, { ok: true, ...(await globalEsim.handleWebhook(await rawBody(req), req.headers['x-expert-signature'])) });
+  if (p === '/api/v1/kyc/webhook' && m === 'POST') {
+    const result = await kycWebhook(await rawBody(req), req.headers['x-kyc-signature']);
+    return send(res, 200, { ok: true, ...result });
+  }
   if (p === '/api/v1/kyc/start' && m === 'POST') {
     const user = await signedIn(req);
     return send(res, 200, { ok: true, ...(await beginKyc(user)) });
