@@ -259,7 +259,7 @@ test('unsigned or unconfigured provider callbacks cannot create live service', a
     method: 'POST',
     body: JSON.stringify({ event: 'charge.success', data: { reference: 'not-real' } })
   });
-  assert.equal(pay.status, 401);
+  assert.equal(pay.status, 410);
 
   const kyc = await request('/api/v1/kyc/webhook', {
     method: 'POST',
