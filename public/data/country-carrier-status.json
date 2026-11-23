@@ -1,11 +1,13 @@
 {
-  "generatedAt": "2026-11-23T11:20:36+00:00",
+  "generatedAt": "2026-11-23T11:25:11+00:00",
   "destinationCount": 206,
-  "providerCountries": 182,
-  "countriesWithoutListedLocalEsimCarrier": 24,
+  "countriesWithAppleListedEsimProviders": 182,
+  "countriesWithoutAppleListedEsimProviders": 24,
+  "countriesWithAppleListedLocalCarriers": 182,
+  "countriesWithAppleListedTravelProviders": 12,
   "countriesWithNetworkGenerations": 187,
   "countriesWithoutNetworkGenerations": 19,
-  "appleGlobalTravelProviders": 0,
+  "appleGlobalTravelProviders": 27,
   "mccNetworkRecords": 2679,
   "applePublishedDate": "November 19, 2026",
   "sampleNigeria": {
@@ -20,11 +22,14 @@
           "Wireless carriers that support other eSIM activation methods",
           "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
         ],
+        "providerType": "local_mobile_carrier",
         "networkGenerations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
-        "matchedNetworkCount": 4
+        "matchedNetworkCount": 4,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
       },
       {
         "name": "Airtel",
@@ -33,11 +38,14 @@
           "Wireless carriers that support other eSIM activation methods",
           "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
         ],
+        "providerType": "local_mobile_carrier",
         "networkGenerations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
-        "matchedNetworkCount": 4
+        "matchedNetworkCount": 4,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
       },
       {
         "name": "Glo",
@@ -45,11 +53,14 @@
         "activationMethods": [
           "Wireless carriers that support other eSIM activation methods"
         ],
+        "providerType": "local_mobile_carrier",
         "networkGenerations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
-        "matchedNetworkCount": 1
+        "matchedNetworkCount": 1,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
       },
       {
         "name": "MTN",
@@ -58,16 +69,88 @@
           "Wireless carriers that support other eSIM activation methods",
           "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
         ],
+        "providerType": "local_mobile_carrier",
         "networkGenerations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
-        "matchedNetworkCount": 1
+        "matchedNetworkCount": 1,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
       }
     ],
+    "localEsimCarrierCount": 4,
+    "localEsimCarriers": [
+      {
+        "name": "9mobile",
+        "website": null,
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods",
+          "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
+        ],
+        "providerType": "local_mobile_carrier",
+        "networkGenerations": [
+          "3G",
+          "4G",
+          "5G"
+        ],
+        "matchedNetworkCount": 4,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
+      },
+      {
+        "name": "Airtel",
+        "website": "https://www.airtel.com.ng/eSIM",
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods",
+          "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
+        ],
+        "providerType": "local_mobile_carrier",
+        "networkGenerations": [
+          "3G",
+          "4G",
+          "5G"
+        ],
+        "matchedNetworkCount": 4,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
+      },
+      {
+        "name": "Glo",
+        "website": "https://www.gloworld.com/ng/glo-esim",
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods"
+        ],
+        "providerType": "local_mobile_carrier",
+        "networkGenerations": [
+          "3G",
+          "4G",
+          "5G"
+        ],
+        "matchedNetworkCount": 1,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
+      },
+      {
+        "name": "MTN",
+        "website": "https://www.mtn.ng/sim/esim/",
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods",
+          "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
+        ],
+        "providerType": "local_mobile_carrier",
+        "networkGenerations": [
+          "3G",
+          "4G",
+          "5G"
+        ],
+        "matchedNetworkCount": 1,
+        "radioEvidenceSource": "https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
+      }
+    ],
+    "travelEsimProviderCount": 0,
+    "travelEsimProviders": [],
     "generations": [
       "3G",
-      "4G"
+      "4G",
+      "5G"
     ],
     "operatorCount": 11,
     "operators": [
@@ -75,7 +158,8 @@
         "name": "9mobile",
         "generations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
         "networkCount": 1
       },
@@ -83,7 +167,8 @@
         "name": "Airtel",
         "generations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
         "networkCount": 1
       },
@@ -98,7 +183,8 @@
         "name": "Glo",
         "generations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
         "networkCount": 1
       },
@@ -113,7 +199,8 @@
         "name": "MTN",
         "generations": [
           "3G",
-          "4G"
+          "4G",
+          "5G"
         ],
         "networkCount": 1
       },
@@ -153,6 +240,9 @@
     ],
     "networkRecordCount": 11,
     "networkSourceUpdatedAt": "2025-04-09T13:26:22.159Z",
-    "networkDataVerified": true
+    "networkDataVerified": true,
+    "sourceNotes": [
+      "NCC/Ookla recorded 5G-capable device activity using 5G on MTN, Airtel, T2 (formerly 9mobile) and Glo in Lagos and Abuja in August 2026. T2's sample was small; this is not a promise of nationwide 5G coverage."
+    ]
   }
 }
