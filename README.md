@@ -5,8 +5,8 @@ Expert eSIM is a global, sponsor-funded mobile-data/eSIM platform. The intended 
 ## Customer experience
 
 - One account per customer, with a secure HttpOnly session cookie.
-- A user registers each device separately from that device's installation of Expert eSIM.
-- Each device receives its own profile request and independent lifecycle state.
+- The Android app automatically reads the phone manufacturer, model, Android version and eSIM hardware/enabled state; users do not type device details. A random app-install identifier is used instead of IMEI/EID.
+- Each detected device is registered to the subscriber automatically; a separate profile can then be requested for that device.
 - The app can show profile requested, awaiting partners, provisioning, profile issued, active, provider error and partner-review states.
 - An activation code is released only to the owning subscriber after the provider confirms that the profile carries the contracted unlimited-data and global-roaming attributes.
 - Identity checks are routed through a generic authorised provider when required by the connectivity partner or applicable market rules.
@@ -45,7 +45,7 @@ A provider response must independently confirm `unlimitedData: true` (or `dataPo
 - `GET /api/v1/privacy/export` — authenticated personal-data export.
 - `/admin` — protected operations dashboard.
 
-The older package/payment endpoints remain in the backend for compatibility with prior records, but they are not part of the current sponsored customer workflow. Customer-side package checkout has been removed from My eSIM.
+The older package/payment endpoints remain in the backend for compatibility with prior records, but they are not part of the current sponsored customer workflow. The My eSIM drawer-menu entry and customer-side package checkout have been removed.
 
 ## Global provider integration contract
 
@@ -108,3 +108,8 @@ Requires Node.js 20 or later.
 
     npm start
     npm test
+
+
+## Automatic device detection
+
+The Android APK reads manufacturer, model, OS version and the public eUICC hardware/enabled state from Android. It uses a random persistent app-install identifier, not IMEI. EID is not read: Android restricts EID access to apps with carrier privileges. Browser sessions may identify platform and sometimes model, but cannot always verify eSIM hardware capability.
