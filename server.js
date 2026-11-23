@@ -217,6 +217,20 @@ ZW|Zimbabwe
 });
 
 
+const COUNTRY_CARRIER_DATA_PATH = path.join(__dirname, "public", "data", "country-carrier-data.json");
+let COUNTRY_CARRIER_DATA = null;
+try {
+  COUNTRY_CARRIER_DATA = JSON.parse(fs.readFileSync(COUNTRY_CARRIER_DATA_PATH, "utf8"));
+  console.log(
+    "Loaded source-backed eSIM carrier records for " +
+    Object.keys(COUNTRY_CARRIER_DATA.countries || {}).length + " ISO destinations"
+  );
+} catch (error) {
+  console.warn("Country eSIM carrier dataset is unavailable: " + error.message);
+}
+
+
+
 const NETWORK_INDEX_TTL_MS = 12 * 60 * 60 * 1000;
 let NETWORK_INDEX = null;
 let NETWORK_INDEX_SAVED_AT = 0;
@@ -635,95 +649,57 @@ function providerConnectionStatus() {
   ];
 }
 
-async function getDestinationNetworkInfo(destination) {
+function getDestinationNetworkInfo(destination) {
   const countryCode = String(destination.code || "").toUpperCase();
-  if (!/^[A-Z]{2}$/.test(countryCode)) {
+  const record = COUNTRY_CARRIER_DATA?.countries?.[countryCode];
+
+  if (!record) {
     return {
       available: false,
+      verified: false,
       destination: { id: destination.id, name: destination.name, code: countryCode },
-      provider: null,
-      providers: [],
+      provider: "Country provider record unavailable",
+      esimCarriers: [],
+      localEsimCarriers: [],
+      travelEsimProviders: [],
       generations: [],
-      source: "provider APIs",
-      message: "No verified country code is available for this destination."
+      localOperators: [],
+      operatorCount: 0,
+      source: COUNTRY_CARRIER_DATA?.sources || null,
+      message: "No country-specific source record is available for this destination."
     };
   }
 
-  const providerCoverage = await getProviderCoverage(destination);
-  let countryRecords = [];
-  if (!providerCoverage.providers.length) {
-    try {
-      const allRecords = await getNetworkIndex();
-      countryRecords = allRecords.filter((record) => recordMatchesDestination(record, destination));
-    } catch (error) {
-      console.warn("National network register unavailable for " + countryCode + ": " + error.message);
-    }
-  }
-  const generationSet = new Set(providerCoverage.generations);
-  const operatorMap = new Map();
-
-  for (const operator of providerCoverage.operators) {
-    const current = operatorMap.get(operator.name) || new Set();
-    operator.generations.forEach((generation) => current.add(generation));
-    operatorMap.set(operator.name, current);
-  }
-
-  // Use the country register only when no partner supplies this country's
-  // actual eSIM roaming networks. Never merge unrelated national operators
-  // into the connected-provider result.
-  if (!providerCoverage.providers.length) {
-    for (const record of countryRecords) {
-      const name = String(record.brand || record.operator || "").trim();
-      if (!name) continue;
-      const current = operatorMap.get(name) || new Set();
-      generationsForRecord(record).forEach((generation) => current.add(generation));
-      operatorMap.set(name, current);
-    }
-    for (const record of countryRecords) {
-      for (const generation of generationsForRecord(record)) generationSet.add(generation);
-    }
-  }
-
-  // Nigerian regulator reporting independently confirms active 5G service,
-  // but no provider is marked connected unless its partner API confirms it.
-  if (countryCode === "NG" && !providerCoverage.providers.length) {
-    ["3G", "4G", "5G"].forEach((generation) => generationSet.add(generation));
-  }
-
-  const operators = [...operatorMap.entries()]
-    .map(([name, generations]) => ({
-      name,
-      generations: DISPLAY_GENERATIONS.filter((generation) => generations.has(generation))
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const updatedDates = countryRecords
-    .map((record) => record.updatedAt || record.updated_at)
-    .filter(Boolean)
-    .sort();
+  const allCarriers = Array.isArray(record.esimCarriers) ? record.esimCarriers : [];
+  const localCarriers = Array.isArray(record.localEsimCarriers)
+    ? record.localEsimCarriers
+    : allCarriers.filter((item) => item.providerType !== "global_travel_esim");
+  const travelProviders = Array.isArray(record.travelEsimProviders)
+    ? record.travelEsimProviders
+    : allCarriers.filter((item) => item.providerType === "global_travel_esim");
+  const carrierNames = allCarriers.map((item) => item.name).filter(Boolean);
+  const generations = Array.isArray(record.generations) ? record.generations : [];
+  const localOperators = Array.isArray(record.operators) ? record.operators : [];
+  const providerLabel = carrierNames.length
+    ? carrierNames.join(" · ")
+    : "No Apple-listed eSIM provider";
 
   return {
-    available: generationSet.size > 0 || providerCoverage.providers.length > 0,
-    verified: providerCoverage.providers.length > 0 || generationSet.size > 0,
+    available: true,
+    verified: Boolean(record.networkDataVerified || allCarriers.length),
     destination: { id: destination.id, name: destination.name, code: countryCode },
-    provider: providerCoverage.providers.length
-      ? providerCoverage.providers.map((provider) => {
-          const names = provider.operators.map((operator) => operator.name);
-          return provider.name + (names.length ? " (" + names.join(", ") + ")" : "");
-        }).join(" · ")
-      : null,
-    providers: providerCoverage.providers,
-    generations: DISPLAY_GENERATIONS.filter((generation) => generationSet.has(generation)),
-    localOperators: operators,
-    operatorCount: operators.length,
-    sourceCountryName: countryNameFromRecord(countryRecords[0]) || destination.name,
-    sourceUpdatedAt: updatedDates.at(-1) || null,
-    source: providerCoverage.providers.length
-      ? providerCoverage.providers.map((provider) => provider.source).join(" + ")
-      : "https://mcc-mnc.org",
-    note: providerCoverage.providers.length
-      ? "Networks and speeds are taken from connected eSIM partner coverage. Availability depends on the provider's live plans."
-      : "No eSIM partner API is connected for this destination. The displayed network generations are national network-register data, not confirmed eSIM roaming access."
+    provider: providerLabel,
+    esimCarriers: allCarriers,
+    localEsimCarriers: localCarriers,
+    travelEsimProviders: travelProviders,
+    generations,
+    localOperators,
+    operatorCount: Number(record.operatorCount || localOperators.length),
+    networkRecordCount: Number(record.networkRecordCount || 0),
+    networkSourceUpdatedAt: record.networkSourceUpdatedAt || null,
+    source: COUNTRY_CARRIER_DATA.sources,
+    sourceNotes: Array.isArray(record.sourceNotes) ? record.sourceNotes : [],
+    note: "eSIM provider names are taken from Apple's country/region iPhone eSIM carrier directory. Speeds are the radio generations recorded for mobile networks in the destination; actual network access depends on the carrier, plan, device and local coverage."
   };
 }
 
@@ -784,10 +760,6 @@ async function runExternalSourceDiagnostics() {
   return results;
 }
 
-  if (req.method === "GET" && url.pathname === "/api/source-diagnostic") {
-    return runExternalSourceDiagnostics().then((data) => sendJson(res, 200, { sources: data }));
-  }
-
   if (req.method === "GET" && url.pathname === "/health") {
     return sendJson(res, 200, {
       ok: true,
@@ -797,9 +769,14 @@ async function runExternalSourceDiagnostics() {
   }
 
   if (req.method === "GET" && url.pathname === "/api/status") {
+    const countryRecords = Object.values(COUNTRY_CARRIER_DATA?.countries || {});
     return sendJson(res, 200, {
-      state: "catalogue_only",
+      state: "country_catalogue_with_source_data",
       destinationCount: DESTINATION_ROWS.length,
+      countryCarrierDataLoaded: Boolean(COUNTRY_CARRIER_DATA),
+      countriesWithEsimProviders: countryRecords.filter((item) => (item.esimCarrierCount || 0) > 0).length,
+      countriesWithLocalEsimCarriers: countryRecords.filter((item) => (item.localEsimCarrierCount || 0) > 0).length,
+      countriesWithNetworkGenerations: countryRecords.filter((item) => item.networkDataVerified).length,
       providerIntegrations: 0,
       livePlansEnabled: false,
       paymentsEnabled: false,
@@ -828,16 +805,32 @@ async function runExternalSourceDiagnostics() {
   }
 
   if (req.method === "GET" && url.pathname === "/api/network-audit") {
-    return buildNetworkAudit()
-      .then((items) => sendJson(res, 200, {
-        checked: items.length,
-        verifiedCount: items.filter((item) => item.verified).length,
-        unverifiedCount: items.filter((item) => !item.verified).length,
-        items
-      }))
-      .catch(() => sendJson(res, 502, {
-        error: "The full country network dataset could not be loaded. No missing country speeds have been guessed."
-      }));
+    const items = DESTINATION_ROWS.map((destination) => {
+      const record = COUNTRY_CARRIER_DATA?.countries?.[destination.code] || null;
+      return {
+        id: destination.id,
+        name: destination.name,
+        code: destination.code,
+        verified: Boolean(record?.networkDataVerified),
+        generations: record?.generations || [],
+        providerVerified: Boolean(record?.esimCarrierCount),
+        esimCarrierCount: Number(record?.esimCarrierCount || 0),
+        localEsimCarrierCount: Number(record?.localEsimCarrierCount || 0),
+        travelEsimProviderCount: Number(record?.travelEsimProviderCount || 0),
+        networkRecordCount: Number(record?.networkRecordCount || 0),
+        sourceNotes: record?.sourceNotes || []
+      };
+    });
+    return sendJson(res, 200, {
+      checked: items.length,
+      verifiedCount: items.filter((item) => item.verified).length,
+      unverifiedCount: items.filter((item) => !item.verified).length,
+      providerVerifiedCount: items.filter((item) => item.providerVerified).length,
+      providerUnlistedCount: items.filter((item) => !item.providerVerified).length,
+      sourceGeneratedAt: COUNTRY_CARRIER_DATA?.generatedAt || null,
+      sources: COUNTRY_CARRIER_DATA?.sources || null,
+      items
+    });
   }
 
   if (req.method === "GET" && url.pathname === "/api/network-info") {
@@ -846,17 +839,7 @@ async function runExternalSourceDiagnostics() {
     if (!destination) {
       return sendJson(res, 400, { error: "Choose a valid destination." });
     }
-    return getDestinationNetworkInfo(destination)
-      .then((payload) => sendJson(res, 200, payload))
-      .catch((error) => sendJson(res, 502, {
-        available: false,
-        destination: { id: destination.id, name: destination.name, code: destination.code },
-        provider: null,
-        generations: [],
-        operators: [],
-        source: "https://mcc-mnc.org",
-        message: "Country network information could not be verified right now. Please try again later."
-      }));
+    return sendJson(res, 200, getDestinationNetworkInfo(destination));
   }
 
   if (req.method === "GET" && url.pathname === "/api/plans") {
