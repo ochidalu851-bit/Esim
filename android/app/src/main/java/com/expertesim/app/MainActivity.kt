@@ -508,12 +508,12 @@ class MainActivity : Activity() {
                 reportNetworkInfo("Android telephony service is unavailable.")
                 return
             }
-            val expertProfile = findExpertProfile()
-            if (expertProfile == null) {
-                reportNetworkInfo("Expert eSIM profile not installed", message = "Install a provider-issued Expert eSIM profile before checking its mobile network.")
-                return
+            val defaultDataSubscription = SubscriptionManager.getDefaultDataSubscriptionId()
+            val manager = if (defaultDataSubscription != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                baseManager.createForSubscriptionId(defaultDataSubscription)
+            } else {
+                baseManager
             }
-            val manager = baseManager.createForSubscriptionId(expertProfile.subscriptionId)
             val type = manager.dataNetworkType
             val label = when (type) {
                 TelephonyManager.NETWORK_TYPE_NR -> "5G"
@@ -532,7 +532,7 @@ class MainActivity : Activity() {
                 label,
                 hasRadio = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS),
                 supports5g = type == TelephonyManager.NETWORK_TYPE_NR,
-                message = "Network type is read from the saved Expert eSIM subscription."
+                message = "Network technology is read from the phone’s current default mobile-data SIM."
             )
         } catch (security: SecurityException) {
             reportNetworkInfo("Permission required", message = "Android denied access to current mobile network information.")
