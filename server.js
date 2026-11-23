@@ -677,12 +677,16 @@ function getDestinationNetworkInfo(destination) {
   const travelProviders = Array.isArray(record.travelEsimProviders)
     ? record.travelEsimProviders
     : allCarriers.filter((item) => item.providerType === "global_travel_esim");
-  const carrierNames = allCarriers.map((item) => item.name).filter(Boolean);
+  const localCarrierNames = localCarriers.map((item) => item.name).filter(Boolean);
+  const travelProviderNames = travelProviders.map((item) => item.name).filter(Boolean);
   const generations = Array.isArray(record.generations) ? record.generations : [];
   const localOperators = Array.isArray(record.operators) ? record.operators : [];
-  const providerLabel = carrierNames.length
-    ? carrierNames.join(" · ")
-    : "No Apple-listed eSIM provider";
+  const providerParts = [];
+  if (localCarrierNames.length) providerParts.push(localCarrierNames.join(" · "));
+  if (travelProviderNames.length) providerParts.push("Travel eSIM: " + travelProviderNames.join(" · "));
+  const providerLabel = providerParts.length
+    ? providerParts.join(" | ")
+    : "No source-listed eSIM provider";
 
   return {
     available: true,
@@ -774,9 +778,22 @@ async function runExternalSourceDiagnostics() {
       state: "country_catalogue_with_source_data",
       destinationCount: DESTINATION_ROWS.length,
       countryCarrierDataLoaded: Boolean(COUNTRY_CARRIER_DATA),
-      countriesWithEsimProviders: countryRecords.filter((item) => (item.esimCarrierCount || 0) > 0).length,
-      countriesWithLocalEsimCarriers: countryRecords.filter((item) => (item.localEsimCarrierCount || 0) > 0).length,
-      countriesWithNetworkGenerations: countryRecords.filter((item) => item.networkDataVerified).length,
+      countriesWithEsimProviders: DESTINATION_ROWS.filter((destination) => {
+        const item = COUNTRY_CARRIER_DATA?.countries?.[destination.code];
+        return Boolean(item?.esimCarrierCount);
+      }).length,
+      countriesWithLocalEsimCarriers: DESTINATION_ROWS.filter((destination) => {
+        const item = COUNTRY_CARRIER_DATA?.countries?.[destination.code];
+        return Boolean(item?.localEsimCarrierCount);
+      }).length,
+      countriesWithTravelEsimProviders: DESTINATION_ROWS.filter((destination) => {
+        const item = COUNTRY_CARRIER_DATA?.countries?.[destination.code];
+        return Boolean(item?.travelEsimProviderCount);
+      }).length,
+      countriesWithNetworkGenerations: DESTINATION_ROWS.filter((destination) => {
+        const item = COUNTRY_CARRIER_DATA?.countries?.[destination.code];
+        return Boolean(item?.networkDataVerified);
+      }).length,
       providerIntegrations: 0,
       livePlansEnabled: false,
       paymentsEnabled: false,
