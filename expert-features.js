@@ -404,6 +404,44 @@ function createExpertFeatures({ loadStore, transact }) {
     });
   }
 
+  async function adminUpdateFulfilment(data) {
+    const type = String(data.type || '');
+    const id = String(data.id || '');
+    const status = String(data.status || '');
+    const message = String(data.message || '').trim().slice(0,500);
+    const allowed = {
+      store_order: ['fulfilled','cancelled'],
+      airtime: ['delivered','failed','cancelled'],
+      data_grant: ['applied','rejected','cancelled']
+    };
+    if (!allowed[type] || !allowed[type].includes(status) || !id) {
+      throw Object.assign(new Error('Choose a valid fulfilment record and final status.'), { statusCode: 400 });
+    }
+    return transact(store => {
+      ensure(store);
+      const collection = type === 'store_order' ? store.storeOrders : type === 'airtime' ? store.airtimeRequests : store.dataGrants;
+      const item = collection.find(x => x.id === id);
+      if (!item) throw Object.assign(new Error('The fulfilment record was not found.'), { statusCode: 404 });
+      const allowedCurrent = {
+        store_order: ['awaiting_sponsor_fulfilment','awaiting_provider'],
+        airtime: ['awaiting_airtime_partner'],
+        data_grant: ['awaiting_provider']
+      };
+      if (!allowedCurrent[type].includes(item.status)) {
+        throw Object.assign(new Error('This record is already finalised and cannot be changed through this action.'), { statusCode: 409 });
+      }
+      const now = new Date().toISOString();
+      item.status = status;
+      item.message = message || (status === 'fulfilled' || status === 'delivered' || status === 'applied'
+        ? 'Fulfilment was confirmed by an authorised operator after supplier confirmation.'
+        : 'The fulfilment request was closed without delivery.');
+      item.updatedAt = now;
+      item.fulfilledAt = ['fulfilled','delivered','applied'].includes(status) ? now : null;
+      store.audit.push({ id: crypto.randomUUID(), event: 'expert_features.' + type + '.' + status, subject: item.id, at: now });
+      return { ...item };
+    });
+  }
+
   async function adminListOrders() {
     const store = ensure(await loadStore());
     return {
@@ -417,7 +455,7 @@ function createExpertFeatures({ loadStore, transact }) {
     summary, checkIn, spinReward, claimTask, recordSpeedTest, wallet, transferPoints, referrals,
     coupons, claimCoupon, redeemCode, storeCatalog, redeemItem, airtimeRequest, airtimeHistory,
     messages, markMessageRead, adminSummary, adminCreateCoupon, adminCreateStoreItem,
-    adminCreateCode, adminSendMessage, adminAdjustPoints, adminListOrders
+    adminCreateCode, adminSendMessage, adminAdjustPoints, adminListOrders, adminUpdateFulfilment
   };
 }
 
