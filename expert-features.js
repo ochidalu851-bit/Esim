@@ -9,6 +9,15 @@ const TASKS = [
   { id: 'activate_profile', title: 'Activate an Expert eSIM profile', description: 'Rewarded after an authorised profile is installed and confirmed active.', points: 30, cadence: 'once' }
 ];
 
+const DEFAULT_PREFERENCES = Object.freeze({
+  darkMode: true,
+  reduceMotion: false,
+  inAppNotifications: true,
+  emailNotifications: false,
+  usageAlerts: true,
+  sponsorOfferUpdates: false
+});
+
 function createExpertFeatures({ loadStore, transact }) {
   const today = () => new Date().toISOString().slice(0, 10);
   const ref = prefix => prefix + '-' + crypto.randomBytes(8).toString('hex').toUpperCase();
@@ -73,6 +82,33 @@ function createExpertFeatures({ loadStore, transact }) {
       }),
       { id: 'refer_friend', title: 'Invite a friend', description: 'Earn 25 points when a referred member verifies their email and registers a device.', points: 25, cadence: 'per-qualified-referral', eligible: false, claimed: false, progress: referralsQualified, target: null }
     ];
+  }
+
+  async function getPreferences(user) {
+    const store = ensure(await loadStore());
+    const member = store.users.find(x => x.id === user.id && x.status === 'active');
+    if (!member) throw Object.assign(new Error('Account is unavailable.'), { statusCode: 403 });
+    return { ...DEFAULT_PREFERENCES, ...(member.preferences || {}) };
+  }
+
+  async function updatePreferences(user, data) {
+    const patch = {};
+    for (const key of Object.keys(DEFAULT_PREFERENCES)) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        if (typeof data[key] !== 'boolean') throw Object.assign(new Error('Preference "' + key + '" must be true or false.'), { statusCode: 400 });
+        patch[key] = data[key];
+      }
+    }
+    if (!Object.keys(patch).length) throw Object.assign(new Error('No supported preferences were supplied.'), { statusCode: 400 });
+    return transact(store => {
+      ensure(store);
+      const member = userById(store, user.id);
+      if (!member) throw Object.assign(new Error('Account is unavailable.'), { statusCode: 403 });
+      member.preferences = { ...DEFAULT_PREFERENCES, ...(member.preferences || {}), ...patch };
+      member.preferencesUpdatedAt = new Date().toISOString();
+      store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.preferences_updated', subject: user.id, at: member.preferencesUpdatedAt, metadata: patch });
+      return { ...member.preferences };
+    });
   }
 
   async function summary(user) {
@@ -460,7 +496,7 @@ function createExpertFeatures({ loadStore, transact }) {
   }
 
   return {
-    summary, checkIn, spinReward, claimTask, recordSpeedTest, wallet, transferPoints, referrals,
+    summary, getPreferences, updatePreferences, checkIn, spinReward, claimTask, recordSpeedTest, wallet, transferPoints, referrals,
     coupons, claimCoupon, redeemCode, storeCatalog, redeemItem, airtimeRequest, airtimeHistory,
     messages, markMessageRead, adminSummary, adminCreateCoupon, adminCreateStoreItem,
     adminCreateCode, adminSendMessage, adminAdjustPoints, adminListOrders, adminUpdateFulfilment
