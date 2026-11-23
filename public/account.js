@@ -34,7 +34,7 @@
     '#activateView .portal-actions{display:flex;gap:8px;flex-wrap:wrap}' +
     '</style>' +
     '<div class="backline"><button class="back-button" data-portal-back type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 6-6 6 6 6"/></svg></button><div><div class="page-title">My eSIM</div><div class="page-subtitle">Your Expert eSIM account, subscriptions and mobile-data services.</div></div></div>' +
-    '<div class="card portal-card" id="portalAuth">' +
+    '<div class="card portal-card" id="portalAuth" hidden>' +
       '<div class="portal-tabs"><button class="portal-tab active" data-portal-mode="register" type="button">Create account</button><button class="portal-tab" data-portal-mode="login" type="button">Sign in</button></div>' +
       '<form class="portal-form" id="portalForm">' +
         '<div id="portalNameWrap"><label class="portal-label" for="portalName">Full name</label><input class="portal-input" id="portalName" autocomplete="name" required placeholder="Your full name"></div>' +
@@ -46,6 +46,7 @@
       '</form>' +
       '<p class="portal-status" id="portalAuthStatus" aria-live="polite">Create your subscriber account. This account does not itself activate mobile data or create an eSIM profile.</p>' +
     '</div>' +
+    '<div class="portal-layout" id="portalChecking"><div class="card portal-card"><div class="portal-meta">Checking your Expert eSIM account…</div></div></div>' +
     '<div class="portal-layout" id="portalMember" hidden>' +
       '<div class="card portal-card">' +
         '<div class="portal-row"><div><div class="portal-title" id="portalUserName">Subscriber</div><div class="portal-meta" id="portalUserEmail"></div><div class="portal-meta" id="portalUserPhone"></div></div><button class="portal-secondary" id="portalLogout" type="button">Sign out</button></div>' +
@@ -287,14 +288,16 @@
     finally { $("portalPrivacySubmit").disabled = false; }
   });
   async function refresh() {
-    $("portalAuth").hidden = false;
+    $("portalAuth").hidden = true;
     $("portalMember").hidden = true;
+    $("portalChecking").hidden = false;
     try {
       const data = await api("/me");
       const user = data.user;
       $("portalUserName").textContent = user.fullName;
       $("portalUserEmail").textContent = user.email;
       $("portalUserPhone").textContent = user.phone || "No phone number supplied";
+      $("portalChecking").hidden = true;
       $("portalAuth").hidden = true;
       $("portalMember").hidden = false;
       $("portalEmailState").textContent = user.emailVerified ? "Verified" : "Not verified";
@@ -312,6 +315,7 @@
       }
       await Promise.all([refreshPlans(user,data.readiness),refreshOrders(),refreshTickets(data.tickets || []),refreshPrivacyRequests(data.privacyRequests || [])]);
     } catch (error) {
+      $("portalChecking").hidden = true;
       $("portalAuth").hidden = false;
       $("portalMember").hidden = true;
       if (error.message !== "Sign in to continue.") $("portalAuthStatus").textContent = error.message;
