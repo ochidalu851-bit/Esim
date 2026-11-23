@@ -111,6 +111,9 @@ main{flex:1;display:flex;flex-direction:column}
   if(page==="network")refreshNetworkInfo();
   if(page==="activate" && window.ExpertAccountPortal)window.ExpertAccountPortal.refresh();
  }
+ window.ExpertAppNavigate = navigate;
+ window.ExpertAppRegisterPage = function(name,node){ if(name && node) pages[name]=node; };
+
  menuButton.addEventListener("click",()=>showDrawer(true));
  $("closeDrawer").addEventListener("click",()=>showDrawer(false));
  backdrop.addEventListener("click",()=>showDrawer(false));
@@ -217,7 +220,7 @@ main{flex:1;display:flex;flex-direction:column}
   const values=[];
   for(let index=0;index<6;index++){
    const start=performance.now();
-   const response=await fetch("https://speed.cloudflare.com/__down?bytes=1&ping="+Date.now()+"-"+index,{mode:"cors",cache:"no-store"});
+   const response=await fetch("/api/v1/tools/speedtest/ping?probe="+Date.now()+"-"+index,{cache:"no-store"});
    if(!response.ok)throw new Error("Latency check failed with HTTP "+response.status);
    await response.arrayBuffer();values.push(performance.now()-start);
    $("pingValue").innerHTML=values[values.length-1].toFixed(0)+" <span class='metric-unit'>ms</span>";
@@ -227,7 +230,7 @@ main{flex:1;display:flex;flex-direction:column}
   }
  }
  async function runDownloadTest(bytes){
-  const response=await fetch("https://speed.cloudflare.com/__down?bytes="+bytes+"&cacheBust="+Date.now(),{mode:"cors",cache:"no-store"});
+  const response=await fetch("/api/v1/tools/speedtest/download?bytes="+bytes+"&cacheBust="+Date.now(),{cache:"no-store"});
   if(!response.ok)throw new Error("Download test failed with HTTP "+response.status);
   if(!response.body||!response.body.getReader)throw new Error("Live download measurements are not supported by this browser.");
   const reader=response.body.getReader();let total=0,lastBytes=0,lastTime=performance.now(),start=lastTime;
@@ -252,7 +255,7 @@ main{flex:1;display:flex;flex-direction:column}
   if(window.crypto&&crypto.getRandomValues){for(let offset=0;offset<payload.length;offset+=65536)crypto.getRandomValues(payload.subarray(offset,Math.min(offset+65536,payload.length)));}
   await new Promise((resolve,reject)=>{
    const xhr=new XMLHttpRequest();const started=performance.now();let lastLoaded=0,lastAt=started;
-   xhr.open("POST","https://speed.cloudflare.com/__up?cacheBust="+Date.now(),true);
+   xhr.open("POST","/api/v1/tools/speedtest/upload?cacheBust="+Date.now(),true);
    xhr.setRequestHeader("Content-Type","application/octet-stream");
    xhr.upload.onprogress=event=>{
     if(!event.lengthComputable)return;
@@ -283,6 +286,7 @@ main{flex:1;display:flex;flex-direction:column}
    $("testStatus").textContent="Measuring real-time download throughput…";const downloadAverage=await runDownloadTest(8000000);
    $("testStatus").textContent="Measuring real-time upload throughput…";await runUploadTest(2000000);
    $("speedMain").textContent=fmt(downloadAverage);$("speedLabel").textContent="DOWNLOAD AVERAGE";$("testStatus").textContent="Completed · live measurements from the phone's active internet connection.";
+    if(window.ExpertAccountPortal && typeof window.ExpertAccountPortal.recordSpeedTest==="function"){ await window.ExpertAccountPortal.recordSpeedTest({downloadMbps:downloadAverage,uploadMbps:Number.parseFloat($("uploadValue").textContent)||0,pingMs:Number.parseFloat($("pingValue").textContent)||0,jitterMs:Number.parseFloat($("jitterValue").textContent)||0}).catch(()=>{}); }
   }catch(error){$("testStatus").textContent="Test could not complete: "+(error&&error.message?error.message:"network error");}
   finally{running=false;button.disabled=false;button.textContent="Run Speed Test Again";}
  });
@@ -290,5 +294,6 @@ main{flex:1;display:flex;flex-direction:column}
 })();
 </script>
 <script src="/account.js"></script>
+<script src="/expert-features.js"></script>
 </body>
 </html>
