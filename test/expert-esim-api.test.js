@@ -200,6 +200,8 @@ test('subscriber can raise a support case and privacy request and export their o
   assert.equal(exported.status, 200);
   assert.equal(exported.body.account.email, 'subscriber@example.com');
   assert.equal(exported.body.orders.length, 0);
+  assert.equal(Array.isArray(exported.body.devices), true);
+  assert.equal(Array.isArray(exported.body.profiles), true);
   assert.equal(exported.body.supportTickets.length, 1);
   assert.equal(exported.body.privacyRequests.length, 1);
   assert.equal(Object.hasOwn(exported.body.account, 'passwordHash'), false);
