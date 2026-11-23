@@ -1,4 +1,4 @@
-const CACHE_NAME = "expert-mobile-geniex-v1";
+const CACHE_NAME = "expert-mobile-geniex-v2";
 const APP_FILES = ["/", "/manifest.webmanifest", "/icon.svg", "/geniex.css?v=1", "/geniex-app.js?v=1"];
 
 self.addEventListener("install", (event) => {
