@@ -134,10 +134,15 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
     const now = new Date().toISOString();
     profile = {
       id: crypto.randomUUID(), reference: 'EXG-' + now.replace(/[-:TZ.]/g,'').slice(0,14) + '-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
-      userId: user.id, deviceId: device.id, status: 'awaiting_partners', dataPolicy: 'sponsored-unlimited',
+      userId: user.id, deviceId: device.id,
+      status: user.emailVerified ? 'awaiting_partners' : 'awaiting_verification',
+      dataPolicy: 'sponsored-unlimited',
       coverageScope: null, unlimitedDataConfirmed: false, coverageConfirmed: false,
       providerProfileId: null, encryptedActivationCode: null, encryptedConfirmationCode: null,
-      verificationRequired: false, message: 'Awaiting a contracted global connectivity partner and authorised eSIM profile provider.',
+      verificationRequired: false,
+      message: user.emailVerified
+        ? 'Awaiting a contracted global connectivity partner and authorised eSIM profile provider.'
+        : 'Device registered. Verify your account email before the provider can issue this profile.',
       createdAt: now, updatedAt: now
     };
     await transact(store => { store.profiles.push(profile); store.audit.push({ id: crypto.randomUUID(), event: 'device.profile_requested', subject: profile.id, at: now }); });
