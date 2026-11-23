@@ -13,6 +13,22 @@ Expert eSIM is a global, sponsor-funded mobile-data/eSIM platform. The intended 
 - Users can request support and privacy actions and export their account data.
 - Preferred Network and Speed Test remain separate features. A speed test measures the connection currently active on the phone; it does not prove that the Expert eSIM profile is supplying connectivity.
 
+## Migrated Expert eSIM feature set
+
+The customer experience is served by the Expert eSIM Railway domain. Its feature bundle and API routes are same-origin; the customer web interface does not call Geniex hosts, Geniex SDKs or the old external speed-test host.
+
+- Data & Usage: automatically detected devices, individual eSIM profile states, active network type when Android exposes it, and carrier-usage status.
+- Rewards & Tasks: daily check-in, a free daily Expert Points spin, account/device/speed-test tasks and referral rewards.
+- Points Wallet: a ledger and member-to-member point transfers. Expert Points are loyalty points, not cash, bank deposits, withdrawable funds or airtime.
+- Coupons & Rewards: claimable coupons, hashed single-use/limited-use codes, a points store and reward-order history.
+- Airtime: international top-up requests and history. Requests are not shown as delivered until an authorised supplier confirms the top-up.
+- Messages: in-app announcements and notifications with read state.
+- Device Tools: manufacturer/model, eSIM capability, battery, memory, storage and supported thermal readings, plus Android battery settings.
+- Settings: appearance, motion preference and account password change.
+- Admin: coupon, reward, code and announcement creation; points adjustments; supplier-confirmed fulfilment actions; engagement and pending-request queues.
+
+Actual cellular data consumption requires a carrier's authenticated usage API. Sponsor ad campaigns/offerwalls require a contracted sponsor or advertising provider. Cash wallet, deposits, withdrawals and bank transfers are not enabled; the points wallet is deliberately not represented as money. The app does not fake these external services or copy credentials/SDKs from another APK.
+
 ## Global coverage and unlimited-data boundary
 
 “Global” means the platform is designed to use a global roaming/connectivity partner. It does **not** mean every country, territory, network, device or radio band is automatically covered. The live provider's country/territory coverage, local restrictions, permanent-roaming rules, fair-use policy, traffic management, tethering policy and supported radio technologies must be confirmed in the signed agreement.
@@ -45,7 +61,7 @@ A provider response must independently confirm `unlimitedData: true` (or `dataPo
 - `GET /api/v1/privacy/export` — authenticated personal-data export.
 - `/admin` — protected operations dashboard.
 
-The older package/payment endpoints remain in the backend for compatibility with prior records, but they are not part of the current sponsored customer workflow. The My eSIM drawer-menu entry and customer-side package checkout have been removed.
+Legacy customer package, order and payment URLs are retired and return HTTP 410. They are not part of the sponsored per-device workflow.
 
 ## Global provider integration contract
 
