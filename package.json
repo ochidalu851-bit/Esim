@@ -1,0 +1,13 @@
+{
+  "name": "expert-esim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone eSIM destination catalogue and plan browser",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
