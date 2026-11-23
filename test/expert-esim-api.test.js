@@ -65,13 +65,13 @@ test('health and readiness show that no live eSIM provider is configured', async
   const result = await request('/health');
   assert.equal(result.status, 200);
   assert.equal(result.body.persistentStoreReady, true);
-  assert.equal(result.body.provider.adapterConfigured, false);
-  assert.equal(result.body.provider.hostNetworkAgreement, false);
+  assert.equal(result.body.provider.profileProviderConfigured, false);
+  assert.equal(result.body.provider.globalConnectivityPartnerConfigured, false);
 
   const status = await request('/api/v1/status');
   assert.equal(status.status, 200);
-  assert.equal(status.body.providerProvisioning, 'awaiting-authorised-partner');
-  assert.equal(status.body.cellularDataProvisioning, 'not-active-until-host-network-confirms');
+  assert.equal(status.body.providerProvisioning, 'awaiting-global-connectivity-and-esim-partners');
+  assert.equal(status.body.cellularDataProvisioning, 'not-active-until-global-provider-confirms-profile-and-roaming');
 });
 
 test('subscriber must accept privacy and terms and receives a secure HttpOnly cookie', async () => {
@@ -86,7 +86,7 @@ test('subscriber must accept privacy and terms and receives a secure HttpOnly co
     body: JSON.stringify({
       fullName: 'Test Subscriber',
       email: 'subscriber@example.com',
-      phone: '+2348000000000',
+      phone: '+12025550123',
       password: 'strong-test-password-2026',
       acceptedTerms: true,
       acceptedPrivacy: true
@@ -112,11 +112,26 @@ test('existing subscriber session opens account dashboard, not registration pane
   assert.equal(me.body.user.emailVerified, false);
   assert.equal(me.body.user.kycStatus, 'not_started');
   assert.equal(Array.isArray(me.body.orders), true);
+  assert.equal(Array.isArray(me.body.devices), true);
+  const addedDevice = await request('/api/v1/devices', {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ clientDeviceId: 'device_test_reference_000001', deviceName: 'Test phone', platform: 'android', model: 'Test model' })
+  });
+  assert.equal(addedDevice.status, 201);
+  const devices = await request('/api/v1/devices', { headers: authHeaders() });
+  assert.equal(devices.status, 200);
+  assert.equal(devices.body.devices.length, 1);
+  const blockedProfile = await request('/api/v1/devices/' + addedDevice.body.device.id + '/profile', { method: 'POST', headers: authHeaders() });
+  assert.equal(blockedProfile.status, 403);
+  assert.equal(blockedProfile.body.error.includes('Verify your email'), true);
+
   assert.equal(Array.isArray(me.body.tickets), true);
   assert.equal(Array.isArray(me.body.privacyRequests), true);
-  assert.equal(me.body.readiness.kycProviderConfigured, false);
+  assert.equal(me.body.readiness.identityProviderConfigured, false);
   const staticScript = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
   assert.match(staticScript, /portalAuth/);
+  assert.doesNotThrow(() => new Function(staticScript));
 });
 
 test('login creates a fresh secure session; logout invalidates it and clears cookie', async () => {
@@ -148,14 +163,14 @@ test('cross-origin state-changing requests are rejected', async () => {
   assert.equal(result.status, 403);
 });
 
-test('KYC, plans and provisioning stay disabled until authorised partners are configured', async () => {
+test('identity checks and legacy checkout stay disabled until global partners are configured', async () => {
   const kyc = await request('/api/v1/kyc/start', { method: 'POST', headers: authHeaders() });
   assert.equal(kyc.status, 503);
 
   const plans = await request('/api/v1/plans');
   assert.equal(plans.status, 200);
   assert.equal(plans.body.plans.length, 0);
-  assert.equal(plans.body.availability, 'awaiting-network-partner');
+  assert.equal(plans.body.availability, 'awaiting-connectivity-partner');
 
   const payInit = await request('/api/v1/esim/orders/00000000-0000-4000-8000-000000000000/pay', {
     method: 'POST',
@@ -199,12 +214,12 @@ test('admin endpoints reject unauthorised access and cannot publish plans before
   assert.equal(dashboard.body.dashboard.totals.subscribers, 1);
   assert.equal(dashboard.body.dashboard.totals.openTickets, 1);
   assert.equal(dashboard.body.dashboard.totals.privacyRequests, 1);
-  assert.equal(dashboard.body.dashboard.provider.nccLicenceConfirmed, false);
+  assert.equal(dashboard.body.dashboard.provider.globalCoverageConfirmed, false);
 
   const plan = await request('/api/v1/admin/plans', {
     method: 'POST',
     headers: { 'x-expert-admin-key': adminKey },
-    body: JSON.stringify({ name: 'Test 3 GB', dataMb: 3072, validityDays: 30, priceMinor: 100000, currency: 'NGN', networkModes: ['auto', '4g', '5g'] })
+    body: JSON.stringify({ name: 'Test 3 GB', dataMb: 3072, validityDays: 30, priceMinor: 100000, currency: 'USD', networkModes: ['auto', '4g', '5g'] })
   });
   assert.equal(plan.status, 201);
   assert.equal(plan.body.plan.status, 'draft');
