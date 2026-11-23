@@ -79,6 +79,7 @@
       '</div>' +
       '<div class="card portal-card">' +
         '<div class="portal-section">Privacy and personal data</div>' +
+      '<button class="portal-secondary" id="portalExportData" type="button">Download my personal data</button>' +
         '<p class="portal-meta">You can request access, correction, deletion, portability or restriction/objection. Requests are reviewed; legally required telecom and payment records may have to be retained.</p>' +
         '<form class="portal-form" id="portalPrivacyForm">' +
           '<div><label class="portal-label" for="portalPrivacyType">Request type</label><select class="portal-select" id="portalPrivacyType"><option value="access">Access my data</option><option value="correction">Correct my data</option><option value="deletion">Request deletion</option><option value="portability">Data portability</option><option value="objection">Object to processing</option></select></div>' +
@@ -271,6 +272,29 @@
       await refresh();
     } catch (error) { $("portalSupportStatus").textContent = error.message; }
     finally { $("portalSupportSubmit").disabled = false; }
+  });
+  $("portalExportData").addEventListener("click", async () => {
+    const button = $("portalExportData");
+    button.disabled = true;
+    try {
+      const response = await fetch("/api/v1/privacy/export", { credentials: "same-origin" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Could not export your data.");
+      const blob = new Blob([JSON.stringify(result, null, 2)], {type:"application/json"});
+      const href = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = "expert-esim-personal-data.json";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(href);
+      $("portalPrivacyStatus").textContent = "Your account data export has been prepared.";
+    } catch (error) {
+      $("portalPrivacyStatus").textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
   });
   $("portalPrivacyForm").addEventListener("submit", async event => {
     event.preventDefault();
