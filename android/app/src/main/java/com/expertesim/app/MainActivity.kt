@@ -3,26 +3,21 @@ package com.expertesim.app
 import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
-import android.os.BatteryManager
-import android.os.Environment
-import android.os.PowerManager
-import android.os.StatFs
-import android.app.PendingIntent
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.os.PowerManager
+import android.os.StatFs
 import android.provider.Settings
-import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
-import android.telephony.euicc.DownloadableSubscription
-import android.telephony.euicc.EuiccManager
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -32,31 +27,16 @@ import org.json.JSONObject
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
-    private var operation = "connect"
-    private var pendingPhoneAction = "connect"
-    private var callbackRegistered = false
-    private var pendingCallback: PendingIntent? = null
-    private var pendingActivationCode = ""
-    private var pendingConfirmationCode = ""
-    private var preDownloadEmbeddedIds: Set<Int> = emptySet()
-    private val esimPrefs by lazy { getSharedPreferences("expert_esim", MODE_PRIVATE) }
-
-    private val callbackAction: String
-        get() = "$packageName.action.ESIM_OPERATION"
-
-    private val euiccReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent != null) handleEuiccResult(intent, resultCode)
-        }
-    }
+    private val mobilePrefs by lazy { getSharedPreferences("expert_esim", MODE_PRIVATE) }
+    private var pendingPermissionAction = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(8, 10, 13)
-        window.navigationBarColor = Color.rgb(8, 10, 13)
+        window.statusBarColor = Color.rgb(11, 18, 28)
+        window.navigationBarColor = Color.rgb(11, 18, 28)
 
         webView = WebView(this)
-        webView.setBackgroundColor(Color.rgb(8, 10, 13))
+        webView.setBackgroundColor(Color.rgb(11, 18, 28))
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
         webView.settings.allowFileAccess = false
@@ -76,104 +56,27 @@ class MainActivity : Activity() {
                 return true
             }
         }
-        webView.addJavascriptInterface(ExpertEsimBridge(), "ExpertESimNative")
+        webView.addJavascriptInterface(ExpertMobileBridge(), "ExpertMobileNative")
         setContentView(webView)
-        registerEuiccReceiver()
-        webView.loadUrl("https://expert-esim-web-production.up.railway.app")
+        webView.loadUrl("https://expert-esim-web-production.up.railway.app/")
     }
 
     override fun onDestroy() {
-        if (callbackRegistered) {
-            runCatching { unregisterReceiver(euiccReceiver) }
-            callbackRegistered = false
-        }
-        webView.removeJavascriptInterface("ExpertESimNative")
+        webView.removeJavascriptInterface("ExpertMobileNative")
         webView.destroy()
         super.onDestroy()
     }
 
-    private inner class ExpertEsimBridge {
-        @JavascriptInterface
-        fun connect() {
-            runOnUiThread {
-                operation = "connect"
-                pendingPhoneAction = "connect"
-                beginUserControlledOperation()
-            }
-        }
-
-        @JavascriptInterface
-        fun disconnect() {
-            runOnUiThread {
-                operation = "disconnect"
-                pendingPhoneAction = "connect"
-                beginUserControlledOperation()
-            }
-        }
-
-        @JavascriptInterface
-        fun downloadProfile(activationCode: String, confirmationCode: String) {
-            runOnUiThread {
-                operation = "download"
-                if (activationCode.isBlank()) {
-                    reportFailure("A carrier-issued eSIM activation code is required.")
-                } else {
-                    beginProfileDownload(activationCode.trim(), confirmationCode.trim())
-                }
-            }
-        }
-
-        @JavascriptInterface
-        fun setPreferredNetwork(mode: String) {
-            runOnUiThread { applyPreferredNetwork(mode.lowercase()) }
-        }
-
-        @JavascriptInterface
-        fun getPreferredNetwork(): String {
-            return JSONObject().put("mode", preferredNetworkMode()).toString()
-        }
-
-        @JavascriptInterface
-        fun getCurrentNetworkInfo() {
-            runOnUiThread {
-                pendingPhoneAction = "networkInfo"
-                if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE), REQUEST_PHONE_STATE)
-                } else {
-                    sendCurrentNetworkInfo()
-                }
-            }
-        }
-
-        @JavascriptInterface
-        fun openNetworkSettings() {
-            runOnUiThread { openAndroidNetworkSettings() }
-        }
-
-        @JavascriptInterface
-        fun getCapabilities(): String {
-            val hasEuicc = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)
-            val enabled = runCatching {
-                getSystemService(EuiccManager::class.java)?.isEnabled == true
-            }.getOrDefault(false)
-            return JSONObject()
-                .put("nativeAndroid", true)
-                .put("hasEuiccHardware", hasEuicc)
-                .put("euiccEnabled", enabled)
-                .put("model", Build.MODEL ?: "unknown")
-                .put("carrierProfileRequired", true)
-                .toString()
-        }
-
+    private inner class ExpertMobileBridge {
         @JavascriptInterface
         fun getDeviceInfo(): String {
             val hasEuicc = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)
             val euiccEnabled = runCatching {
-                getSystemService(EuiccManager::class.java)?.isEnabled == true
+                getSystemService(android.telephony.euicc.EuiccManager::class.java)?.isEnabled == true
             }.getOrDefault(false)
-            val installationId = esimPrefs.getString("device_installation_id", null)
+            val installationId = mobilePrefs.getString("device_installation_id", null)
                 ?: java.util.UUID.randomUUID().toString().replace("-", "").also {
-                    esimPrefs.edit().putString("device_installation_id", it).apply()
+                    mobilePrefs.edit().putString("device_installation_id", it).apply()
                 }
             val manufacturer = Build.MANUFACTURER?.trim().orEmpty()
             val model = Build.MODEL?.trim().orEmpty()
@@ -235,6 +138,38 @@ class MainActivity : Activity() {
         }
 
         @JavascriptInterface
+        fun getCurrentNetworkInfo() {
+            runOnUiThread {
+                pendingPermissionAction = "networkInfo"
+                if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE), REQUEST_PHONE_STATE)
+                } else {
+                    sendCurrentNetworkInfo()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun getPreferredNetwork(): String {
+            return JSONObject().put("mode", preferredNetworkMode()).toString()
+        }
+
+        @JavascriptInterface
+        fun setPreferredNetwork(mode: String) {
+            runOnUiThread { applyPreferredNetwork(mode.lowercase()) }
+        }
+
+        @JavascriptInterface
+        fun openNetworkSettings() {
+            runOnUiThread { openAndroidNetworkSettings() }
+        }
+
+        @JavascriptInterface
+        fun openSimSettings() {
+            runOnUiThread { openAndroidSimSettings() }
+        }
+
+        @JavascriptInterface
         fun openBatterySettings() {
             runOnUiThread {
                 try {
@@ -244,69 +179,6 @@ class MainActivity : Activity() {
                 }
             }
         }
-
-        @JavascriptInterface
-        fun openSimSettings() {
-            runOnUiThread { openAndroidSimSettings() }
-        }
-    }
-
-    private fun beginUserControlledOperation() {
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)) {
-            reportFailure("This phone does not expose eSIM hardware (eUICC).")
-            return
-        }
-
-        val manager = getSystemService(EuiccManager::class.java)
-        if (manager == null || !manager.isEnabled) {
-            reportFailure("Android eSIM support is unavailable or disabled on this phone.")
-            return
-        }
-
-        if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            pendingPhoneAction = "connect"
-            requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE), REQUEST_PHONE_STATE)
-            return
-        }
-        performProfileSwitch(manager)
-    }
-
-    private fun beginProfileDownload(activationCode: String, confirmationCode: String) {
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)) {
-            reportFailure("This phone does not expose eSIM hardware (eUICC), so it cannot download an eSIM profile.")
-            return
-        }
-        val manager = getSystemService(EuiccManager::class.java)
-        if (manager == null || !manager.isEnabled) {
-            reportFailure("Android eSIM support is unavailable or disabled on this phone.")
-            return
-        }
-        if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-            pendingActivationCode = activationCode
-            pendingConfirmationCode = confirmationCode
-            pendingPhoneAction = "download"
-            requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE), REQUEST_PHONE_STATE)
-            return
-        }
-
-        try {
-            preDownloadEmbeddedIds = readSubscriptions().filter { it.isEmbedded }.map { it.subscriptionId }.toSet()
-            pendingActivationCode = activationCode
-            pendingConfirmationCode = confirmationCode
-            val downloadable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && confirmationCode.isNotBlank()) {
-                DownloadableSubscription.Builder(activationCode)
-                    .setConfirmationCode(confirmationCode)
-                    .build()
-            } else {
-                DownloadableSubscription.forActivationCode(activationCode)
-            }
-            val callback = createEuiccCallback()
-            manager.downloadSubscription(downloadable, true, callback)
-        } catch (security: SecurityException) {
-            reportFailure("Android or the eSIM carrier denied profile installation. Follow the Android system approval prompt or ask the provider to authorise this device.")
-        } catch (error: Exception) {
-            reportFailure(error.message ?: "Android could not start the eSIM profile download.")
-        }
     }
 
     override fun onRequestPermissionsResult(
@@ -315,127 +187,20 @@ class MainActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_PHONE_STATE) return
-        val granted = grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED
-        if (!granted) {
-            when (pendingPhoneAction) {
-                "networkInfo" -> reportNetworkInfo("Phone-state permission was not granted; current radio technology cannot be read.")
-                "download" -> reportFailure("Phone-state permission was not granted, so the newly downloaded eSIM profile cannot be matched safely to Expert eSIM.")
-                else -> reportFailure("Phone permission was not granted, so Expert eSIM cannot inspect the installed profile.")
-            }
-            pendingPhoneAction = "connect"
-            return
-        }
-
-        when (pendingPhoneAction) {
-            "networkInfo" -> {
-                sendCurrentNetworkInfo()
-                return
-            }
-            "download" -> {
-                pendingPhoneAction = "connect"
-                beginProfileDownload(pendingActivationCode, pendingConfirmationCode)
-                return
-            }
-        }
-
-        val manager = getSystemService(EuiccManager::class.java)
-        if (manager == null || !manager.isEnabled) {
-            reportFailure("Android eSIM support is not enabled.")
+        if (requestCode != REQUEST_PHONE_STATE || pendingPermissionAction != "networkInfo") return
+        pendingPermissionAction = ""
+        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            sendCurrentNetworkInfo()
         } else {
-            performProfileSwitch(manager)
+            reportNetworkInfo(
+                "Permission required",
+                message = "Android did not grant phone-state access, so the current radio technology cannot be read."
+            )
         }
-    }
-
-    private fun readSubscriptions(): List<SubscriptionInfo> {
-        val subscriptionManager = getSystemService(SubscriptionManager::class.java) ?: return emptyList()
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            subscriptionManager.getAllSubscriptionInfoList()
-        } else {
-            subscriptionManager.activeSubscriptionInfoList.orEmpty()
-        }
-    }
-
-    private fun findExpertProfile(): SubscriptionInfo? {
-        val available = runCatching { readSubscriptions() }.getOrNull().orEmpty()
-        val savedId = esimPrefs.getInt("profile_subscription_id", SubscriptionManager.INVALID_SUBSCRIPTION_ID)
-        val savedProfile = available.firstOrNull { it.isEmbedded && it.subscriptionId == savedId }
-        if (savedProfile != null) return savedProfile
-        return available.firstOrNull { info ->
-            val name = info.displayName?.toString().orEmpty()
-            val carrier = info.carrierName?.toString().orEmpty()
-            info.isEmbedded && (
-                name.contains("Expert eSIM", ignoreCase = true) ||
-                    carrier.contains("Expert eSIM", ignoreCase = true)
-                )
-        }
-    }
-
-    private fun captureNewExpertProfile(): SubscriptionInfo? {
-        val available = runCatching { readSubscriptions() }.getOrNull().orEmpty()
-        val newProfiles = available.filter { it.isEmbedded && it.subscriptionId !in preDownloadEmbeddedIds }
-        val defaultDataId = SubscriptionManager.getDefaultDataSubscriptionId()
-        val selected = newProfiles.firstOrNull { it.subscriptionId == defaultDataId }
-            ?: newProfiles.singleOrNull()
-        if (selected != null) {
-            esimPrefs.edit()
-                .putInt("profile_subscription_id", selected.subscriptionId)
-                .putString("profile_carrier", selected.carrierName?.toString().orEmpty())
-                .apply()
-        }
-        return selected
     }
 
     private fun preferredNetworkMode(): String {
-        return esimPrefs.getString("preferred_network", "auto") ?: "auto"
-    }
-
-    private fun createEuiccCallback(): PendingIntent {
-        val callbackIntent = Intent(callbackAction).setPackage(packageName)
-        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-        return PendingIntent.getBroadcast(this, REQUEST_EUICC_CALLBACK, callbackIntent, flags).also {
-            pendingCallback = it
-        }
-    }
-
-    private fun performProfileSwitch(manager: EuiccManager) {
-        val profile = try {
-            findExpertProfile()
-        } catch (security: SecurityException) {
-            reportFailure("Android or the carrier denied access to eSIM profile information.")
-            return
-        }
-
-        if (profile == null) {
-            reportFailure(
-                "No Expert eSIM carrier profile is installed. Open Activate eSIM and enter the activation code issued by your mobile-network provider."
-            )
-            return
-        }
-        esimPrefs.edit().putInt("profile_subscription_id", profile.subscriptionId).apply()
-
-        val callback = createEuiccCallback()
-        try {
-            if (operation == "connect") {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    manager.switchToSubscription(profile.subscriptionId, profile.portIndex, callback)
-                } else {
-                    manager.switchToSubscription(profile.subscriptionId, callback)
-                }
-            } else {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    manager.switchToSubscription(SubscriptionManager.INVALID_SUBSCRIPTION_ID, profile.portIndex, callback)
-                } else {
-                    manager.switchToSubscription(SubscriptionManager.INVALID_SUBSCRIPTION_ID, callback)
-                }
-            }
-        } catch (security: SecurityException) {
-            reportFailure("The eSIM provider has not authorised this app to manage that profile. Carrier privileges or Android system approval are required.")
-        } catch (unsupported: UnsupportedOperationException) {
-            reportFailure("This phone's Android version does not support the required eSIM operation.")
-        } catch (error: Exception) {
-            reportFailure(error.message ?: "Android could not start the eSIM operation.")
-        }
+        return mobilePrefs.getString("preferred_network", "auto") ?: "auto"
     }
 
     private fun applyPreferredNetwork(mode: String) {
@@ -443,26 +208,23 @@ class MainActivity : Activity() {
             reportNetworkMode(false, mode, "Unknown network selection.")
             return
         }
-        esimPrefs.edit().putString("preferred_network", mode).apply()
-        val profile = findExpertProfile()
-        if (profile == null) {
-            reportNetworkMode(true, mode, "Saved for Expert eSIM. This preference will be applied to the Expert eSIM subscription after your provider-issued profile is installed and activated.", pending = true)
-            return
-        }
-        applyPreferredNetworkToSubscription(profile.subscriptionId, mode, reportResult = true)
-    }
-
-    private fun applyPreferredNetworkToSubscription(subId: Int, mode: String, reportResult: Boolean): Boolean {
-        if (mode !in listOf("auto", "4g", "5g")) return false
+        mobilePrefs.edit().putString("preferred_network", mode).apply()
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            if (reportResult) reportNetworkMode(false, mode, "This Android version does not allow this app to set the eSIM radio mode directly. Your preference is saved, but Android 13 or newer and carrier/device privileges are needed to apply it from the app.")
-            return false
+            reportNetworkMode(
+                false, mode,
+                "This Android version does not let this app apply a direct radio-mode change. Your preference is saved; use Android SIM settings."
+            )
+            return
         }
         try {
             val baseManager = getSystemService(TelephonyManager::class.java)
                 ?: throw IllegalStateException("Android telephony service is unavailable.")
-            // Bind the radio preference to the Expert eSIM subscription, never the default physical SIM.
-            val manager = baseManager.createForSubscriptionId(subId)
+            val defaultDataId = SubscriptionManager.getDefaultDataSubscriptionId()
+            val manager = if (defaultDataId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                baseManager.createForSubscriptionId(defaultDataId)
+            } else {
+                baseManager
+            }
             val lte = TelephonyManager.NETWORK_TYPE_BITMASK_LTE
             val allowed = when (mode) {
                 "4g" -> lte
@@ -482,30 +244,32 @@ class MainActivity : Activity() {
                 }
             }
             manager.setAllowedNetworkTypesForReason(TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER, allowed)
-            if (reportResult) {
-                val message = when (mode) {
-                    "4g" -> "Android accepted 4G LTE-only mode for the Expert eSIM subscription."
-                    "5g" -> "Android accepted 5G NR with LTE fallback for the Expert eSIM subscription. Actual 5G still depends on the provider's plan, coverage and device radio."
-                    else -> "Android reset the Expert eSIM subscription to automatic radio selection."
-                }
-                reportNetworkMode(true, mode, message)
+            val message = when (mode) {
+                "4g" -> "Android accepted a 4G LTE preference for the currently selected mobile-data SIM."
+                "5g" -> "Android accepted a 5G preference with LTE fallback for the currently selected mobile-data SIM. Actual 5G still depends on carrier coverage and plan."
+                else -> "Android reset the currently selected mobile-data SIM to automatic network selection."
             }
-            return true
+            reportNetworkMode(true, mode, message)
         } catch (security: SecurityException) {
-            if (reportResult) reportNetworkMode(false, mode, "Android or the carrier denied direct radio-mode control for the Expert eSIM. Your selection is saved, but the network mode was not changed.")
+            reportNetworkMode(
+                false, mode,
+                "Android or the carrier denied direct radio-mode control. Your selection is saved but the network was not changed."
+            )
         } catch (unsupported: UnsupportedOperationException) {
-            if (reportResult) reportNetworkMode(false, mode, "This handset or carrier does not expose direct network-mode control for the Expert eSIM. The selected preference is saved but was not applied.")
+            reportNetworkMode(
+                false, mode,
+                "This phone or carrier does not expose direct network-mode control. Your selection is saved but was not applied."
+            )
         } catch (error: Exception) {
-            if (reportResult) reportNetworkMode(false, mode, error.message ?: "Android could not apply the requested network mode to Expert eSIM.")
+            reportNetworkMode(false, mode, error.message ?: "Android could not apply the requested network mode.")
         }
-        return false
     }
 
     private fun sendCurrentNetworkInfo() {
         try {
             val baseManager = getSystemService(TelephonyManager::class.java)
             if (baseManager == null) {
-                reportNetworkInfo("Android telephony service is unavailable.")
+                reportNetworkInfo("Unavailable", message = "Android telephony service is unavailable.")
                 return
             }
             val defaultDataSubscription = SubscriptionManager.getDefaultDataSubscriptionId()
@@ -532,94 +296,26 @@ class MainActivity : Activity() {
                 label,
                 hasRadio = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS),
                 supports5g = type == TelephonyManager.NETWORK_TYPE_NR,
-                message = "Network technology is read from the phone’s current default mobile-data SIM."
+                message = "Network technology is read from the phone's current default mobile-data SIM."
             )
         } catch (security: SecurityException) {
-            reportNetworkInfo("Permission required", message = "Android denied access to current mobile network information.")
+            reportNetworkInfo(
+                "Permission required",
+                message = "Android denied access to current mobile network information."
+            )
         } catch (error: Exception) {
-            reportNetworkInfo("Network type unavailable", message = error.message ?: "Could not read the active mobile network.")
+            reportNetworkInfo(
+                "Network type unavailable",
+                message = error.message ?: "Could not read the active mobile network."
+            )
         }
     }
 
-    private fun registerEuiccReceiver() {
-        val filter = IntentFilter(callbackAction)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(euiccReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            registerReceiver(euiccReceiver, filter)
-        }
-        callbackRegistered = true
-    }
-
-    private fun handleEuiccResult(resultIntent: Intent, result: Int) {
-        when (result) {
-            EuiccManager.EMBEDDED_SUBSCRIPTION_RESULT_OK -> {
-                when (operation) {
-                    "connect" -> {
-                        val profile = findExpertProfile()
-                        val networkApplied = profile != null && applyPreferredNetworkToSubscription(profile.subscriptionId, preferredNetworkMode(), reportResult = true)
-                        val networkMessage = if (networkApplied) " The saved ${preferredNetworkMode().uppercase()} preference was applied to this eSIM subscription." else " The saved ${preferredNetworkMode().uppercase()} preference could not be enforced directly; Android or the carrier may require manual network settings."
-                        reportSuccess(true, "Android enabled the Expert eSIM carrier profile. Select this line as the phone's Mobile data SIM in Android SIM settings to use its data plan.$networkMessage")
-                    }
-                    "download" -> {
-                        val profile = captureNewExpertProfile()
-                        if (profile == null) {
-                            reportSuccess(false, "Android reports that the profile download completed, but this app could not identify the new eSIM subscription safely. Check Android SIM settings before connecting.")
-                        } else {
-                            val networkApplied = applyPreferredNetworkToSubscription(profile.subscriptionId, preferredNetworkMode(), reportResult = true)
-                            val networkMessage = if (networkApplied) " The saved ${preferredNetworkMode().uppercase()} preference was applied to that eSIM line." else " The ${preferredNetworkMode().uppercase()} preference is saved but Android/carrier privileges may be needed to enforce it."
-                            reportSuccess(true, "The provider-issued eSIM profile was downloaded and enabled. Select Expert eSIM as the phone's Mobile data SIM in Android SIM settings if it is not already selected.${networkMessage}")
-                        }
-                    }
-                    else -> reportSuccess(false, "Expert eSIM profile disabled. Check Android SIM settings to confirm which physical SIM is now active for mobile data.")
-                }
-            }
-            EuiccManager.EMBEDDED_SUBSCRIPTION_RESULT_RESOLVABLE_ERROR -> {
-                val manager = getSystemService(EuiccManager::class.java)
-                val callback = pendingCallback
-                if (manager == null || callback == null) {
-                    reportFailure("Android requires confirmation but the approval flow could not be opened.")
-                    return
-                }
-                try {
-                    manager.startResolutionActivity(this, REQUEST_EUICC_RESOLUTION, resultIntent, callback)
-                } catch (error: Exception) {
-                    reportFailure(error.message ?: "Android could not open the eSIM approval screen.")
-                }
-            }
-            else -> {
-                val detailed = resultIntent.getIntExtra(EuiccManager.EXTRA_EMBEDDED_SUBSCRIPTION_DETAILED_CODE, 0)
-                reportFailure("Android did not complete the eSIM operation (code $result, detail $detailed).")
-            }
-        }
-    }
-
-    private fun reportSuccess(connected: Boolean, message: String) {
+    private fun reportNetworkMode(applied: Boolean, mode: String, message: String) {
         val payload = JSONObject()
-            .put("ok", true)
-            .put("connected", connected)
-            .put("operation", operation)
-            .put("message", message)
-            .toString()
-        evaluateWebCallback("window.onExpertEsimNativeResult && window.onExpertEsimNativeResult($payload);")
-    }
-
-    private fun reportFailure(message: String) {
-        val payload = JSONObject()
-            .put("ok", false)
-            .put("connected", false)
-            .put("operation", operation)
-            .put("message", message)
-            .toString()
-        evaluateWebCallback("window.onExpertEsimNativeResult && window.onExpertEsimNativeResult($payload);")
-    }
-
-    private fun reportNetworkMode(applied: Boolean, mode: String, message: String, pending: Boolean = false) {
-        val payload = JSONObject()
-            .put("ok", applied || pending)
+            .put("ok", applied)
             .put("applied", applied)
-            .put("pending", pending)
+            .put("pending", false)
             .put("mode", mode)
             .put("message", message)
             .toString()
@@ -653,11 +349,8 @@ class MainActivity : Activity() {
             Intent(Settings.ACTION_SETTINGS)
         )
         val target = intents.firstOrNull { it.resolveActivity(packageManager) != null }
-        if (target != null) {
-            startActivity(target)
-        } else {
-            Toast.makeText(this, "Open Android Settings to manage mobile network mode.", Toast.LENGTH_LONG).show()
-        }
+        if (target != null) startActivity(target)
+        else Toast.makeText(this, "Open Android Settings to manage mobile network mode.", Toast.LENGTH_LONG).show()
     }
 
     private fun openAndroidSimSettings() {
@@ -672,7 +365,5 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_PHONE_STATE = 401
-        private const val REQUEST_EUICC_CALLBACK = 402
-        private const val REQUEST_EUICC_RESOLUTION = 403
     }
 }
