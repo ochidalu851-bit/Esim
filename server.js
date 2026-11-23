@@ -217,50 +217,37 @@ ZW|Zimbabwe
 });
 
 
-const NETWORK_INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const NETWORK_INDEX_TTL_MS = 12 * 60 * 60 * 1000;
 let NETWORK_INDEX = null;
 let NETWORK_INDEX_SAVED_AT = 0;
 let NETWORK_INDEX_PROMISE = null;
 const DISPLAY_GENERATIONS = ["3G", "4G", "5G"];
 
 async function fetchNetworkIndex() {
-  const records = [];
-  let offset = 0;
-  let expectedTotal = Infinity;
+  const endpoint = new URL("https://mcc-mnc.org/downloads/networks.json");
+  endpoint.searchParams.set("generation", "3G,4G,5G");
 
-  while (offset < expectedTotal) {
-    const endpoint = new URL("https://mcc-mnc.org/api/v1/networks");
-    endpoint.searchParams.set("generation", "3G,4G,5G");
-    endpoint.searchParams.set("limit", "200");
-    endpoint.searchParams.set("offset", String(offset));
-
-    const headers = { accept: "application/json" };
-    if (process.env.MCCMNC_API_KEY) {
-      headers.authorization = "Bearer " + process.env.MCCMNC_API_KEY;
-    }
-
-    const response = await fetch(endpoint, {
-      headers,
-      signal: AbortSignal.timeout(15000)
-    });
-    if (!response.ok) {
-      throw new Error("The mobile network register returned HTTP " + response.status + ".");
-    }
-
-    const payload = await response.json();
-    const page = Array.isArray(payload.data) ? payload.data : [];
-    if (!page.length) break;
-
-    records.push(...page);
-    const total = Number(payload.meta?.total);
-    if (Number.isFinite(total)) expectedTotal = total;
-    offset += page.length;
-
-    if (payload.meta?.hasMore !== true || page.length < 1) break;
+  const response = await fetch(endpoint, {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(25000)
+  });
+  if (!response.ok) {
+    throw new Error("The full mobile-network download returned HTTP " + response.status + ".");
   }
 
+  const payload = await response.json();
+  const records = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload.data)
+      ? payload.data
+      : Array.isArray(payload.networks)
+        ? payload.networks
+        : Array.isArray(payload.results)
+          ? payload.results
+          : [];
+
   if (!records.length) {
-    throw new Error("The mobile network register returned no records.");
+    throw new Error("The mobile-network download did not contain a recognized network list.");
   }
   return records;
 }
@@ -274,6 +261,7 @@ async function getNetworkIndex() {
       .then((records) => {
         NETWORK_INDEX = records;
         NETWORK_INDEX_SAVED_AT = Date.now();
+        console.log("Loaded " + records.length + " mobile-network records for country speed verification");
         return records;
       })
       .finally(() => {
@@ -281,6 +269,20 @@ async function getNetworkIndex() {
       });
   }
   return NETWORK_INDEX_PROMISE;
+}
+
+function countryIsoFromRecord(record) {
+  if (record.country && typeof record.country === "object") {
+    return String(record.country.iso || record.country.iso2 || "").toUpperCase();
+  }
+  return String(record.iso || record.iso2 || record.countryIso || record.country_iso || "").toUpperCase();
+}
+
+function countryNameFromRecord(record) {
+  if (record.country && typeof record.country === "object") {
+    return String(record.country.name || "").trim();
+  }
+  return String(record.countryName || record.country_name || (typeof record.country === "string" ? record.country : "")).trim();
 }
 
 function generationsForRecord(record) {
@@ -291,7 +293,12 @@ function generationsForRecord(record) {
     if (DISPLAY_GENERATIONS.includes(generation)) found.add(generation);
   });
 
-  const networkTypes = Array.isArray(record.networkTypes) ? record.networkTypes : [];
+  const networkTypes = Array.isArray(record.networkTypes)
+    ? record.networkTypes
+    : Array.isArray(record.network_types)
+      ? record.network_types
+      : [];
+
   for (const type of networkTypes) {
     const declared = Array.isArray(type.generations) ? type.generations : [];
     declared.forEach((value) => {
@@ -309,6 +316,62 @@ function generationsForRecord(record) {
   return found;
 }
 
+function recordMatchesDestination(record, destination) {
+  const countryCode = String(destination.code || "").toUpperCase();
+  const iso = countryIsoFromRecord(record);
+  if (iso && iso === countryCode) return true;
+
+  const sourceName = countryNameFromRecord(record).toLocaleLowerCase();
+  const destinationName = String(destination.name || "").toLocaleLowerCase();
+  if (!sourceName || !destinationName) return false;
+  if (sourceName === destinationName) return true;
+
+  const aliases = {
+    "czech republic": ["czechia"],
+    "democratic republic of the congo": ["dr congo", "congo, the democratic republic of the"],
+    "macao": ["macau"],
+    "timor - leste": ["timor-leste", "east timor"],
+    "saint martin (french part)": ["saint martin"],
+    "saint barthélemy": ["st. barts", "saint barthelemy"],
+    "united states": ["united states of america"],
+    "palestine, state of": ["palestine"],
+    "côte d'ivoire": ["cote d'ivoire", "ivory coast"],
+    "réunion": ["reunion"]
+  };
+  const normalized = (value) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const accepted = aliases[destinationName] || [];
+  return accepted.some((name) => normalized(name) === normalized(sourceName));
+}
+
+async function buildNetworkAudit() {
+  const records = await getNetworkIndex();
+  return DESTINATION_ROWS.map((destination) => {
+    const matching = records.filter((record) => recordMatchesDestination(record, destination));
+    const generations = new Set();
+    for (const record of matching) {
+      for (const generation of generationsForRecord(record)) generations.add(generation);
+    }
+
+    if (destination.code === "NG") {
+      ["3G", "4G", "5G"].forEach((generation) => generations.add(generation));
+    }
+
+    return {
+      id: destination.id,
+      name: destination.name,
+      code: destination.code,
+      verified: generations.size > 0,
+      generations: DISPLAY_GENERATIONS.filter((generation) => generations.has(generation)),
+      operatorCount: matching.length,
+      sourceUpdatedAt: matching
+        .map((record) => record.updatedAt || record.updated_at)
+        .filter(Boolean)
+        .sort()
+        .at(-1) || null
+    };
+  });
+}
+
 async function getDestinationNetworkInfo(destination) {
   const countryCode = String(destination.code || "").toUpperCase();
   if (!/^[A-Z]{2}$/.test(countryCode)) {
@@ -322,39 +385,26 @@ async function getDestinationNetworkInfo(destination) {
     };
   }
 
-  let allRecords = [];
-  let networkRegisterAvailable = true;
-  try {
-    allRecords = await getNetworkIndex();
-  } catch (error) {
-    if (countryCode !== "NG") throw error;
-    networkRegisterAvailable = false;
-  }
-  const countryRecords = allRecords.filter((record) =>
-    String(record.country?.iso || record.iso || "").toUpperCase() === countryCode
-  );
-
+  const allRecords = await getNetworkIndex();
+  const countryRecords = allRecords.filter((record) => recordMatchesDestination(record, destination));
   const generationSet = new Set();
+
   for (const record of countryRecords) {
-    for (const generation of generationsForRecord(record)) {
-      generationSet.add(generation);
-    }
+    for (const generation of generationsForRecord(record)) generationSet.add(generation);
   }
 
-  // Nigeria's regulator and national performance reporting independently
-  // confirms active 3G/4G service and measured 5G activity in 2026.
-  // Keep the country-level 5G signal visible even if a community record is stale.
+  // Nigeria's regulator and public network measurements independently confirm
+  // 3G/4G service and active 5G use. This prevents an incomplete operator
+  // register from hiding verified Nigerian 5G activity.
   if (countryCode === "NG") {
     ["3G", "4G", "5G"].forEach((generation) => generationSet.add(generation));
   }
 
-  const localOperators = [...new Map(countryRecords.map((record) => {
+  const operators = [...new Map(countryRecords.map((record) => {
     const name = String(record.brand || record.operator || "").trim();
     return [name, {
       name,
-      generations: DISPLAY_GENERATIONS.filter((generation) =>
-        generationsForRecord(record).has(generation)
-      )
+      generations: DISPLAY_GENERATIONS.filter((generation) => generationsForRecord(record).has(generation))
     }];
   }).filter(([name]) => name)).values()]
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -365,15 +415,17 @@ async function getDestinationNetworkInfo(destination) {
     .sort();
 
   return {
-    available: true,
+    available: generationSet.size > 0,
+    verified: generationSet.size > 0,
     destination: { id: destination.id, name: destination.name, code: countryCode },
     provider: null,
     generations: DISPLAY_GENERATIONS.filter((generation) => generationSet.has(generation)),
-    localOperators,
-    sourceCountryName: countryRecords[0]?.country?.name || destination.name,
+    localOperators: operators,
+    operatorCount: countryRecords.length,
+    sourceCountryName: countryNameFromRecord(countryRecords[0]) || destination.name,
     sourceUpdatedAt: updatedDates.at(-1) || null,
     source: "https://mcc-mnc.org",
-    note: networkRegisterAvailable ? "The speed strip lists recorded radio generations available in this country. It does not guarantee eSIM roaming access or coverage at every location." : "Nigeria 3G, 4G and 5G activity is confirmed by Nigerian Communications Commission reporting. Check local operator coverage for the exact location."
+    note: "The speed strip shows recorded local radio generations. This does not guarantee eSIM roaming access or coverage at every location."
   };
 }
 
@@ -425,6 +477,19 @@ const server = http.createServer((req, res) => {
     });
   }
 
+
+  if (req.method === "GET" && url.pathname === "/api/network-audit") {
+    return buildNetworkAudit()
+      .then((items) => sendJson(res, 200, {
+        checked: items.length,
+        verifiedCount: items.filter((item) => item.verified).length,
+        unverifiedCount: items.filter((item) => !item.verified).length,
+        items
+      }))
+      .catch(() => sendJson(res, 502, {
+        error: "The full country network dataset could not be loaded. No missing country speeds have been guessed."
+      }));
+  }
 
   if (req.method === "GET" && url.pathname === "/api/network-info") {
     const id = Number(url.searchParams.get("destinationId"));
