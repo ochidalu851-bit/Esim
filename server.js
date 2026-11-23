@@ -216,6 +216,111 @@ ZW|Zimbabwe
   return { id, code, name };
 });
 
+
+const NETWORK_CACHE = new Map();
+const NETWORK_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const DISPLAY_GENERATIONS = ["3G", "4G", "5G"];
+
+async function getDestinationNetworkInfo(destination) {
+  const countryCode = String(destination.code || "").toUpperCase();
+  if (!/^[A-Z]{2}$/.test(countryCode)) {
+    return {
+      available: false,
+      destination: { id: destination.id, name: destination.name, code: countryCode },
+      provider: null,
+      generations: [],
+      operators: [],
+      message: "No verified country code is available for this destination.",
+      source: "https://mcc-mnc.org"
+    };
+  }
+
+  const cached = NETWORK_CACHE.get(countryCode);
+  if (cached && Date.now() - cached.savedAt < NETWORK_CACHE_TTL_MS) {
+    return { ...cached.value, destination: { id: destination.id, name: destination.name, code: countryCode } };
+  }
+
+  const records = [];
+  let offset = 0;
+  let hasMore = true;
+  while (hasMore && offset < 2000) {
+    const endpoint = new URL("https://mcc-mnc.org/api/v1/networks");
+    endpoint.searchParams.set("country", countryCode);
+    endpoint.searchParams.set("limit", "200");
+    endpoint.searchParams.set("offset", String(offset));
+    const response = await fetch(endpoint, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!response.ok) {
+      throw new Error("The mobile network register returned HTTP " + response.status + ".");
+    }
+    const payload = await response.json();
+    const page = Array.isArray(payload.data) ? payload.data : [];
+    records.push(...page);
+    hasMore = payload.meta?.hasMore === true && page.length > 0;
+    offset += page.length;
+  }
+
+  const operatorsByName = new Map();
+  const allGenerations = new Set();
+  let sourceCountryName = null;
+  let sourceUpdatedAt = null;
+
+  for (const record of records) {
+    sourceCountryName = sourceCountryName || record.country?.name || null;
+    if (record.updatedAt && (!sourceUpdatedAt || record.updatedAt > sourceUpdatedAt)) {
+      sourceUpdatedAt = record.updatedAt;
+    }
+
+    const rawGenerations = [
+      ...(Array.isArray(record.generations) ? record.generations : []),
+      ...(Array.isArray(record.networkTypes) ? record.networkTypes.flatMap((type) => Array.isArray(type.generations) ? type.generations : []) : [])
+    ];
+    const generations = [...new Set(rawGenerations.map((value) => String(value).toUpperCase()))]
+      .filter((value) => DISPLAY_GENERATIONS.includes(value))
+      .sort((a, b) => DISPLAY_GENERATIONS.indexOf(a) - DISPLAY_GENERATIONS.indexOf(b));
+
+    if (!generations.length) continue;
+
+    const name = String(record.brand || record.operator || "").trim();
+    if (!name) continue;
+
+    const existing = operatorsByName.get(name) || {
+      name,
+      operator: String(record.operator || name),
+      generations: new Set()
+    };
+    generations.forEach((generation) => {
+      existing.generations.add(generation);
+      allGenerations.add(generation);
+    });
+    operatorsByName.set(name, existing);
+  }
+
+  const operators = [...operatorsByName.values()]
+    .map((item) => ({
+      name: item.name,
+      operator: item.operator,
+      generations: DISPLAY_GENERATIONS.filter((generation) => item.generations.has(generation))
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const value = {
+    available: true,
+    destination: { id: destination.id, name: destination.name, code: countryCode },
+    provider: null,
+    generations: DISPLAY_GENERATIONS.filter((generation) => allGenerations.has(generation)),
+    operators,
+    sourceCountryName,
+    sourceUpdatedAt,
+    source: "https://mcc-mnc.org",
+    note: "These are locally recorded operator network generations, not confirmation of roaming access or guaranteed coverage for an eSIM plan."
+  };
+  NETWORK_CACHE.set(countryCode, { savedAt: Date.now(), value });
+  return value;
+}
+
 function sendJson(res, status, payload) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
@@ -262,6 +367,26 @@ const server = http.createServer((req, res) => {
       count: items.length,
       items
     });
+  }
+
+
+  if (req.method === "GET" && url.pathname === "/api/network-info") {
+    const id = Number(url.searchParams.get("destinationId"));
+    const destination = DESTINATION_ROWS.find((item) => item.id === id);
+    if (!destination) {
+      return sendJson(res, 400, { error: "Choose a valid destination." });
+    }
+    return getDestinationNetworkInfo(destination)
+      .then((payload) => sendJson(res, 200, payload))
+      .catch((error) => sendJson(res, 502, {
+        available: false,
+        destination: { id: destination.id, name: destination.name, code: destination.code },
+        provider: null,
+        generations: [],
+        operators: [],
+        source: "https://mcc-mnc.org",
+        message: "Country network information could not be verified right now. Please try again later."
+      }));
   }
 
   if (req.method === "GET" && url.pathname === "/api/plans") {
