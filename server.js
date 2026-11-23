@@ -712,7 +712,7 @@ let AIRALO_ACCESS_TOKEN = null;
 let AIRALO_TOKEN_EXPIRES_AT = 0;
 let AIRALO_PACKAGE_CACHE = new Map();
 let ESIM_GO_PACKAGE_CACHE = new Map();
-const PROVIDER_CATALOGUE_CACHE_MS = 10 * 60 * 1000;
+const PROVIDER_CATALOGUE_CACHE_MS = 60 * 60 * 1000;
 
 function extractProviderRows(payload) {
   if (Array.isArray(payload)) return payload;
