@@ -456,9 +456,6 @@ function createExpertFeatures({ loadStore, transact }) {
     if (!allowed[type] || !allowed[type].includes(status) || !id) {
       throw Object.assign(new Error('Choose a valid fulfilment record and final status.'), { statusCode: 400 });
     }
-    if (['fulfilled','delivered','applied'].includes(status) && supplierReference.length < 3) {
-      throw Object.assign(new Error('Enter the real supplier, sponsor or carrier fulfilment reference before confirming delivery.'), { statusCode: 400 });
-    }
     return transact(store => {
       ensure(store);
       const collection = type === 'store_order' ? store.storeOrders : type === 'airtime' ? store.airtimeRequests : store.dataGrants;
@@ -471,6 +468,9 @@ function createExpertFeatures({ loadStore, transact }) {
       };
       if (!allowedCurrent[type].includes(item.status)) {
         throw Object.assign(new Error('This record is already finalised and cannot be changed through this action.'), { statusCode: 409 });
+      }
+      if (['fulfilled','delivered','applied'].includes(status) && supplierReference.length < 3) {
+        throw Object.assign(new Error('Enter the real supplier, sponsor or carrier fulfilment reference before confirming delivery.'), { statusCode: 400 });
       }
       const now = new Date().toISOString();
       item.status = status;
