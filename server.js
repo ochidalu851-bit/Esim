@@ -6,6 +6,7 @@ const fsp = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { createGlobalEsim } = require('./global-esim');
+const { createExpertFeatures } = require('./expert-features');
 
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_DIR = path.resolve(__dirname, 'public');
@@ -16,10 +17,10 @@ const SESSION_DAYS = 30;
 let writeQueue = Promise.resolve();
 
 function emptyStore() {
-  return { version: 1, users: [], sessions: [], plans: [], orders: [], devices: [], profiles: [], audit: [], providerEvents: [], paymentEvents: [], consents: [], supportTickets: [], privacyRequests: [] };
+  return { version: 1, users: [], sessions: [], plans: [], orders: [], devices: [], profiles: [], audit: [], providerEvents: [], paymentEvents: [], consents: [], supportTickets: [], privacyRequests: [], rewardLedger: [], rewardClaims: [], speedTests: [], referrals: [], coupons: [], couponClaims: [], redeemCodes: [], storeItems: [], storeOrders: [], airtimeRequests: [], featureMessages: [], dataGrants: [] };
 }
 function normalizeStore(store) {
-  for (const key of ['users','sessions','plans','orders','devices','profiles','audit','providerEvents','paymentEvents','consents','supportTickets','privacyRequests']) {
+  for (const key of ['users','sessions','plans','orders','devices','profiles','audit','providerEvents','paymentEvents','consents','supportTickets','privacyRequests','rewardLedger','rewardClaims','speedTests','referrals','coupons','couponClaims','redeemCodes','storeItems','storeOrders','airtimeRequests','featureMessages','dataGrants']) {
     if (!Array.isArray(store[key])) store[key] = [];
   }
   for (const user of store.users) {
@@ -214,8 +215,9 @@ const globalEsim = createGlobalEsim({
   loadStore, transact, hashToken, encryptSecret, decryptSecret,
   isReady: readyToProvisionGlobally
 });
+const expertFeatures = createExpertFeatures({ loadStore, transact });
 function userView(user) {
-  return { id: user.id, fullName: user.fullName, email: user.email, phone: user.phone || null, kycStatus: user.kycStatus || 'not_started', emailVerified: Boolean(user.emailVerified), createdAt: user.createdAt };
+  return { id: user.id, fullName: user.fullName, email: user.email, phone: user.phone || null, referralCode: user.referralCode || null, kycStatus: user.kycStatus || 'not_started', emailVerified: Boolean(user.emailVerified), createdAt: user.createdAt };
 }
 function orderView(order) {
   return {
@@ -270,9 +272,15 @@ async function register(bodyData) {
     const user = {
       id: crypto.randomUUID(), fullName, email, phone,
       passwordHash: hashPassword(password), status: 'active', kycStatus: 'not_started', emailVerified: false,
+      referralCode: 'EX' + crypto.randomBytes(5).toString('hex').toUpperCase(),
       createdAt: now
     };
     store.users.push(user);
+    const referralCode = String(bodyData.referralCode || '').trim().toUpperCase();
+    if (referralCode) {
+      const referrer = store.users.find(x => x.id !== user.id && x.referralCode === referralCode && x.status === 'active');
+      if (referrer) store.referrals.push({ id: crypto.randomUUID(), referrerUserId: referrer.id, invitedUserId: user.id, status: 'pending', createdAt: now });
+    }
     store.consents.push({ id: crypto.randomUUID(), userId: user.id, type: 'terms-and-privacy', termsVersion: '1.0', privacyVersion: '1.0', acceptedAt: now, retentionUntil: new Date(Date.now() + 2 * 365 * 86400000).toISOString() });
     store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.registered', subject: user.id, at: now });
     store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.terms_privacy_accepted', subject: user.id, at: now });
@@ -791,10 +799,11 @@ async function dashboard() {
       openTickets: store.supportTickets.filter(x => x.status === 'open' || x.status === 'in_progress').length,
       privacyRequests: store.privacyRequests.filter(x => x.status === 'received' || x.status === 'in_review').length
     },
+    engagement: await expertFeatures.adminSummary(),
     recentSubscribers: store.users.slice(-100).reverse().map(userView),
     recentDevices: store.devices.slice(-100).reverse().map(device => {
       const latest = store.profiles.filter(x => x.deviceId === device.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0] || null;
-      return { id: device.id, deviceName: device.deviceName, platform: device.platform, model: device.model || null, latestProfile: latest ? { id: latest.id, reference: latest.reference, status: latest.status, message: latest.message || '' } : null };
+      return { id: device.id, deviceName: device.deviceName, manufacturer: device.manufacturer || null, platform: device.platform, model: device.model || null, osVersion: device.osVersion || null, eSimSupportKnown: device.eSimSupportKnown === true, hasEuiccHardware: typeof device.hasEuiccHardware === 'boolean' ? device.hasEuiccHardware : null, euiccEnabled: typeof device.euiccEnabled === 'boolean' ? device.euiccEnabled : null, latestProfile: latest ? { id: latest.id, reference: latest.reference, status: latest.status, message: latest.message || '' } : null };
     }),
     recentProfiles: store.profiles.slice(-100).reverse().map(x => ({ id: x.id, reference: x.reference, deviceId: x.deviceId, status: x.status, message: x.message || '' })),
     recentTickets: store.supportTickets.slice(-30).reverse().map(({message, ...ticket}) => ticket),
@@ -823,13 +832,27 @@ function serveStatic(req, res, pathname) {
       'content-type': MIME[ext] || 'application/octet-stream',
       'cache-control': ['.html', '.js'].includes(ext) ? 'no-cache' : 'public, max-age=3600',
       'x-content-type-options': 'nosniff',
-      'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://speed.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+      'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
     });
     if (req.method === 'HEAD') return res.end();
     res.end(content);
   });
 }
 async function route(req, res, url) {
+  if (url.pathname === '/api/v1/tools/speedtest/ping' && req.method === 'GET') {
+    res.writeHead(204, { 'cache-control': 'no-store', 'access-control-allow-origin': 'same-origin' });
+    return res.end();
+  }
+  if (url.pathname === '/api/v1/tools/speedtest/download' && req.method === 'GET') {
+    const requested = Number(url.searchParams.get('bytes') || 1000000);
+    const bytes = Math.max(1, Math.min(10000000, Number.isFinite(requested) ? Math.floor(requested) : 1000000));
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': bytes, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+    return res.end(crypto.randomBytes(bytes));
+  }
+  if (url.pathname === '/api/v1/tools/speedtest/upload' && req.method === 'POST') {
+    const uploaded = await rawBody(req);
+    return send(res, 200, { ok: true, receivedBytes: uploaded.length, measuredAt: new Date().toISOString() });
+  }
   const legacyCheckout = url.pathname === '/api/v1/plans' ||
     url.pathname === '/api/v1/esim/orders' ||
     url.pathname.startsWith('/api/v1/esim/orders/') ||
@@ -896,6 +919,30 @@ async function route(req, res, url) {
     if (String(req.headers.authorization || '').startsWith('Bearer ')) headers['set-cookie'] = sessionCookie(tokenFrom(req));
     return send(res, 200, { ok: true, user: userView(user), orders, devices: await globalEsim.listDevices(user), tickets, privacyRequests, readiness: providerStatus() }, headers);
   }
+  if (p === '/api/v1/app/summary' && m === 'GET') {
+    return send(res, 200, { ok: true, summary: await expertFeatures.summary(await signedIn(req)) });
+  }
+  if (p === '/api/v1/app/check-in' && m === 'POST') {
+    return send(res, 201, { ok: true, ...(await expertFeatures.checkIn(await signedIn(req))) });
+  }
+  const taskClaim = p.match(/^\/api\/v1\/app\/tasks\/([a-z0-9_-]+)\/claim$/i);
+  if (taskClaim && m === 'POST') return send(res, 201, { ok: true, ...(await expertFeatures.claimTask(await signedIn(req), taskClaim[1])) });
+  if (p === '/api/v1/app/wallet' && m === 'GET') return send(res, 200, { ok: true, wallet: await expertFeatures.wallet(await signedIn(req)) });
+  if (p === '/api/v1/app/wallet/transfer' && m === 'POST') return send(res, 201, { ok: true, ...(await expertFeatures.transferPoints(await signedIn(req), await body(req))) });
+  if (p === '/api/v1/app/referrals' && m === 'GET') return send(res, 200, { ok: true, referrals: await expertFeatures.referrals(await signedIn(req)) });
+  if (p === '/api/v1/app/coupons' && m === 'GET') return send(res, 200, { ok: true, coupons: await expertFeatures.coupons(await signedIn(req)) });
+  const couponClaim = p.match(/^\/api\/v1\/app\/coupons\/([0-9a-f-]{36})\/claim$/i);
+  if (couponClaim && m === 'POST') return send(res, 201, { ok: true, ...(await expertFeatures.claimCoupon(await signedIn(req), couponClaim[1])) });
+  if (p === '/api/v1/app/redeem-code' && m === 'POST') return send(res, 201, { ok: true, ...(await expertFeatures.redeemCode(await signedIn(req), await body(req))) });
+  if (p === '/api/v1/app/store' && m === 'GET') return send(res, 200, { ok: true, store: await expertFeatures.storeCatalog(await signedIn(req)) });
+  const storeRedeem = p.match(/^\/api\/v1\/app\/store\/([0-9a-f-]{36})\/redeem$/i);
+  if (storeRedeem && m === 'POST') return send(res, 201, { ok: true, order: await expertFeatures.redeemItem(await signedIn(req), storeRedeem[1]) });
+  if (p === '/api/v1/app/airtime' && m === 'GET') return send(res, 200, { ok: true, requests: await expertFeatures.airtimeHistory(await signedIn(req)) });
+  if (p === '/api/v1/app/airtime' && m === 'POST') return send(res, 202, { ok: true, request: await expertFeatures.airtimeRequest(await signedIn(req), await body(req)) });
+  if (p === '/api/v1/app/messages' && m === 'GET') return send(res, 200, { ok: true, messages: await expertFeatures.messages(await signedIn(req)) });
+  const messageRead = p.match(/^\/api\/v1\/app\/messages\/([0-9a-f-]{36})\/read$/i);
+  if (messageRead && m === 'POST') return send(res, 200, { ok: true, message: await expertFeatures.markMessageRead(await signedIn(req), messageRead[1]) });
+  if (p === '/api/v1/app/speed-test' && m === 'POST') return send(res, 201, { ok: true, test: await expertFeatures.recordSpeedTest(await signedIn(req), await body(req)) });
   if (p === '/api/v1/devices' && m === 'GET') return send(res, 200, { ok: true, devices: await globalEsim.listDevices(await signedIn(req)) });
   if (p === '/api/v1/devices' && m === 'POST') return send(res, 201, { ok: true, device: await globalEsim.registerDevice(await signedIn(req), await body(req)) });
   const deviceProfilePath = p.match(/^\/api\/v1\/devices\/([0-9a-f-]{36})\/profile$/i);
@@ -1011,6 +1058,14 @@ async function route(req, res, url) {
   if (p.startsWith('/api/v1/admin/')) {
     if (!adminOk(req)) return send(res, 401, { ok: false, error: 'Admin authentication is required.' });
     if (p === '/api/v1/admin/dashboard' && m === 'GET') return send(res, 200, { ok: true, dashboard: await dashboard() });
+    if (p === '/api/v1/admin/features' && m === 'GET') return send(res, 200, { ok: true, engagement: await expertFeatures.adminSummary(), records: await expertFeatures.adminListOrders() });
+    if (p === '/api/v1/admin/coupons' && m === 'POST') return send(res, 201, { ok: true, coupon: await expertFeatures.adminCreateCoupon(await body(req)) });
+    if (p === '/api/v1/admin/rewards/items' && m === 'POST') return send(res, 201, { ok: true, item: await expertFeatures.adminCreateStoreItem(await body(req)) });
+    if (p === '/api/v1/admin/rewards/codes' && m === 'POST') return send(res, 201, { ok: true, code: await expertFeatures.adminCreateCode(await body(req)) });
+    if (p === '/api/v1/admin/messages' && m === 'POST') return send(res, 201, { ok: true, message: await expertFeatures.adminSendMessage(await body(req)) });
+    const pointAdjustment = p.match(/^\/api\/v1\/admin\/users\/([0-9a-f-]{36})\/points$/i);
+    if (pointAdjustment && m === 'POST') return send(res, 200, { ok: true, ...(await expertFeatures.adminAdjustPoints(pointAdjustment[1], await body(req))) });
+
     if (p === '/api/v1/admin/users' && m === 'GET') {
       const store = await loadStore();
       return send(res, 200, { ok: true, users: store.users.map(userView) });
