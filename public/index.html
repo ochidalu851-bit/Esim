@@ -28,7 +28,7 @@ button{cursor:pointer}
 .country{width:100%;appearance:none;background:#15171d;border:1px solid var(--line);border-radius:15px;color:#f3f4f7;padding:17px 42px 17px 16px;outline:none}
 .selectwrap{position:relative}
 .selectwrap:after{content:"⌄";position:absolute;right:18px;top:12px;color:var(--blue);font-size:23px;pointer-events:none}
-.tabs{display:grid;grid-template-columns:1fr 1fr;padding:4px;background:#191b21;border:1px solid #292d38;border-radius:18px;margin:25px 0 32px}
+.tabs{display:grid;grid-template-columns:1fr;padding:4px;background:#191b21;border:1px solid #292d38;border-radius:18px;margin:25px 0 32px}
 .tabs button{border:0;background:transparent;color:#929bb0;padding:16px 8px;border-radius:14px;font-weight:600}
 .tabs button.active{background:#0d0f13;color:#f5f6f9;box-shadow:0 0 0 1px #30343e}
 .sectionhead{color:#8993ab;font-size:14px;font-weight:700;letter-spacing:.055em;margin:26px 0 12px}
@@ -58,7 +58,6 @@ button{cursor:pointer}
 <div class="selectwrap"><select class="country" id="country" aria-label="Choose destination"></select></div>
 <div class="tabs" role="tablist" aria-label="Plan type">
  <button class="active" id="dataTab" type="button" role="tab" aria-selected="true">Data</button>
- <button id="fullTab" type="button" role="tab" aria-selected="false">Data + Calls + Text</button>
 </div>
 <div class="sectionhead" id="planHeading">DATA PLANS</div>
 <div class="empty" id="empty">
@@ -102,13 +101,8 @@ function updateSelection(){
  selectedDestination.textContent=item.name+' · '+selectedKind;
 }
 function setKind(kind){
- selectedKind=kind;
- const data=kind==='Data';
- document.getElementById('dataTab').classList.toggle('active',data);
- document.getElementById('fullTab').classList.toggle('active',!data);
- document.getElementById('dataTab').setAttribute('aria-selected',String(data));
- document.getElementById('fullTab').setAttribute('aria-selected',String(!data));
- planHeading.textContent=(data?'DATA':'DATA + CALLS + TEXT')+' PLANS';
+ selectedKind='Data';
+ planHeading.textContent='DATA PLANS';
  updateSelection();
 }
 async function init(){
@@ -128,8 +122,7 @@ async function init(){
 }
 search.addEventListener('input',()=>renderOptions(search.value));
 country.addEventListener('change',updateSelection);
-document.getElementById('dataTab').addEventListener('click',()=>setKind('Data'));
-document.getElementById('fullTab').addEventListener('click',()=>setKind('Data + Calls + Text'));
+
 document.getElementById('back').addEventListener('click',()=>{if(history.length>1)history.back()});
 init();
 </script>
