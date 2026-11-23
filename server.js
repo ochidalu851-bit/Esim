@@ -155,12 +155,16 @@ function providerStatus() {
     serviceEnabled: process.env.EXPERT_ESIM_SERVICE_ENABLED === 'true',
     paystackConfigured: Boolean(process.env.PAYSTACK_SECRET_KEY) && Boolean(process.env.PAYSTACK_WEBHOOK_SECRET),
     kycProviderConfigured: kycUrlValid && Boolean(process.env.KYC_PROVIDER_API_KEY) && Boolean(process.env.KYC_PROVIDER_WEBHOOK_SECRET),
-    emailDeliveryConfigured: Boolean(process.env.RESEND_API_KEY) && Boolean(process.env.EXPERT_ESIM_EMAIL_FROM)
+    emailDeliveryConfigured: Boolean(process.env.RESEND_API_KEY) && Boolean(process.env.EXPERT_ESIM_EMAIL_FROM),
+    nccLicenceConfirmed: process.env.NCC_MVNO_LICENCE_CONFIRMED === 'true',
+    privacyGovernanceReady: process.env.PRIVACY_GOVERNANCE_READY === 'true',
+    consumerSupportReady: process.env.CONSUMER_SUPPORT_READY === 'true',
+    hostNetworkName: process.env.HOST_NETWORK_NAME || null
   };
 }
 function readyToSell() {
   const p = providerStatus();
-  return p.adapterConfigured && p.webhookConfigured && p.hostNetworkAgreement && p.smdpPartnerConfigured && p.serviceEnabled;
+  return p.adapterConfigured && p.webhookConfigured && p.hostNetworkAgreement && p.smdpPartnerConfigured && p.serviceEnabled && p.nccLicenceConfirmed && p.kycProviderConfigured && p.privacyGovernanceReady && p.consumerSupportReady;
 }
 function encryptionKey() {
   const text = process.env.ESIM_PROFILE_ENCRYPTION_KEY || '';
@@ -281,10 +285,11 @@ async function login(data) {
   });
 }
 async function publishPlan(planId) {
-  if (!readyToSell()) throw Object.assign(new Error('Cannot publish plans until the host-network agreement, authorised SM-DP+ partner, provider API and service activation are configured.'), { statusCode: 409 });
+  if (!readyToSell()) throw Object.assign(new Error('Cannot publish packages until the NCC MVNO licence, host-network agreement, authorised SM-DP+ provider, NIMC-capable identity verification, privacy/support controls and provider API are confirmed.'), { statusCode: 409 });
   return transact(store => {
     const plan = store.plans.find(x => x.id === planId);
     if (!plan) throw Object.assign(new Error('Plan not found.'), { statusCode: 404 });
+    if (plan.priceMinor > 0 && (!providerStatus().paystackConfigured)) throw Object.assign(new Error('Configure Paystack payments and signed payment webhooks before publishing a paid package.'), { statusCode: 409 });
     plan.status = 'published'; plan.updatedAt = new Date().toISOString();
     store.audit.push({ id: crypto.randomUUID(), event: 'plan.published', subject: plan.id, at: plan.updatedAt });
     return { id: plan.id, name: plan.name, status: plan.status };
@@ -548,6 +553,10 @@ async function providerWebhook(raw, signature) {
     const order = store.orders.find(x => x.reference === reference);
     if (!order) throw Object.assign(new Error('Unknown Expert eSIM order.'), { statusCode: 404 });
     const now = new Date().toISOString();
+    const providerEventId = String(event.id || data.eventId || (reference + ':' + type));
+    if (store.providerEvents.some(item => item.id === providerEventId)) return { received: true, duplicate: true, reference, status: order.status };
+    const subscriber = store.users.find(item => item.id === order.userId);
+    if (order.paymentStatus !== 'paid' || !subscriber || subscriber.kycStatus !== 'verified') throw Object.assign(new Error('Payment and authorised subscriber identity verification must be complete before eSIM profile activation.'), { statusCode: 409 });
     if (type === 'esim.profile.issued') {
       if (!data.activationCode) throw Object.assign(new Error('Issued-profile event must contain an activation code.'), { statusCode: 400 });
       order.encryptedActivationCode = encryptSecret(String(data.activationCode));
@@ -556,6 +565,7 @@ async function providerWebhook(raw, signature) {
       order.status = 'profile_issued'; order.profileIssuedAt = now;
       order.message = 'Your authorised Expert eSIM profile is ready to install.';
     } else if (type === 'esim.profile.activated') {
+      if (!order.encryptedActivationCode) throw Object.assign(new Error('The eSIM profile has not been issued.'), { statusCode: 409 });
       order.status = 'active'; order.activatedAt = now;
       order.message = 'The provider confirmed your eSIM subscription is active.';
     } else if (type === 'esim.profile.failed') {
@@ -564,16 +574,16 @@ async function providerWebhook(raw, signature) {
       throw Object.assign(new Error('Unsupported provider event type.'), { statusCode: 400 });
     }
     order.updatedAt = now;
-    store.providerEvents.push({ id: crypto.randomUUID(), reference, type, receivedAt: now });
+    store.providerEvents.push({ id: providerEventId, reference, type, receivedAt: now });
     store.audit.push({ id: crypto.randomUUID(), event: 'provider.' + type, subject: order.id, at: now });
-    return { received: true, reference, status: order.status };
+    return { received: true, duplicate: false, reference, status: order.status };
   });
 }
 async function profileForUser(userId, orderId) {
   const store = await loadStore();
   const order = store.orders.find(x => x.id === orderId && x.userId === userId);
   if (!order) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
-  if (!['profile_issued', 'active'].includes(order.status)) throw Object.assign(new Error('The provider has not issued an installable eSIM profile yet.'), { statusCode: 409 });
+  if (order.paymentStatus !== 'paid' || !['profile_issued', 'active'].includes(order.status)) throw Object.assign(new Error('Payment and provider profile issuance must both be confirmed before installation.'), { statusCode: 409 });
   return {
     activationCode: decryptSecret(order.encryptedActivationCode),
     confirmationCode: order.encryptedConfirmationCode ? decryptSecret(order.encryptedConfirmationCode) : '',
