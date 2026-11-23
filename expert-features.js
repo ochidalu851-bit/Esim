@@ -80,6 +80,7 @@ function createExpertFeatures({ loadStore, transact }) {
     const store = ensure(await loadStore());
     const devices = store.devices.filter(x => x.userId === user.id);
     const profiles = store.profiles.filter(x => x.userId === user.id);
+    const member = store.users.find(x => x.id === user.id) || user;
     const points = balance(store, user.id);
     return {
       pointsBalance: points,
@@ -92,7 +93,7 @@ function createExpertFeatures({ loadStore, transact }) {
       dailyCheckinAvailable: !store.rewardClaims.some(x => x.userId === user.id && x.type === 'daily_checkin' && x.day === today()),
       dailySpinAvailable: !store.rewardClaims.some(x => x.userId === user.id && x.type === 'daily_spin' && x.day === today()),
       tasks: taskState(store,user),
-      referralCode: user.referralCode,
+      referralCode: member.referralCode,
       referralCount: store.referrals.filter(x => x.referrerUserId === user.id).length,
       qualifiedReferrals: store.referrals.filter(x => x.referrerUserId === user.id && x.status === 'qualified').length
     };
@@ -195,9 +196,10 @@ function createExpertFeatures({ loadStore, transact }) {
   async function referrals(user) {
     await qualifyReferrals();
     const store = ensure(await loadStore());
+    const member = store.users.find(x => x.id === user.id) || user;
     return {
-      code: user.referralCode,
-      sharePath: '/?ref=' + encodeURIComponent(user.referralCode),
+      code: member.referralCode,
+      sharePath: '/?ref=' + encodeURIComponent(member.referralCode),
       total: store.referrals.filter(x => x.referrerUserId === user.id).length,
       qualified: store.referrals.filter(x => x.referrerUserId === user.id && x.status === 'qualified').length,
       records: store.referrals.filter(x => x.referrerUserId === user.id).map(x => ({ status: x.status, createdAt: x.createdAt, qualifiedAt: x.qualifiedAt || null }))
@@ -409,6 +411,7 @@ function createExpertFeatures({ loadStore, transact }) {
     const id = String(data.id || '');
     const status = String(data.status || '');
     const message = String(data.message || '').trim().slice(0,500);
+    const supplierReference = String(data.supplierReference || '').trim().slice(0,120);
     const allowed = {
       store_order: ['fulfilled','cancelled'],
       airtime: ['delivered','failed','cancelled'],
@@ -416,6 +419,9 @@ function createExpertFeatures({ loadStore, transact }) {
     };
     if (!allowed[type] || !allowed[type].includes(status) || !id) {
       throw Object.assign(new Error('Choose a valid fulfilment record and final status.'), { statusCode: 400 });
+    }
+    if (['fulfilled','delivered','applied'].includes(status) && supplierReference.length < 3) {
+      throw Object.assign(new Error('Enter the real supplier, sponsor or carrier fulfilment reference before confirming delivery.'), { statusCode: 400 });
     }
     return transact(store => {
       ensure(store);
@@ -437,7 +443,9 @@ function createExpertFeatures({ loadStore, transact }) {
         : 'The fulfilment request was closed without delivery.');
       item.updatedAt = now;
       item.fulfilledAt = ['fulfilled','delivered','applied'].includes(status) ? now : null;
-      store.audit.push({ id: crypto.randomUUID(), event: 'expert_features.' + type + '.' + status, subject: item.id, at: now });
+      item.supplierReference = supplierReference || null;
+      item.fulfilmentEvidenceMessage = message || null;
+      store.audit.push({ id: crypto.randomUUID(), event: 'expert_features.' + type + '.' + status, subject: item.id, at: now, metadata: { supplierReference: supplierReference || null } });
       return { ...item };
     });
   }
