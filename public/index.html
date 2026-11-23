@@ -126,7 +126,7 @@ main{flex:1;display:flex;flex-direction:column}
   connectButton.classList.toggle("connected",connected);connectButton.classList.toggle("busy",busy);connectButton.disabled=busy;
   buttonLabel.textContent=busy?"PLEASE WAIT":(connected?"DISCONNECT":"CONNECT");
   connectButton.setAttribute("aria-label",connected?"Disconnect Expert eSIM":"Connect Expert eSIM");
-  connectionState.textContent=busy?"Working…":(connected?"Expert eSIM connected":"Not connected");
+  connectionState.textContent=busy?"Working…":(connected?"eSIM profile enabled":"Not connected");
   orbGlow.style.background=connected?"radial-gradient(circle,#3eac7744 0,transparent 68%)":"radial-gradient(circle,#2574a344 0,transparent 68%)";
  }
  function connectionError(message){connected=false;busy=false;renderConnection();connectionState.textContent="Not connected";connectionDetail.textContent=message||"The eSIM service could not be activated.";}
