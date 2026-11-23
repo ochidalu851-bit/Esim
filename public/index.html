@@ -208,7 +208,7 @@ function openPlans(id){
  document.getElementById("selectedCountryFlag").textContent=flagFor(selectedDestination);
  countryScreen.classList.remove("active");
  plansScreen.classList.add("active");
- selectedProviderNames = new Set();
+ selectedProviderNames = loadProviderSelection(selectedDestination);
  loadedProviderRecords = [];
  livePlanRecords = [];
  document.getElementById("providerList").innerHTML="";
@@ -248,6 +248,22 @@ async function loadNetworkInfo(destination){
  }
 }
 
+function providerSelectionKey(destination){
+ return "expert-esim-provider-selection:"+String(destination && (destination.code||destination.id) || "unknown");
+}
+function loadProviderSelection(destination){
+ try{
+  const values=JSON.parse(localStorage.getItem(providerSelectionKey(destination))||"[]");
+  return new Set(Array.isArray(values)?values.map(value=>String(value).toLowerCase()):[]);
+ }catch(error){return new Set();}
+}
+function saveProviderSelection(){
+ if(!selectedDestination)return;
+ try{
+  localStorage.setItem(providerSelectionKey(selectedDestination),JSON.stringify([...selectedProviderNames]));
+ }catch(error){}
+}
+
 function providerInitials(name){
  const parts=String(name||"").trim().split(/\s+/).filter(Boolean);
  if(!parts.length)return "?";
@@ -267,7 +283,7 @@ function renderProviderCircles(){
    '<button class="provider-circle'+(connected?' connected':'')+'" type="button" data-provider="'+escapeHtml(key)+'" aria-pressed="'+(connected?'true':'false')+'" aria-label="'+(connected?'Disconnect ':'Connect ')+escapeHtml(name)+'" title="'+(connected?'Disconnect ':'Connect ')+escapeHtml(name)+'">'+
     '<span>'+escapeHtml(providerInitials(name))+'</span></button>'+
    '<div class="provider-circle-name">'+escapeHtml(name)+'</div>'+
-   '<div class="provider-circle-state'+(connected?' connected':'')+'">'+(connected?'Connected':'Disconnected')+'</div>'+
+   '<div class="provider-circle-state'+(connected?' connected':'')+'">'+(connected?'Disconnect':'Connect')+'</div>'+
    '<div class="provider-circle-state">'+providerType+'</div>'+
   '</div>';
  }).join("");
@@ -276,6 +292,7 @@ function renderProviderCircles(){
    const key=button.dataset.provider;
    if(selectedProviderNames.has(key))selectedProviderNames.delete(key);
    else selectedProviderNames.add(key);
+   saveProviderSelection();
    renderProviderCircles();
    updatePlanFooter();
   });
