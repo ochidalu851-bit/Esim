@@ -580,20 +580,179 @@ async function profileForUser(userId, orderId) {
     reference: order.reference
   };
 }
+async function sendVerificationEmail(user) {
+  if (!providerStatus().emailDeliveryConfigured) return { sent: false, reason: 'email_provider_not_configured' };
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  await transact(store => {
+    const current = store.users.find(x => x.id === user.id);
+    if (!current) throw Object.assign(new Error('Subscriber account not found.'), { statusCode: 404 });
+    current.emailVerificationTokenHash = tokenHash;
+    current.emailVerificationExpiresAt = expiresAt;
+  });
+  const base = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')).replace(/\/$/, '');
+  const link = base + '/api/v1/auth/verify-email?token=' + encodeURIComponent(token);
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: process.env.EXPERT_ESIM_EMAIL_FROM,
+      to: [user.email],
+      subject: 'Verify your Expert eSIM email address',
+      html: '<p>Hello ' + String(user.fullName).replace(/[&<>]/g, '') + ',</p><p>Confirm your email address for your Expert eSIM subscriber account.</p><p><a href="' + link + '">Verify email address</a></p><p>This link expires in 60 minutes. If you did not create this account, you can ignore this message.</p>'
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    await transact(store => {
+      const current = store.users.find(x => x.id === user.id);
+      if (current) { delete current.emailVerificationTokenHash; delete current.emailVerificationExpiresAt; }
+    });
+    throw Object.assign(new Error('Email verification could not be sent. Check the configured email sender.'), { statusCode: 502 });
+  }
+  return { sent: true, expiresAt, providerMessageId: data.id || null };
+}
+async function verifyEmailToken(token) {
+  const tokenHash = hashToken(String(token || ''));
+  return transact(store => {
+    const user = store.users.find(x => x.emailVerificationTokenHash === tokenHash && x.emailVerificationExpiresAt && Date.parse(x.emailVerificationExpiresAt) > Date.now());
+    if (!user) throw Object.assign(new Error('This verification link is invalid or has expired.'), { statusCode: 400 });
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date().toISOString();
+    delete user.emailVerificationTokenHash;
+    delete user.emailVerificationExpiresAt;
+    store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.email_verified', subject: user.id, at: user.emailVerifiedAt });
+    return userView(user);
+  });
+}
+async function beginKyc(user) {
+  if (!providerStatus().kycProviderConfigured) throw Object.assign(new Error('Authorised telecom identity verification is not connected yet. Expert eSIM will not collect your NIN or face image directly.'), { statusCode: 503 });
+  if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before starting subscriber verification.'), { statusCode: 403 });
+  if (user.kycStatus === 'verified') return { verified: true, status: 'verified', message: 'Your identity has already been verified.' };
+  const base = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')).replace(/\/$/, '');
+  const response = await fetch(process.env.KYC_PROVIDER_START_URL, {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + process.env.KYC_PROVIDER_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      subscriberReference: user.id,
+      customer: { fullName: user.fullName, email: user.email, phone: user.phone || undefined },
+      returnUrl: base + '/?kyc=return',
+      webhookUrl: base + '/api/v1/kyc/webhook'
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.verificationUrl || !result.reference) throw Object.assign(new Error('The identity-verification partner did not return a valid secure verification session.'), { statusCode: 502 });
+  await transact(store => {
+    const current = store.users.find(x => x.id === user.id);
+    if (current) {
+      current.kycStatus = 'pending';
+      current.kycProviderReference = String(result.reference);
+      current.kycStartedAt = new Date().toISOString();
+    }
+    store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.kyc_started', subject: user.id, at: new Date().toISOString() });
+  });
+  return { status: 'pending', verificationUrl: result.verificationUrl, reference: result.reference, message: 'Continue in the authorised identity-verification partner page. Expert eSIM does not store your NIN or biometric image.' };
+}
+async function kycWebhook(raw, signature) {
+  const secret = process.env.KYC_PROVIDER_WEBHOOK_SECRET || '';
+  if (!secret) throw Object.assign(new Error('Identity provider webhook authentication is not configured.'), { statusCode: 503 });
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest();
+  const supplied = Buffer.from(String(signature || '').replace(/^sha256=/i, '').trim(), 'hex');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) throw Object.assign(new Error('Invalid identity provider signature.'), { statusCode: 401 });
+  let event;
+  try { event = JSON.parse(raw.toString('utf8')); } catch { throw Object.assign(new Error('Webhook body must be valid JSON.'), { statusCode: 400 }); }
+  const data = event.data || event;
+  const reference = String(data.subscriberReference || data.reference || '');
+  const state = String(event.type || event.event || data.status || '');
+  if (!reference) throw Object.assign(new Error('Identity callback is missing its subscriber reference.'), { statusCode: 400 });
+  return transact(store => {
+    const user = store.users.find(x => x.id === reference || x.kycProviderReference === reference);
+    if (!user) throw Object.assign(new Error('Subscriber identity record not found.'), { statusCode: 404 });
+    const eventId = String(event.id || data.eventId || (reference + ':' + state));
+    if (store.providerEvents.some(x => x.id === eventId)) return { received: true, duplicate: true, status: user.kycStatus };
+    if (['subscriber.kyc.verified', 'verified', 'kyc.verified'].includes(state)) {
+      user.kycStatus = 'verified';
+      user.kycVerifiedAt = new Date().toISOString();
+    } else if (['subscriber.kyc.rejected', 'rejected', 'kyc.rejected'].includes(state)) {
+      user.kycStatus = 'rejected';
+      user.kycRejectedAt = new Date().toISOString();
+    } else if (['subscriber.kyc.pending', 'pending', 'kyc.pending'].includes(state)) {
+      user.kycStatus = 'pending';
+    } else {
+      throw Object.assign(new Error('Unsupported identity provider event.'), { statusCode: 400 });
+    }
+    store.providerEvents.push({ id: eventId, reference, type: state, receivedAt: new Date().toISOString() });
+    store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.kyc_' + user.kycStatus, subject: user.id, at: new Date().toISOString() });
+    return { received: true, duplicate: false, status: user.kycStatus };
+  });
+}
+async function createSupportTicket(user, data) {
+  const subject = String(data.subject || '').trim();
+  const message = String(data.message || '').trim();
+  const category = String(data.category || 'general');
+  const allowed = ['activation', 'billing', 'network', 'technical', 'privacy', 'other'];
+  if (!allowed.includes(category)) throw Object.assign(new Error('Select a valid support category.'), { statusCode: 400 });
+  if (subject.length < 4 || subject.length > 120) throw Object.assign(new Error('Subject must be 4 to 120 characters.'), { statusCode: 400 });
+  if (message.length < 20 || message.length > 4000) throw Object.assign(new Error('Describe the issue in 20 to 4000 characters.'), { statusCode: 400 });
+  return transact(store => {
+    const now = new Date().toISOString();
+    const ticket = {
+      id: crypto.randomUUID(),
+      reference: 'EXSUP-' + new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14) + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+      userId: user.id, category, subject, message, status: 'open', createdAt: now, updatedAt: now
+    };
+    store.supportTickets.push(ticket);
+    store.audit.push({ id: crypto.randomUUID(), event: 'support.ticket_created', subject: ticket.id, at: now });
+    return ticket;
+  });
+}
+async function createPrivacyRequest(user, data) {
+  const type = String(data.type || '');
+  const allowed = ['access', 'correction', 'deletion', 'portability', 'objection'];
+  if (!allowed.includes(type)) throw Object.assign(new Error('Choose a valid privacy request type.'), { statusCode: 400 });
+  const details = String(data.details || '').trim().slice(0, 1500);
+  return transact(store => {
+    const now = new Date().toISOString();
+    const record = {
+      id: crypto.randomUUID(),
+      reference: 'EXPR-' + new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14) + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+      userId: user.id, type, details, status: 'received', createdAt: now, updatedAt: now
+    };
+    store.privacyRequests.push(record);
+    store.audit.push({ id: crypto.randomUUID(), event: 'privacy.request_received', subject: record.id, at: now });
+    return record;
+  });
+}
+
 async function dashboard() {
   const store = await loadStore();
   const count = status => store.orders.filter(x => x.status === status).length;
   return {
     provider: providerStatus(),
     totals: {
-      subscribers: store.users.length, plans: store.plans.length,
+      subscribers: store.users.length,
+      emailUnverified: store.users.filter(x => !x.emailVerified).length,
+      kycPending: store.users.filter(x => x.kycStatus === 'pending').length,
+      kycVerified: store.users.filter(x => x.kycStatus === 'verified').length,
+      plans: store.plans.length,
       publishedPlans: store.plans.filter(x => x.status === 'published').length,
-      orders: store.orders.length, awaitingPartner: count('awaiting_partner'),
-      provisioning: count('provisioning'), profilesIssued: count('profile_issued'),
-      activeProfiles: count('active'), providerErrors: count('provider_error')
+      orders: store.orders.length,
+      awaitingPayment: count('awaiting_payment'),
+      awaitingPartner: count('awaiting_partner'),
+      provisioning: count('provisioning'),
+      profilesIssued: count('profile_issued'),
+      activeProfiles: count('active'),
+      providerErrors: count('provider_error'),
+      openTickets: store.supportTickets.filter(x => x.status === 'open' || x.status === 'in_progress').length,
+      privacyRequests: store.privacyRequests.filter(x => x.status === 'received' || x.status === 'in_review').length
     },
     plans: store.plans.map(x => ({ id: x.id, name: x.name, dataMb: x.dataMb, validityDays: x.validityDays, priceMinor: x.priceMinor, currency: x.currency, status: x.status, networkModes: x.networkModes })),
-    recentOrders: store.orders.slice(-30).reverse().map(orderView)
+    recentOrders: store.orders.slice(-30).reverse().map(orderView),
+    recentTickets: store.supportTickets.slice(-30).reverse().map(({message, ...ticket}) => ticket),
+    recentPrivacyRequests: store.privacyRequests.slice(-30).reverse()
   };
 }
 
