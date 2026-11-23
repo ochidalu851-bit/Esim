@@ -231,11 +231,29 @@
         const payment = (order.paymentStatus || "pending").replaceAll("_", " ").toUpperCase();
         const installButton = order.status === "profile_issued" && order.paymentStatus === "paid"
           ? '<button class="portal-action" data-portal-install="' + escapeHtml(order.id) + '" type="button">Install Expert eSIM</button>' : "";
-        return '<article class="portal-item"><div class="portal-row"><span class="portal-title">' + escapeHtml(order.planName) + '</span><span class="portal-chip">' + escapeHtml(status) + '</span></div><div class="portal-meta">' + gb + ' GB · ' + order.validityDays + ' days · ' + escapeHtml(order.preferredNetwork.toUpperCase()) + ' · ' + escapeHtml(order.reference) + '</div><div class="portal-meta">Payment: ' + escapeHtml(payment) + ' · ' + escapeHtml(order.currency) + ' ' + (order.priceMinor / 100).toFixed(2) + '</div><div class="portal-meta">' + escapeHtml(order.message || "") + '</div>' + installButton + '</article>';
+        const verifyButton = order.paymentStatus === "pending" && order.paymentReference
+          ? '<button class="portal-secondary" data-portal-verify="' + escapeHtml(order.id) + '" type="button">Check payment</button>' : "";
+        return '<article class="portal-item"><div class="portal-row"><span class="portal-title">' + escapeHtml(order.planName) + '</span><span class="portal-chip">' + escapeHtml(status) + '</span></div><div class="portal-meta">' + gb + ' GB · ' + order.validityDays + ' days · ' + escapeHtml(order.preferredNetwork.toUpperCase()) + ' · ' + escapeHtml(order.reference) + '</div><div class="portal-meta">Payment: ' + escapeHtml(payment) + ' · ' + escapeHtml(order.currency) + ' ' + (order.priceMinor / 100).toFixed(2) + '</div><div class="portal-meta">' + escapeHtml(order.message || "") + '</div>' + verifyButton + installButton + '</article>';
       }).join("");
       target.querySelectorAll("[data-portal-install]").forEach(button => button.addEventListener("click", () => installProfile(button.dataset.portalInstall, button)));
+      target.querySelectorAll("[data-portal-verify]").forEach(button => button.addEventListener("click", () => verifyPayment(button.dataset.portalVerify, button)));
     } catch (error) {
       target.innerHTML = '<div class="portal-empty">' + escapeHtml(error.message) + '</div>';
+    }
+  }
+  async function verifyPayment(orderId, button) {
+    button.disabled = true;
+    button.textContent = "Checking with Paystack…";
+    $("portalMemberStatus").textContent = "Checking the payment directly with Paystack. A browser success page alone is not enough to activate an eSIM.";
+    try {
+      const result = await api("/esim/orders/" + encodeURIComponent(orderId) + "/verify-payment", {method:"POST"});
+      $("portalMemberStatus").textContent = result.order.message || "Payment has been verified by Paystack.";
+      await refreshOrders();
+    } catch (error) {
+      $("portalMemberStatus").textContent = error.message;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Check payment";
     }
   }
   async function installProfile(orderId, button) {
@@ -358,5 +376,17 @@
   $("portalRefreshPlans").addEventListener("click", refresh);
   $("portalRefreshOrders").addEventListener("click", refresh);
   window.ExpertAccountPortal = {refresh:refresh, refreshOrders:refreshOrders};
-  refresh();
+  const query = new URLSearchParams(window.location.search);
+  const emailVerifiedReturn = query.get("email_verified") === "1";
+  const paymentReturn = query.get("payment_return") === "1";
+  if (emailVerifiedReturn) setMode("login");
+  refresh().then(() => {
+    if (emailVerifiedReturn) {
+      if ($("portalMember").hidden) $("portalAuthStatus").textContent = "Your email address has been verified. Sign in to continue.";
+      else $("portalMemberStatus").textContent = "Your email address has been verified.";
+    }
+    if (paymentReturn && !$("portalMember").hidden) {
+      $("portalMemberStatus").textContent = "Returned from Paystack. Refresh your eSIM orders or use Check payment to confirm directly with Paystack.";
+    }
+  });
 })();
