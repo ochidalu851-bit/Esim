@@ -364,11 +364,12 @@ test('unsigned or unconfigured provider callbacks cannot create live service', a
 
 test('the subscriber UI hides authentication when a session exists and keeps it available for signed-out users', () => {
   const accountJs = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
+  const mainHtml = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
   const featureJs = fs.readFileSync(path.join(root, 'public/expert-features.js'), 'utf8');
   assert.doesNotThrow(() => new Function(featureJs));
-  assert.match(mainHtml, /expert-features\\.js/);
-  assert.doesNotMatch(mainHtml, /speed\\.cloudflare\\.com/);
-  assert.match(mainHtml, /api\\/v1\\/tools\\/speedtest/);
+  assert.match(mainHtml, /expert-features\.js/);
+  assert.doesNotMatch(mainHtml, /speed\.cloudflare\.com/);
+  assert.match(mainHtml, /api\/v1\/tools\/speedtest/);
   assert.match(accountJs, /getDeviceInfo/);
   assert.doesNotMatch(accountJs, /portalDeviceName|portalDevicePlatform|portalDeviceModel/);
   assert.match(accountJs, /#activateView \[hidden\]\{display:none!important\}/);
@@ -377,7 +378,6 @@ test('the subscriber UI hides authentication when a session exists and keeps it 
   assert.match(accountJs, /portalChecking"\)\.hidden = false/);
   assert.match(accountJs, /credentials:"same-origin"/);
 
-  const mainHtml = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
   assert.doesNotMatch(mainHtml, /<span>My eSIM<\/span>/);
   const inline = mainHtml.match(/<script>([\s\S]*?)<\/script>/);
   assert.ok(inline, 'main inline script exists');
