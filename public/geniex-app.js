@@ -100,7 +100,7 @@ function accountPage(){
 }
 function rewardsPage(){
  const s=S.summary||{}, tasks=s.tasks||[];
- return header("Reward Tasks")+'<div class="balance-card"><span class="balance-label">YOUR G-COINS</span><strong>'+Number(s.pointsBalance||0).toLocaleString()+'</strong><small>Reward coins earned from eligible in-app actions. Not cash.</small></div><div class="reward-actions"><button data-action="check-in"><b>Daily Check In</b><small>'+(s.dailyCheckinAvailable===false?"Collected today":"Collect today's reward")+'</small></button><button data-action="spin"><b>Lucky Reward</b><small>'+(s.dailySpinAvailable===false?"Used today":"One spin per day")+'</small></button><button data-action="free-data"><b>Free Data</b><small>Sponsored reward availability</small></button><button data-action="exchange-coins"><b>Exchange G-Coins</b><small>Convert after wallet approval</small></button></div><div class="section-row"><h2 class="section-title">Tasks</h2><span class="pill">G-COINS</span></div>'+(tasks.filter(t=>t.id!=="daily_checkin").length?'<div class="row-list">'+tasks.filter(t=>t.id!=="daily_checkin").map(t=>'<div class="list-row"><span class="row-symbol">✓</span><span class="row-copy"><b>'+esc(t.title||t.name||t.id)+'</b><small>'+esc(t.description||t.status||"Complete this task")+'</small></span>'+(t.claimed?'<span class="pill green">DONE</span>':t.eligible?'<button class="small-button" data-action="claim-task" data-id="'+esc(t.id)+'">Claim</button>':'<span class="pill warn">PENDING</span>')+'</div>').join("")+'</div>':empty("No reward tasks listed","Complete available app activities to earn reward coins."))+'<div class="section-row"><h2 class="section-title">Invite Friends</h2></div><div class="panel"><div class="eyebrow">YOUR REFERRAL CODE</div><div class="section-row" style="margin:8px 0"><b>'+esc(s.referralCode||S.user?.referralCode||"Sign in to get a code")+'</b><button class="small-button" data-action="share-referral">Share Now</button></div><p class="tiny muted">Referral rewards are credited only after the qualifying account activity is confirmed.</p></div><div class="panel"><h3>Redeem Gift Code</h3><form id="redeemForm" class="form-stack"><div class="field"><label>Gift code</label><input name="code" required placeholder="Enter your gift code"></div><button class="primary-button" type="submit">REDEEM</button></form><p id="redeemStatus" class="tiny muted"></p></div>';
+ return header("Reward Tasks")+'<div class="balance-card"><span class="balance-label">YOUR G-COINS</span><strong>'+Number(s.pointsBalance||0).toLocaleString()+'</strong><small>Reward coins earned from eligible in-app actions. Not cash.</small></div><div class="reward-actions"><button data-action="check-in"><b>Daily Check In</b><small>'+(s.dailyCheckinAvailable===false?"Collected today":"Collect today's reward")+'</small></button><button data-action="spin"><b>Coins Game</b><small>'+(s.dailySpinAvailable===false?"Used today":"One spin per day")+'</small></button><button data-action="free-data"><b>Free Data</b><small>Sponsored reward availability</small></button><button data-action="exchange-coins"><b>Exchange G-Coins</b><small>Convert after wallet approval</small></button></div><div class="section-row"><h2 class="section-title">Tasks</h2><span class="pill">G-COINS</span></div>'+(tasks.filter(t=>t.id!=="daily_checkin").length?'<div class="row-list">'+tasks.filter(t=>t.id!=="daily_checkin").map(t=>'<div class="list-row"><span class="row-symbol">✓</span><span class="row-copy"><b>'+esc(t.title||t.name||t.id)+'</b><small>'+esc(t.description||t.status||"Complete this task")+'</small></span>'+(t.claimed?'<span class="pill green">DONE</span>':t.eligible?'<button class="small-button" data-action="claim-task" data-id="'+esc(t.id)+'">Claim</button>':'<span class="pill warn">PENDING</span>')+'</div>').join("")+'</div>':empty("No reward tasks listed","Complete available app activities to earn reward coins."))+'<div class="section-row"><h2 class="section-title">Invite Friends</h2></div><div class="panel"><div class="eyebrow">YOUR REFERRAL CODE</div><div class="section-row" style="margin:8px 0"><b>'+esc(s.referralCode||S.user?.referralCode||"Sign in to get a code")+'</b><button class="small-button" data-action="share-referral">Share Now</button></div><p class="tiny muted">Referral rewards are credited only after the qualifying account activity is confirmed.</p></div><div class="panel"><h3>Redeem Gift Code</h3><form id="redeemForm" class="form-stack"><div class="field"><label>Gift code</label><input name="code" required placeholder="Enter your gift code"></div><button class="primary-button" type="submit">REDEEM</button></form><p id="redeemStatus" class="tiny muted"></p></div>';
 }
 function vouchersPage(){
  return header("My Vouchers")+'<div class="row-list" id="voucherList"><div class="panel tiny muted">Loading vouchers…</div></div><div class="panel" style="margin-top:13px"><h3>Redeem Gift Code</h3><form id="voucherRedeemForm" class="form-stack"><div class="field"><label>Gift Code</label><input name="code" required placeholder="Enter voucher or gift code"></div><button class="primary-button" type="submit">REDEEM</button></form><p id="voucherStatus" class="tiny muted"></p></div>';
@@ -118,7 +118,7 @@ function networkPage(){
 function networkSettingsPage(){
  const mode=S.preferredNetwork||"auto";
  const modes=[["auto","Automatic","Use all supported network technologies"],["4g","4G LTE","Prefer LTE mobile data"],["5g","5G","Prefer 5G NR with LTE fallback"]];
- return header("Preferred Network")+'<div class="panel"><div class="eyebrow">MOBILE NETWORK MODE</div><p class="tiny muted">Select the preferred radio mode for the enabled eSIM line. The phone or carrier may restrict direct switching.</p><div class="menu-list">'+modes.map(x=>'<button class="menu-action" data-action="set-network" data-mode="'+x[0]+'"><span class="menu-symbol">'+(mode===x[0]?"●":"○")+'</span><span>'+x[1]+'<small>'+x[2]+'</small></span><em>'+(mode===x[0]?"SELECTED":"›")+'</em></button>').join("")+'</div><p class="tiny muted" id="networkModeMessage">Current preference: '+esc(mode.toUpperCase())+'</p><button class="secondary-button" data-action="open-network-settings">Open Android SIM settings</button></div><p class="footer-note">Network mode changes are device-controlled. This app does not guarantee 4G/5G availability where the carrier has no coverage.</p>';
+ return header("Preferred Network")+'<div class="panel"><div class="eyebrow">MOBILE NETWORK MODE</div><p class="tiny muted">Select the preferred radio mode for the enabled eSIM line. The phone or carrier may restrict direct switching.</p><div class="menu-list">'+modes.map(x=>'<button class="menu-action" data-action="set-network" data-mode="'+x[0]+'"><span class="menu-symbol">'+(mode===x[0]?"●":"○")+'</span><span>'+x[1]+'<small>'+x[2]+'</small></span><em>'+(mode===x[0]?"SELECTED":"›")+'</em></button>').join("")+'</div><p class="tiny muted" id="networkModeMessage">Current preference: '+esc(mode.toUpperCase())+'</p><button class="secondary-button" data-action="open-network-settings">Open Network Settings</button> <button class="secondary-button" data-action="open-sim-settings">Calls & SMS SIM</button><div class="status-banner">RSIM mode is not enabled. It requires an authorised virtual-network provider. Calls and SMS settings remain under Android SIM controls.</div></div><p class="footer-note">Network mode changes are device-controlled. This app does not guarantee 4G/5G availability where the carrier has no coverage.</p>';
 }
 function diagnosticsPage(){return header("Network Diagnostic")+'<div class="panel"><div class="eyebrow">CONNECTION DIAGNOSTIC</div><p class="tiny muted">Run a local connectivity check against the Expert Railway service and inspect the detected mobile radio.</p><div id="diagnosticMessage" class="status-banner">Ready to test the connection.</div><button class="primary-button" data-action="diagnostics">RUN DIAGNOSTIC</button></div>'+(S.network?'<div class="panel"><h3>Mobile network</h3><b>'+esc(S.network.networkType||"Unknown")+'</b><p class="tiny muted">'+esc(S.network.message||"")+"</p></div>":"");}
 function batteryPage(){return header("Battery & Device Info")+'<div id="deviceHealth" class="panel"><div class="tiny muted">Reading device diagnostics…</div></div><button class="secondary-button" data-action="open-battery-settings">Open Battery Settings</button>';}
@@ -195,9 +195,12 @@ async function loadOrders(){
  try{const r=await api("/me");const el=$("ordersList");if(el)el.innerHTML=(r.orders||[]).filter(o=>o.status!=="retired").map(o=>'<div class="list-row"><span class="row-symbol">▤</span><span class="row-copy"><b>'+esc(o.planName||o.reference)+'</b><small>'+esc(o.reference)+' · '+esc(o.createdAt)+'</small></span><span class="pill">'+esc(o.status)+'</span></div>').join("")||empty("No orders yet","New data or app-bundle orders will appear after a live provider and payment partner are connected.");}
  catch(e){notify(e.message);}
 }
+function applyTheme(){
+ const p=S.preferences||{};document.body.classList.toggle("light-theme",p.darkMode===false);document.body.classList.toggle("reduce-motion",p.reduceMotion===true);
+}
 async function loadSettings(){
- if(!S.user){S.preferences={darkMode:true,reduceMotion:false,inAppNotifications:true,usageAlerts:true,sponsorOfferUpdates:true};render();return;}
- try{const r=await api("/app/preferences");S.preferences=r.preferences;if(S.page==="settings")render();}
+ if(!S.user){S.preferences={darkMode:true,reduceMotion:false,inAppNotifications:true,usageAlerts:true,sponsorOfferUpdates:true};applyTheme();render();return;}
+ try{const r=await api("/app/preferences");S.preferences=r.preferences;applyTheme();if(S.page==="settings")render();}
  catch(e){notify(e.message);}
 }
 async function loadMessages(){
@@ -250,7 +253,7 @@ window.onExpertNetworkModeResult=function(result){notify(result&&result.message|
 function saveSettings(){
  const p={darkMode:$("prefDark")?.checked!==false,reduceMotion:$("prefMotion")?.checked===true,inAppNotifications:$("prefInApp")?.checked!==false,emailNotifications:$("prefEmail")?.checked===true,usageAlerts:$("prefUsage")?.checked!==false,sponsorOfferUpdates:$("prefOffers")?.checked!==false};
  if(!S.user){notify("Sign in to sync settings to your account.");return;}
- api("/app/preferences",{method:"PATCH",body:JSON.stringify(p)}).then(()=>notify("Settings saved to your account.")).catch(e=>notify(e.message));
+ api("/app/preferences",{method:"PATCH",body:JSON.stringify(p)}).then(r=>{S.preferences=r.preferences;applyTheme();notify("Settings saved to your account.");}).catch(e=>notify(e.message));
 }
 async function authSubmit(form){
  const data=Object.fromEntries(new FormData(form).entries());
@@ -277,7 +280,11 @@ async function handleClick(e){
  if(a==="auth-mode"){S.authMode=b.dataset.mode;render();return;}
  if(a==="connect"){await connectNetwork();return;}
  if(a==="add-data"||a==="catalog-status"){loadStatus();openModal("Data service status","<p>Data plans and app bundles are not being invented. They will populate when the contracted provider exposes its catalogue and the payment/fulfilment integration is active.</p>",'<button class="secondary-button" data-action="close-modal">Close</button>');return;}
- if(a==="buy-data"||a==="buy-bundle"){notify("Purchases are locked until a live provider catalogue and payment partner are connected.");return;}
+ if(a==="buy-data"||a==="buy-bundle"){
+  if(!S.user){setPage("account");notify("Sign in before purchasing.");return;}
+  try{await api(a==="buy-data"?"/geniex/data/order":"/geniex/app-bundle/order",{method:"POST",body:JSON.stringify({itemId:b.dataset.id})});}
+  catch(err){notify(err.message);}return;
+ }
  if(a==="check-in"||a==="spin"){
   if(!S.user){setPage("account");notify("Sign in first.");return;}
   try{const r=await api(a==="check-in"?"/app/check-in":"/app/spin",{method:"POST",body:"{}"});notify(String(r.message||"Reward added.").replace(/Expert Points/g,"G-Coins"));await loadRewards();}
@@ -306,7 +313,10 @@ async function handleClick(e){
  }
  if(a==="open-battery-settings"){const n=window.ExpertESimNative;if(n&&typeof n.openBatterySettings==="function")n.openBatterySettings();else notify("Open Battery from your device settings.");return;}
  if(a==="open-network-settings"||a==="open-sim-settings"){
-  const n=window.ExpertESimNative;if(n&&typeof n.openNetworkSettings==="function")n.openNetworkSettings();else notify("Open your phone's Settings to select the SIM and preferred network.");return;
+  const n=window.ExpertESimNative;
+  if(a==="open-sim-settings"&&n&&typeof n.openSimSettings==="function")n.openSimSettings();
+  else if(n&&typeof n.openNetworkSettings==="function")n.openNetworkSettings();
+  else notify("Open your phone settings to select the SIM and preferred network.");return;
  }
  if(a==="diagnostics"){
   try{const t=performance.now();await fetch("/api/v1/tools/speedtest/ping",{cache:"no-store"});const v=Math.round(performance.now()-t);const el=$("diagnosticMessage");if(el)el.textContent="Railway service reachable. Round-trip latency from this device: "+v+" ms. This does not verify carrier coverage.";notify("Network diagnostic completed.");}
@@ -356,6 +366,7 @@ async function init(){
  if(n&&typeof n.getDeviceInfo==="function"){try{const d=JSON.parse(n.getDeviceInfo());document.documentElement.dataset.device=d.deviceName||d.model||"android";}catch(e){}}
  render();
  const ref=new URLSearchParams(location.search).get("ref");if(ref&&!S.user){S.authMode="register";}
+ if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{});}
 }
 init();
 })();
