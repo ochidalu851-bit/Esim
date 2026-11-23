@@ -35,7 +35,7 @@
     '#activateView .portal-status{min-height:18px;color:#afbed2;font-size:11px;line-height:1.5}' +
     '#activateView .portal-actions{display:flex;gap:8px;flex-wrap:wrap}' +
     '</style>' +
-    '<div class="backline"><button class="back-button" data-portal-back type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 6-6 6 6 6"/></svg></button><div><div class="page-title">My eSIM</div><div class="page-subtitle">Your Expert eSIM account, subscriptions and mobile-data services.</div></div></div>' +
+    '<div class="backline"><button class="back-button" data-portal-back type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 6-6 6 6 6"/></svg></button><div><div class="page-title">My eSIM</div><div class="page-subtitle">Your devices, individual eSIM profiles and sponsored mobile connectivity.</div></div></div>' +
     '<div class="card portal-card" id="portalAuth" hidden>' +
       '<div class="portal-tabs"><button class="portal-tab active" data-portal-mode="register" type="button">Create account</button><button class="portal-tab" data-portal-mode="login" type="button">Sign in</button></div>' +
       '<form class="portal-form" id="portalForm">' +
@@ -53,20 +53,24 @@
       '<div class="card portal-card">' +
         '<div class="portal-row"><div><div class="portal-title" id="portalUserName">Subscriber</div><div class="portal-meta" id="portalUserEmail"></div><div class="portal-meta" id="portalUserPhone"></div></div><button class="portal-secondary" id="portalLogout" type="button">Sign out</button></div>' +
         '<div class="portal-row"><strong>Account security</strong><span class="portal-chip" id="portalEmailState">Email not verified</span></div>' +
-        '<div class="portal-notice" id="portalEmailNotice">Verify the email address on your account before requesting mobile service.</div>' +
+        '<div class="portal-notice" id="portalEmailNotice">Verify the email address on your account before requesting a sponsored eSIM profile.</div>' +
         '<button class="portal-secondary" id="portalResendEmail" type="button">Send verification email</button>' +
-        '<div class="portal-row"><strong>Telecom identity verification</strong><span class="portal-chip" id="portalKycState">Not started</span></div>' +
-        '<div class="portal-notice" id="portalKycNotice">Nigerian SIM activation requires identity verification through NIMC/authorised telecom channels. Expert eSIM does not collect your NIN or face/fingerprint images in this form.</div>' +
+        '<div class="portal-row"><strong>Identity verification (where required)</strong><span class="portal-chip" id="portalKycState">Not started</span></div>' +
+        '<div class="portal-notice" id="portalKycNotice">The global connectivity partner may require secure identity checks depending on the countries and networks used. Any required checks are completed through its authorised verification provider.</div>' +
         '<button class="portal-action" id="portalStartKyc" type="button">Start secure identity verification</button>' +
         '<div class="portal-status" id="portalMemberStatus" aria-live="polite"></div>' +
       '</div>' +
       '<div class="card portal-card">' +
-        '<div class="portal-row"><div class="portal-section">Expert data packages</div><button class="portal-secondary" id="portalRefreshPlans" type="button">Refresh</button></div>' +
-        '<div id="portalPlans"><div class="portal-empty">Loading packages…</div></div>' +
-      '</div>' +
-      '<div class="card portal-card">' +
-        '<div class="portal-row"><div class="portal-section">My eSIM subscriptions</div><button class="portal-secondary" id="portalRefreshOrders" type="button">Refresh</button></div>' +
-        '<div id="portalOrders"><div class="portal-empty">Loading orders…</div></div>' +
+        '<div class="portal-row"><div class="portal-section">My devices and eSIM profiles</div><button class="portal-secondary" id="portalRefreshDevices" type="button">Refresh</button></div>' +
+        '<div class="portal-good">Expert eSIM is designed to fund the mobile-data service. Users do not purchase data packages here. Each registered device receives its own separate eSIM profile. Global roaming and unlimited-data access become available only where the contracted network provider confirms them.</div>' +
+        '<form class="portal-form" id="portalDeviceForm">' +
+          '<div><label class="portal-label" for="portalDeviceName">Device name</label><input class="portal-input" id="portalDeviceName" maxlength="80" required placeholder="e.g. My phone"></div>' +
+          '<div><label class="portal-label" for="portalDevicePlatform">Device platform</label><select class="portal-select" id="portalDevicePlatform"><option value="android">Android</option><option value="ios">iPhone / iPad</option><option value="other">Other eSIM device</option></select></div>' +
+          '<div><label class="portal-label" for="portalDeviceModel">Device model (optional)</label><input class="portal-input" id="portalDeviceModel" maxlength="100" placeholder="Device model"></div>' +
+          '<button class="portal-action" type="submit" id="portalRegisterDevice">Register this device and request its profile</button>' +
+          '<div class="portal-status" id="portalDeviceStatus" aria-live="polite"></div>' +
+        '</form>' +
+        '<div id="portalDevices"><div class="portal-empty">Loading registered devices…</div></div>' +
       '</div>' +
       '<div class="card portal-card">' +
         '<div class="portal-section">Help and complaints</div>' +
@@ -179,113 +183,128 @@
   function statusItem(title, meta, status) {
     return '<article class="portal-item"><div class="portal-row"><span class="portal-title">' + escapeHtml(title) + '</span><span class="portal-chip">' + escapeHtml(String(status || "").replaceAll("_"," ").toUpperCase()) + '</span></div><div class="portal-meta">' + escapeHtml(meta || "") + '</div></article>';
   }
-  async function refreshPlans(user, readiness) {
-    const target = $("portalPlans");
-    target.innerHTML = '<div class="portal-empty">Loading data packages…</div>';
+  function currentDeviceClientId(user) {
+    const key = "expertEsimDeviceId:" + user.id;
     try {
-      const result = await api("/plans");
-      if (!result.plans.length) {
-        target.innerHTML = '<div class="portal-empty">No Expert eSIM packages are available yet. Packages will appear after the NCC licence, host-network agreement, authorised SM-DP+ partner, identity verification, payments and service approval are in place.</div>';
+      let id = localStorage.getItem(key);
+      if (!id) {
+        id = "device_" + (window.crypto && crypto.randomUUID ? crypto.randomUUID().replace(/-/g,"") : Date.now().toString(36) + Math.random().toString(36).slice(2));
+        localStorage.setItem(key,id);
+      }
+      return id;
+    } catch (error) {
+      return "device_" + Date.now().toString(36) + Math.random().toString(36).slice(2);
+    }
+  }
+  function detectPlatform() {
+    const ua = String(navigator.userAgent || "").toLowerCase();
+    if (ua.includes("android")) return "android";
+    if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) return "ios";
+    return "other";
+  }
+  let activeUser = null;
+  function renderDevice(device) {
+    const profile = device.latestProfile;
+    const state = profile ? profile.status : "not_requested";
+    const request = !profile || ["provider_error","cancelled","awaiting_partners"].includes(state)
+      ? '<button class="portal-action" data-device-request="' + escapeHtml(device.id) + '" type="button">Request / check profile</button>' : "";
+    const install = profile && ["profile_issued","active"].includes(state)
+      ? '<button class="portal-action" data-device-install="' + escapeHtml(device.id) + '" type="button">Install eSIM profile</button>' : "";
+    return '<article class="portal-item"><div class="portal-row"><span class="portal-title">' + escapeHtml(device.deviceName) + '</span><span class="portal-chip">' + escapeHtml(String(state).replaceAll("_"," ").toUpperCase()) + '</span></div>' +
+      '<div class="portal-meta">' + escapeHtml(String(device.platform || "other").toUpperCase()) + (device.model ? " · " + escapeHtml(device.model) : "") + '</div>' +
+      '<div class="portal-meta">' + escapeHtml(profile ? profile.message : "This device is registered. Request its own sponsored profile.") + '</div>' + request + install + '</article>';
+  }
+  async function refreshDevices(existing) {
+    const target = $("portalDevices");
+    target.innerHTML = '<div class="portal-empty">Loading registered devices…</div>';
+    try {
+      const result = existing ? {devices:existing} : await api("/devices");
+      if (!result.devices || !result.devices.length) {
+        target.innerHTML = '<div class="portal-empty">No device is registered yet. Open Expert eSIM on each device and register it to request its individual profile.</div>';
         return;
       }
-      target.innerHTML = result.plans.map(plan => {
-        const gb = (plan.dataMb / 1024).toFixed(plan.dataMb % 1024 === 0 ? 0 : 1);
-        const price = (plan.priceMinor / 100).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-        const mayOrder = user.emailVerified && user.kycStatus === "verified";
-        const label = !user.emailVerified ? "Verify email first" : (user.kycStatus !== "verified" ? "Complete KYC first" : "Get eSIM");
-        return '<article class="portal-item"><div class="portal-title">' + escapeHtml(plan.name) + '</div><div class="portal-meta">' + gb + ' GB · ' + plan.validityDays + ' days · ' + escapeHtml(plan.networkModes.join(" / ").toUpperCase()) + '</div><div class="portal-row"><strong>' + escapeHtml(plan.currency) + ' ' + price + '</strong><button class="portal-action" data-portal-order="' + escapeHtml(plan.id) + '" type="button" ' + (mayOrder ? '' : 'disabled') + '>' + label + '</button></div></article>';
-      }).join("");
-      target.querySelectorAll("[data-portal-order]").forEach(button => button.addEventListener("click", () => requestOrder(button.dataset.portalOrder, button)));
+      target.innerHTML = result.devices.map(renderDevice).join("");
+      target.querySelectorAll("[data-device-request]").forEach(button => button.addEventListener("click",() => requestDeviceProfile(button.dataset.deviceRequest,button)));
+      target.querySelectorAll("[data-device-install]").forEach(button => button.addEventListener("click",() => installDeviceProfile(button.dataset.deviceInstall,button)));
     } catch (error) {
       target.innerHTML = '<div class="portal-empty">' + escapeHtml(error.message) + '</div>';
     }
   }
-  async function requestOrder(planId, button) {
+  async function requestDeviceProfile(deviceId,button) {
     button.disabled = true;
-    button.textContent = "Creating order…";
+    button.textContent = "Requesting profile…";
     try {
-      let preferredNetwork = "auto";
-      try {
-        const saved = localStorage.getItem("expertPreferredNetwork");
-        if (["auto","4g","5g"].includes(saved)) preferredNetwork = saved;
-      } catch (e) {}
-      const result = await api("/esim/orders", {method:"POST", body:JSON.stringify({planId:planId, preferredNetwork:preferredNetwork})});
-      let message = result.message || "eSIM order received.";
-      if (result.order.status === "awaiting_payment") {
-        const payment = await api("/esim/orders/" + encodeURIComponent(result.order.id) + "/pay", {method:"POST"});
-        message = "Redirecting you to the secure payment page…";
-        $("portalMemberStatus").textContent = message;
-        window.location.href = payment.payment.authorizationUrl;
-        return;
+      const result = await api("/devices/" + encodeURIComponent(deviceId) + "/profile",{method:"POST"});
+      $("portalDeviceStatus").textContent = result.profile.message || result.message || "Profile request received.";
+      await refreshDevices();
+    } catch (error) {
+      $("portalDeviceStatus").textContent = error.message;
+    } finally {
+      button.disabled = false;
+      button.textContent = "Request / check profile";
+    }
+  }
+  async function installDeviceProfile(deviceId,button) {
+    button.disabled = true;
+    button.textContent = "Preparing installation…";
+    try {
+      const result = await api("/devices/" + encodeURIComponent(deviceId) + "/profile");
+      const native = window.ExpertESimNative;
+      if (native && typeof native.downloadProfile === "function") {
+        $("portalMemberStatus").textContent = "Opening the secure eSIM installer. Complete the device confirmation prompt.";
+        native.downloadProfile(result.profile.activationCode,result.profile.confirmationCode || "");
+      } else {
+        const details = document.createElement("details");
+        details.className = "portal-item";
+        const summary = document.createElement("summary");
+        summary.textContent = "Manual eSIM installation details";
+        const code = document.createElement("code");
+        code.style.display = "block";
+        code.style.wordBreak = "break-all";
+        code.style.marginTop = "10px";
+        code.textContent = result.profile.activationCode;
+        details.appendChild(summary);
+        details.appendChild(code);
+        if (result.profile.confirmationCode) {
+          const extra = document.createElement("div");
+          extra.className = "portal-meta";
+          extra.textContent = "Confirmation code: " + result.profile.confirmationCode;
+          details.appendChild(extra);
+        }
+        $("portalDevices").prepend(details);
+        $("portalMemberStatus").textContent = "Use the provider-issued details in your device's Add eSIM settings. Keep them private.";
       }
-      $("portalMemberStatus").textContent = message;
-      await refresh();
     } catch (error) {
       $("portalMemberStatus").textContent = error.message;
     } finally {
       button.disabled = false;
-      button.textContent = "Get eSIM";
+      button.textContent = "Install eSIM profile";
     }
   }
-  async function refreshOrders() {
-    const target = $("portalOrders");
-    target.innerHTML = '<div class="portal-empty">Loading your eSIM orders…</div>';
-    try {
-      const result = await api("/esim/orders");
-      if (!result.orders.length) {
-        target.innerHTML = '<div class="portal-empty">You do not have any eSIM orders yet.</div>';
-        return;
-      }
-      target.innerHTML = result.orders.map(order => {
-        const gb = (order.dataMb / 1024).toFixed(order.dataMb % 1024 === 0 ? 0 : 1);
-        const status = order.status.replaceAll("_", " ").toUpperCase();
-        const payment = (order.paymentStatus || "pending").replaceAll("_", " ").toUpperCase();
-        const installButton = order.status === "profile_issued" && order.paymentStatus === "paid"
-          ? '<button class="portal-action" data-portal-install="' + escapeHtml(order.id) + '" type="button">Install Expert eSIM</button>' : "";
-        const verifyButton = order.paymentStatus === "pending" && order.paymentReference
-          ? '<button class="portal-secondary" data-portal-verify="' + escapeHtml(order.id) + '" type="button">Check payment</button>' : "";
-        return '<article class="portal-item"><div class="portal-row"><span class="portal-title">' + escapeHtml(order.planName) + '</span><span class="portal-chip">' + escapeHtml(status) + '</span></div><div class="portal-meta">' + gb + ' GB · ' + order.validityDays + ' days · ' + escapeHtml(order.preferredNetwork.toUpperCase()) + ' · ' + escapeHtml(order.reference) + '</div><div class="portal-meta">Payment: ' + escapeHtml(payment) + ' · ' + escapeHtml(order.currency) + ' ' + (order.priceMinor / 100).toFixed(2) + '</div><div class="portal-meta">' + escapeHtml(order.message || "") + '</div>' + verifyButton + installButton + '</article>';
-      }).join("");
-      target.querySelectorAll("[data-portal-install]").forEach(button => button.addEventListener("click", () => installProfile(button.dataset.portalInstall, button)));
-      target.querySelectorAll("[data-portal-verify]").forEach(button => button.addEventListener("click", () => verifyPayment(button.dataset.portalVerify, button)));
-    } catch (error) {
-      target.innerHTML = '<div class="portal-empty">' + escapeHtml(error.message) + '</div>';
-    }
-  }
-  async function verifyPayment(orderId, button) {
+  $("portalDeviceForm").addEventListener("submit",async event => {
+    event.preventDefault();
+    const button = $("portalRegisterDevice");
     button.disabled = true;
-    button.textContent = "Checking with Paystack…";
-    $("portalMemberStatus").textContent = "Checking the payment directly with Paystack. A browser success page alone is not enough to activate an eSIM.";
+    $("portalDeviceStatus").textContent = "Registering this device…";
     try {
-      const result = await api("/esim/orders/" + encodeURIComponent(orderId) + "/verify-payment", {method:"POST"});
-      $("portalMemberStatus").textContent = result.order.message || "Payment has been verified by Paystack.";
-      await refreshOrders();
+      const result = await api("/devices",{method:"POST",body:JSON.stringify({
+        clientDeviceId:currentDeviceClientId(activeUser),
+        deviceName:$("portalDeviceName").value.trim(),
+        platform:$("portalDevicePlatform").value || detectPlatform(),
+        model:$("portalDeviceModel").value.trim()
+      })});
+      $("portalDeviceStatus").textContent = "Device registered. Requesting its separate sponsored eSIM profile…";
+      const profile = await api("/devices/" + encodeURIComponent(result.device.id) + "/profile",{method:"POST"});
+      $("portalDeviceStatus").textContent = profile.profile.message || profile.message || "Profile request received.";
+      await refreshDevices();
     } catch (error) {
-      $("portalMemberStatus").textContent = error.message;
+      $("portalDeviceStatus").textContent = error.message;
+      await refreshDevices();
     } finally {
       button.disabled = false;
-      button.textContent = "Check payment";
+      button.textContent = "Register this device and request its profile";
     }
-  }
-  async function installProfile(orderId, button) {
-    const native = window.ExpertESimNative;
-    if (!native || typeof native.downloadProfile !== "function") {
-      $("portalMemberStatus").textContent = "Install Expert eSIM on an eSIM-compatible Android phone to install this profile.";
-      return;
-    }
-    button.disabled = true;
-    button.textContent = "Preparing Android installer…";
-    try {
-      const result = await api("/esim/orders/" + encodeURIComponent(orderId) + "/profile");
-      await api("/esim/orders/" + encodeURIComponent(orderId) + "/install-requested", {method:"POST"});
-      $("portalMemberStatus").textContent = "Android is opening its secure eSIM installer. Complete any system confirmation prompt.";
-      native.downloadProfile(result.profile.activationCode, result.profile.confirmationCode || "");
-    } catch (error) {
-      $("portalMemberStatus").textContent = error.message;
-      button.disabled = false;
-      button.textContent = "Install Expert eSIM";
-    }
-  }
+  });
   $("portalSupportForm").addEventListener("submit", async event => {
     event.preventDefault();
     $("portalSupportSubmit").disabled = true;
@@ -356,17 +375,19 @@
       $("portalEmailState").textContent = user.emailVerified ? "Verified" : "Not verified";
       $("portalEmailNotice").textContent = user.emailVerified
         ? "Your email address is verified."
-        : "Verify your email address before ordering a mobile subscription.";
+        : "Verify your email address before requesting a sponsored eSIM profile.";
       $("portalResendEmail").hidden = user.emailVerified || !data.readiness.emailDeliveryConfigured;
       $("portalKycState").textContent = String(user.kycStatus || "not_started").replaceAll("_"," ");
       $("portalKycNotice").textContent = user.kycStatus === "verified"
         ? "Your identity verification has been confirmed by the authorised verification partner."
-        : "Nigerian telecom activation requires NIN and biometric verification through NIMC-authorised telecom channels. Expert eSIM does not collect these details directly.";
-      $("portalStartKyc").hidden = user.kycStatus === "verified" || !data.readiness.kycProviderConfigured;
-      if (!data.readiness.kycProviderConfigured && user.kycStatus !== "verified") {
-        $("portalMemberStatus").textContent = "Secure identity verification is awaiting an authorised verification partner.";
+        : "Identity checks depend on the applicable destination-market rules and the global connectivity provider. Expert eSIM does not collect identity documents directly in this form.";
+      $("portalStartKyc").hidden = user.kycStatus === "verified" || !data.readiness.identityProviderConfigured;
+      if (!data.readiness.identityProviderConfigured && user.kycStatus !== "verified") {
+        $("portalMemberStatus").textContent = "Secure identity verification is awaiting the contracted global verification partner.";
       }
-      await Promise.all([refreshPlans(user,data.readiness),refreshOrders(),refreshTickets(data.tickets || []),refreshPrivacyRequests(data.privacyRequests || [])]);
+      activeUser = user;
+      $("portalDevicePlatform").value = detectPlatform();
+      await Promise.all([refreshDevices(data.devices || []),refreshTickets(data.tickets || []),refreshPrivacyRequests(data.privacyRequests || [])]);
     } catch (error) {
       $("portalMember").hidden = true;
       if (error.status === 401) {
@@ -391,20 +412,16 @@
     const data = existing || [];
     target.innerHTML = data.length ? data.map(item => statusItem(item.type.replaceAll("_"," "), item.reference + " · " + new Date(item.createdAt).toLocaleDateString(), item.status)).join("") : '<div class="portal-empty">No privacy requests yet.</div>';
   }
-  $("portalRefreshPlans").addEventListener("click", refresh);
-  $("portalRefreshOrders").addEventListener("click", refresh);
-  window.ExpertAccountPortal = {refresh:refresh, refreshOrders:refreshOrders};
+  $("portalRefreshDevices").addEventListener("click", refresh);
+  window.ExpertAccountPortal = {refresh:refresh, refreshDevices:refreshDevices};
   const query = new URLSearchParams(window.location.search);
   const emailVerifiedReturn = query.get("email_verified") === "1";
-  const paymentReturn = query.get("payment_return") === "1";
   if (emailVerifiedReturn) setMode("login");
   refresh().then(() => {
     if (emailVerifiedReturn) {
       if ($("portalMember").hidden) $("portalAuthStatus").textContent = "Your email address has been verified. Sign in to continue.";
       else $("portalMemberStatus").textContent = "Your email address has been verified.";
     }
-    if (paymentReturn && !$("portalMember").hidden) {
-      $("portalMemberStatus").textContent = "Returned from Paystack. Refresh your eSIM orders or use Check payment to confirm directly with Paystack.";
-    }
+
   });
 })();
