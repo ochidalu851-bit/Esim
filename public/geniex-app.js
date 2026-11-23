@@ -123,14 +123,14 @@ function networkSettingsPage(){
 function diagnosticsPage(){return header("Network Diagnostic")+'<div class="panel"><div class="eyebrow">CONNECTION DIAGNOSTIC</div><p class="tiny muted">Run a local connectivity check against the Expert Railway service and inspect the detected mobile radio.</p><div id="diagnosticMessage" class="status-banner">Ready to test the connection.</div><button class="primary-button" data-action="diagnostics">RUN DIAGNOSTIC</button></div>'+(S.network?'<div class="panel"><h3>Mobile network</h3><b>'+esc(S.network.networkType||"Unknown")+'</b><p class="tiny muted">'+esc(S.network.message||"")+"</p></div>":"");}
 function batteryPage(){return header("Battery & Device Info")+'<div id="deviceHealth" class="panel"><div class="tiny muted">Reading device diagnostics…</div></div><button class="secondary-button" data-action="open-battery-settings">Open Battery Settings</button>';}
 async function loadPreferredNetwork(){
- const n=window.ExpertESimNative;
+ const n=window.ExpertMobileNative;
  if(n&&typeof n.getPreferredNetwork==="function"){try{const v=JSON.parse(n.getPreferredNetwork());S.preferredNetwork=v.mode||"auto";}catch(e){S.preferredNetwork="auto";}}
  else S.preferredNetwork="auto";
  if(S.page==="network-settings")render();
 }
 function loadDeviceHealth(){
  const el=$("deviceHealth");if(!el)return;
- const n=window.ExpertESimNative;
+ const n=window.ExpertMobileNative;
  if(n&&typeof n.getDeviceHealth==="function"){try{const d=JSON.parse(n.getDeviceHealth());el.innerHTML='<h3>Device health</h3>'+[["Battery",d.batteryPercent==null?"Not reported":d.batteryPercent+"%"],["Charging",d.charging?"Yes":"No"],["Memory available",(d.memoryAvailableMb??"—")+" MB"],["Storage available",(d.storageAvailableMb??"—")+" MB"],["Thermal status",d.thermalStatus||"Not reported"]].map(x=>'<div class="list-row"><span class="row-copy"><b>'+esc(x[0])+'</b></span><span class="row-tail">'+esc(x[1])+'</span></div>').join("");}catch(e){el.textContent="Device diagnostics unavailable: "+e.message;}}
  else el.innerHTML='<h3>Device diagnostics</h3><p class="tiny muted">Battery, memory and storage readings are available inside the Android Expert app. Browser access is limited.</p>';
 }
@@ -214,7 +214,7 @@ async function loadMessages(){
  catch(e){notify(e.message);}
 }
 function readNetwork(){
- const n=window.ExpertESimNative;
+ const n=window.ExpertMobileNative;
  if(n&&typeof n.getCurrentNetworkInfo==="function"){try{n.getCurrentNetworkInfo();S.network=S.network||{networkType:"Reading…",available:false,message:"Waiting for Android network information."};}catch(e){S.network={networkType:"Unavailable",available:false,message:e.message};}}
  else{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;S.network={networkType:c&&c.effectiveType?c.effectiveType.toUpperCase():"Browser network",transport:c&&c.type?c.type:"Internet connection",available:true,message:"Browser mode cannot verify SIM slot or carrier radio technology."};render();}
 }
@@ -237,19 +237,20 @@ async function runSpeed(){
  finally{if(btn)btn.disabled=false;}
 }
 async function connectNetwork(){
- if(S.connecting)return;S.connecting=true;render();
- const n=window.ExpertESimNative;
- if(n&&(typeof n.connect==="function"||typeof n.disconnect==="function")){try{if(S.connected&&typeof n.disconnect==="function")n.disconnect();else if(typeof n.connect==="function")n.connect();else throw new Error("No native connection action is available.");}catch(e){S.connecting=false;render();notify(e.message);}return;}
- try{await api(S.connected?"/geniex/disconnect":"/geniex/connect",{method:"POST",body:"{}"});}catch(e){notify(e.message);}
- S.connecting=false;render();
+ if(S.connecting)return;
+ if(!S.user){setPage("account");notify("Sign in to check your network service.");return;}
+ S.connecting=true;render();
+ try{
+  const route=S.connected?"/geniex/disconnect":"/geniex/connect";
+  const r=await api(route,{method:"POST",body:"{}"});
+  S.connected=!!r.connected;
+ }catch(e){notify(e.message);}
+ finally{S.connecting=false;render();}
 }
 async function requestUnavailable(route,label){
  try{await api(route,{method:"POST",body:"{}"});}
  catch(e){notify(e.message||label+" is not available yet.");}
 }
-window.onExpertEsimNativeResult=function(result){
- S.connecting=false;S.connected=!!(result&&result.connected);render();notify(result&&result.message?result.message:(S.connected?"Connected":"Unable to connect"));
-};
 window.onExpertNetworkInfoResult=function(result){
  S.network={networkType:result&&result.label||result&&result.networkType||result&&result.status||"Not available",available:!!(result&&result.hasRadio&&result.label!=="Network type unavailable"),message:result&&result.message||"",transport:"Mobile data SIM",signal:result&&result.supports5g?"5G capable":"Signal strength not exposed"};
  if(S.page==="network")render();
@@ -311,14 +312,14 @@ async function handleClick(e){
  if(a==="run-speed"){await runSpeed();return;}
  if(a==="refresh-network"){refreshNetwork();notify("Refreshing network details…");return;}
  if(a==="set-network"){
-  const n=window.ExpertESimNative;const mode=b.dataset.mode||"auto";S.preferredNetwork=mode;
+  const n=window.ExpertMobileNative;const mode=b.dataset.mode||"auto";S.preferredNetwork=mode;
   if(n&&typeof n.setPreferredNetwork==="function"){try{n.setPreferredNetwork(mode);render();}catch(err){notify(err.message);}}
   else{render();notify("This browser cannot change the handset radio mode. Use Android SIM settings.");}
   return;
  }
- if(a==="open-battery-settings"){const n=window.ExpertESimNative;if(n&&typeof n.openBatterySettings==="function")n.openBatterySettings();else notify("Open Battery from your device settings.");return;}
+ if(a==="open-battery-settings"){const n=window.ExpertMobileNative;if(n&&typeof n.openBatterySettings==="function")n.openBatterySettings();else notify("Open Battery from your device settings.");return;}
  if(a==="open-network-settings"||a==="open-sim-settings"){
-  const n=window.ExpertESimNative;
+  const n=window.ExpertMobileNative;
   if(a==="open-sim-settings"&&n&&typeof n.openSimSettings==="function")n.openSimSettings();
   else if(n&&typeof n.openNetworkSettings==="function")n.openNetworkSettings();
   else notify("Open your phone settings to select the SIM and preferred network.");return;
@@ -365,7 +366,7 @@ document.addEventListener("submit",async e=>{
 });
 async function init(){
  render();loadStatus();loadCatalog();loadUsage();
- const n=window.ExpertESimNative;
+ const n=window.ExpertMobileNative;
  if(n&&typeof n.getDeviceInfo==="function"){try{S.device=JSON.parse(n.getDeviceInfo());document.documentElement.dataset.device=S.device.deviceName||S.device.model||"android";}catch(e){}}
  try{const m=await api("/me");S.user=m.user;await registerDetectedDevice();await refreshAccount();}catch(e){S.user=null;}
  if(S.user){try{const [sum,wal]=await Promise.all([api("/app/summary"),api("/app/wallet")]);S.summary=sum.summary;S.wallet=wal.wallet;}catch(e){}}
