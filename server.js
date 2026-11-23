@@ -708,8 +708,8 @@ function getDestinationNetworkInfo(destination) {
 }
 
 
-let AIRALO_ACCESS_TOKEN = null;
-let AIRALO_TOKEN_EXPIRES_AT = 0;
+let AIRALO_PARTNER_ACCESS_TOKEN = null;
+let AIRALO_PARTNER_TOKEN_EXPIRES_AT = 0;
 let AIRALO_PACKAGE_CACHE = new Map();
 let ESIM_GO_PACKAGE_CACHE = new Map();
 const PROVIDER_CATALOGUE_CACHE_MS = 60 * 60 * 1000;
@@ -783,8 +783,8 @@ async function getAiraloAccessToken() {
   if (!process.env.AIRALO_CLIENT_ID || !process.env.AIRALO_CLIENT_SECRET) {
     throw new Error("Airalo Partner API credentials are not configured.");
   }
-  if (AIRALO_ACCESS_TOKEN && Date.now() < AIRALO_TOKEN_EXPIRES_AT) {
-    return AIRALO_ACCESS_TOKEN;
+  if (AIRALO_PARTNER_ACCESS_TOKEN && Date.now() < AIRALO_PARTNER_TOKEN_EXPIRES_AT) {
+    return AIRALO_PARTNER_ACCESS_TOKEN;
   }
   const form = new URLSearchParams({
     client_id: process.env.AIRALO_CLIENT_ID,
@@ -801,10 +801,10 @@ async function getAiraloAccessToken() {
   if (!response.ok || !payload?.data?.access_token) {
     throw new Error("Airalo authentication failed with HTTP " + response.status + ".");
   }
-  AIRALO_ACCESS_TOKEN = payload.data.access_token;
+  AIRALO_PARTNER_ACCESS_TOKEN = payload.data.access_token;
   const expiresIn = Number(payload.data.expires_in || 86400);
-  AIRALO_TOKEN_EXPIRES_AT = Date.now() + Math.max(60, expiresIn - 300) * 1000;
-  return AIRALO_ACCESS_TOKEN;
+  AIRALO_PARTNER_TOKEN_EXPIRES_AT = Date.now() + Math.max(60, expiresIn - 300) * 1000;
+  return AIRALO_PARTNER_ACCESS_TOKEN;
 }
 
 async function getAiraloPackages(countryCode) {
