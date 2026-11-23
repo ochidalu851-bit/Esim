@@ -1,4 +1,4 @@
-const CACHE_NAME = "expert-esim-shell-v8";
+const CACHE_NAME = "expert-esim-shell-v9";
 const APP_FILES = ["/", "/manifest.webmanifest", "/icon.svg", "/account.js", "/expert-features.js"];
 
 self.addEventListener("install", (event) => {
