@@ -434,6 +434,20 @@ test('GENIEX-style client routes expose only real provider readiness', async () 
   assert.equal(recharge.status, 503);
   const ads = await request('/api/v1/geniex/ad-reward/claim', { method: 'POST', headers: authHeaders(), body: '{}' });
   assert.equal(ads.status, 503);
+  const sponsorOffers = await request('/api/v1/geniex/sponsor/offers');
+  assert.equal(sponsorOffers.status, 200);
+  assert.deepEqual(sponsorOffers.body.offers, []);
+  assert.equal(sponsorOffers.body.rewardedAdsConfigured, false);
+
+  for (const route of [
+    '/api/v1/geniex/balance/account',
+    '/api/v1/geniex/balance/pin/setup',
+    '/api/v1/geniex/balance/pin/reset',
+    '/api/v1/geniex/balance/unfreeze'
+  ]) {
+    const response = await request(route, { method: 'POST', headers: authHeaders(), body: '{}' });
+    assert.equal(response.status, 503, route);
+  }
 });
 
 test('customer UI is replaced by the GENIEX-style mobile interface and same-origin actions', () => {
@@ -446,11 +460,21 @@ test('customer UI is replaced by the GENIEX-style mobile interface and same-orig
   assert.doesNotMatch(mainHtml, /account\.js|expert-features\.js|Activate eSIM|My eSIM/);
   assert.doesNotThrow(() => new Function(appJs));
   assert.doesNotMatch(appJs, /https?:\/\//);
+  assert.doesNotMatch(appJs, /ExpertESimNative|onExpertEsimNativeResult/);
+  assert.match(appJs, /ExpertMobileNative/);
+  assert.match(appJs, /sponsorsPage/);
+  assert.match(appJs, /balance-pin-setup/);
+  assert.match(appJs, /speed-boost/);
   assert.match(appJs, /Data Bundles/);
   assert.match(appJs, /App Bundles/);
   assert.match(appJs, /Network Analyzer/);
   assert.match(appJs, /setPreferredNetwork/);
   assert.match(appJs, /Battery & Device Info/);
+  const androidSource = fs.readFileSync(path.join(root, 'android/app/src/main/java/com/expertesim/app/MainActivity.kt'), 'utf8');
+  assert.match(androidSource, /ExpertMobileBridge/);
+  assert.doesNotMatch(androidSource, /downloadProfile|switchToSubscription|downloadSubscription/);
+  const androidManifest = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
+  assert.match(androidManifest, /android:label="Expert Mobile"/);
   assert.match(appJs, /api\/v1\/tools\/speedtest/);
   assert.match(appCss, /power-button/);
   assert.match(appCss, /bottom-nav/);
