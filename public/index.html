@@ -67,7 +67,7 @@ header{padding:24px 0 18px;display:flex;align-items:center;justify-content:space
   const allowed=["auto","4g","5g"];const next=allowed.includes(value)?value:"auto";
   try{localStorage.setItem(PREF_KEY,next);}catch(error){}
   networkButtons.forEach(button=>{const active=button.dataset.network===next;button.classList.toggle("active",active);button.setAttribute("aria-pressed",active?"true":"false");});
-  preferenceText.textContent=({auto:"Automatic preference selected",4g:"4G LTE preference saved",5g:"5G preference saved"})[next];
+  preferenceText.textContent=({auto:"Automatic preference selected","4g":"4G LTE preference saved","5g":"5G preference saved"})[next];
  }
  networkButtons.forEach(button=>button.addEventListener("click",()=>applyPreference(button.dataset.network)));
  let savedPreference="auto";try{savedPreference=localStorage.getItem(PREF_KEY)||"auto";}catch(error){}applyPreference(savedPreference);
