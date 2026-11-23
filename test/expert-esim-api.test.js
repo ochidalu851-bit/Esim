@@ -270,6 +270,21 @@ test('Expert eSIM rewards, wallet, coupons, referrals, airtime requests, inbox a
   assert.equal(summary.body.summary.devices, 2);
   assert.equal(summary.body.summary.dailyCheckinAvailable, true);
   assert.ok(summary.body.summary.referralCode);
+  const defaultPreferences = await request('/api/v1/app/preferences', { headers: authHeaders() });
+  assert.equal(defaultPreferences.status, 200);
+  assert.equal(defaultPreferences.body.preferences.darkMode, true);
+  assert.equal(defaultPreferences.body.preferences.inAppNotifications, true);
+  const savedPreferences = await request('/api/v1/app/preferences', {
+    method: 'PATCH', headers: authHeaders(),
+    body: JSON.stringify({ darkMode: false, emailNotifications: true, usageAlerts: false, sponsorOfferUpdates: true })
+  });
+  assert.equal(savedPreferences.status, 200);
+  assert.equal(savedPreferences.body.preferences.darkMode, false);
+  assert.equal(savedPreferences.body.preferences.emailNotifications, true);
+  const invalidPreference = await request('/api/v1/app/preferences', {
+    method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ unsupportedPreference: true })
+  });
+  assert.equal(invalidPreference.status, 400);
   const checkin = await request('/api/v1/app/check-in', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
   assert.equal(checkin.status, 201);
   assert.equal(checkin.body.pointsBalance, 10);
