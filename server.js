@@ -322,7 +322,14 @@ async function getDestinationNetworkInfo(destination) {
     };
   }
 
-  const allRecords = await getNetworkIndex();
+  let allRecords = [];
+  let networkRegisterAvailable = true;
+  try {
+    allRecords = await getNetworkIndex();
+  } catch (error) {
+    if (countryCode !== "NG") throw error;
+    networkRegisterAvailable = false;
+  }
   const countryRecords = allRecords.filter((record) =>
     String(record.country?.iso || record.iso || "").toUpperCase() === countryCode
   );
@@ -366,7 +373,7 @@ async function getDestinationNetworkInfo(destination) {
     sourceCountryName: countryRecords[0]?.country?.name || destination.name,
     sourceUpdatedAt: updatedDates.at(-1) || null,
     source: "https://mcc-mnc.org",
-    note: "The speed strip lists recorded radio generations available in this country. It does not guarantee eSIM roaming access or coverage at every location."
+    note: networkRegisterAvailable ? "The speed strip lists recorded radio generations available in this country. It does not guarantee eSIM roaming access or coverage at every location." : "Nigeria 3G, 4G and 5G activity is confirmed by Nigerian Communications Commission reporting. Check local operator coverage for the exact location."
   };
 }
 
