@@ -706,7 +706,12 @@ async function getDestinationNetworkInfo(destination) {
     available: generationSet.size > 0 || providerCoverage.providers.length > 0,
     verified: providerCoverage.providers.length > 0 || generationSet.size > 0,
     destination: { id: destination.id, name: destination.name, code: countryCode },
-    provider: providerCoverage.providerNames.length ? providerCoverage.providerNames.join(" · ") : null,
+    provider: providerCoverage.providers.length
+      ? providerCoverage.providers.map((provider) => {
+          const names = provider.operators.map((operator) => operator.name);
+          return provider.name + (names.length ? " (" + names.join(", ") + ")" : "");
+        }).join(" · ")
+      : null,
     providers: providerCoverage.providers,
     generations: DISPLAY_GENERATIONS.filter((generation) => generationSet.has(generation)),
     localOperators: operators,
