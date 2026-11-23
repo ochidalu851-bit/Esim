@@ -42,6 +42,8 @@ function setPage(page){
  if(page==="airtime")loadAirtime();
  if(page==="network")refreshNetwork();
  if(page==="settings")loadSettings();
+ if(page==="network-settings")loadPreferredNetwork();
+ if(page==="battery")loadDeviceHealth();
  if(page==="messages")loadMessages();
  if(page==="usage")loadUsage();
  if(page==="orders")loadOrders();
@@ -53,6 +55,9 @@ function render(){
  else if(S.page==="apps")html=appsPage();
  else if(S.page==="balance")html=balancePage();
  else if(S.page==="account")html=accountPage();
+ else if(S.page==="my-account")html=myAccountPage();
+ else if(S.page==="network-settings")html=networkSettingsPage();
+ else if(S.page==="battery")html=batteryPage();
  else if(S.page==="rewards")html=rewardsPage();
  else if(S.page==="vouchers")html=vouchersPage();
  else if(S.page==="airtime")html=airtimePage();
@@ -83,7 +88,7 @@ function appsPage(){
 }
 function balancePage(){
  const points=S.wallet?Number(S.wallet.pointsBalance||0):0;
- return '<div class="eyebrow">WALLET & TRANSACTIONS</div><h1 class="section-title" style="font-size:22px;margin:6px 0 15px">Balance</h1><div class="balance-card"><span class="balance-label">MOBILE SERVICE BALANCE</span><strong>Not activated</strong><small>A regulated wallet/payment provider has not been connected. No cash balance is being simulated.</small></div><div class="stat-grid"><div class="stat-box"><span>Reward Coins</span><strong>'+points.toLocaleString()+'</strong></div><div class="stat-box"><span>Cash wallet status</span><strong style="font-size:15px">Inactive</strong></div></div><div class="menu-list">'+row(icons.wallet,"Recharge Balance","Top up wallet after payment provider setup","","balance-recharge")+row(icons.signal,"Transfer Balance","Wallet transfers are unavailable until provider activation","","balance-transfer")+row(icons.gift,"Balance Vouchers","View rewards vouchers and redemption","","vouchers")+row(icons.wallet,"Transaction History","View reward coin ledger and airtime requests","","history")+row(icons.person,"Top Up Airtime","Request mobile airtime from a supported supplier","","airtime")+'</div><div class="status-banner">Reward Coins are loyalty points, not cash. Wallet recharge, cash transfers and withdrawals are disabled until an authorised payment provider and compliance setup are connected.</div>';
+ return '<div class="eyebrow">WALLET & TRANSACTIONS</div><h1 class="section-title" style="font-size:22px;margin:6px 0 15px">Balance</h1><div class="balance-card"><span class="balance-label">MOBILE SERVICE BALANCE</span><strong>Not activated</strong><small>A regulated wallet/payment provider has not been connected. No cash balance is being simulated.</small></div><div class="stat-grid"><div class="stat-box"><span>Reward Coins</span><strong>'+points.toLocaleString()+'</strong></div><div class="stat-box"><span>Cash wallet status</span><strong style="font-size:15px">Inactive</strong></div></div><div class="menu-list">'+row(icons.wallet,"Recharge Balance","Top up wallet after payment provider setup","","balance-recharge")+row(icons.signal,"Transfer Balance","Wallet transfers are unavailable until provider activation","","balance-transfer")+row(icons.gift,"Balance Vouchers","View rewards vouchers and redemption","","vouchers")+row(icons.wallet,"Transaction History","View reward coin ledger and airtime requests","","history")+row(icons.person,"Top Up Airtime","Request mobile airtime from a supported supplier","","airtime")+row(icons.gift,"Exchange G-Coins","Cash conversion is not active yet","","exchange-coins")+'</div><div class="status-banner">Reward Coins are loyalty points, not cash. Wallet recharge, cash transfers and withdrawals are disabled until an authorised payment provider and compliance setup are connected.</div>';
 }
 function accountPage(){
  if(!S.user){
@@ -94,7 +99,7 @@ function accountPage(){
 }
 function rewardsPage(){
  const s=S.summary||{}, tasks=s.tasks||[];
- return header("Reward Tasks")+'<div class="balance-card"><span class="balance-label">YOUR G-COINS</span><strong>'+Number(s.pointsBalance||0).toLocaleString()+'</strong><small>Reward coins earned from eligible in-app actions. Not cash.</small></div><div class="reward-actions"><button data-action="check-in"><b>Daily Check In</b><small>'+(s.dailyCheckinAvailable===false?"Collected today":"Collect today's reward")+'</small></button><button data-action="spin"><b>Lucky Reward</b><small>'+(s.dailySpinAvailable===false?"Used today":"One spin per day")+'</small></button></div><div class="section-row"><h2 class="section-title">Tasks</h2><span class="pill">G-COINS</span></div>'+(tasks.length?'<div class="row-list">'+tasks.map(t=>'<div class="list-row"><span class="row-symbol">✓</span><span class="row-copy"><b>'+esc(t.title||t.name||t.id)+'</b><small>'+esc(t.description||t.status||"Complete this task")+'</small></span>'+(t.claimed?'<span class="pill green">DONE</span>':'<button class="small-button" data-action="claim-task" data-id="'+esc(t.id)+'">Claim</button>')+'</div>').join("")+'</div>':empty("No reward tasks listed","Complete available app activities to earn reward coins."))+'<div class="section-row"><h2 class="section-title">Invite Friends</h2></div><div class="panel"><div class="eyebrow">YOUR REFERRAL CODE</div><div class="section-row" style="margin:8px 0"><b>'+esc(s.referralCode||S.user?.referralCode||"Sign in to get a code")+'</b><button class="small-button" data-action="share-referral">Share Now</button></div><p class="tiny muted">Referral rewards are credited only after the qualifying account activity is confirmed.</p></div><div class="panel"><h3>Redeem Gift Code</h3><form id="redeemForm" class="form-stack"><div class="field"><label>Gift code</label><input name="code" required placeholder="Enter your gift code"></div><button class="primary-button" type="submit">REDEEM</button></form><p id="redeemStatus" class="tiny muted"></p></div>';
+ return header("Reward Tasks")+'<div class="balance-card"><span class="balance-label">YOUR G-COINS</span><strong>'+Number(s.pointsBalance||0).toLocaleString()+'</strong><small>Reward coins earned from eligible in-app actions. Not cash.</small></div><div class="reward-actions"><button data-action="check-in"><b>Daily Check In</b><small>'+(s.dailyCheckinAvailable===false?"Collected today":"Collect today's reward")+'</small></button><button data-action="spin"><b>Lucky Reward</b><small>'+(s.dailySpinAvailable===false?"Used today":"One spin per day")+'</small></button><button data-action="free-data"><b>Free Data</b><small>Sponsored reward availability</small></button><button data-action="exchange-coins"><b>Exchange G-Coins</b><small>Convert after wallet approval</small></button></div><div class="section-row"><h2 class="section-title">Tasks</h2><span class="pill">G-COINS</span></div>'+(tasks.length?'<div class="row-list">'+tasks.map(t=>'<div class="list-row"><span class="row-symbol">✓</span><span class="row-copy"><b>'+esc(t.title||t.name||t.id)+'</b><small>'+esc(t.description||t.status||"Complete this task")+'</small></span>'+(t.claimed?'<span class="pill green">DONE</span>':'<button class="small-button" data-action="claim-task" data-id="'+esc(t.id)+'">Claim</button>')+'</div>').join("")+'</div>':empty("No reward tasks listed","Complete available app activities to earn reward coins."))+'<div class="section-row"><h2 class="section-title">Invite Friends</h2></div><div class="panel"><div class="eyebrow">YOUR REFERRAL CODE</div><div class="section-row" style="margin:8px 0"><b>'+esc(s.referralCode||S.user?.referralCode||"Sign in to get a code")+'</b><button class="small-button" data-action="share-referral">Share Now</button></div><p class="tiny muted">Referral rewards are credited only after the qualifying account activity is confirmed.</p></div><div class="panel"><h3>Redeem Gift Code</h3><form id="redeemForm" class="form-stack"><div class="field"><label>Gift code</label><input name="code" required placeholder="Enter your gift code"></div><button class="primary-button" type="submit">REDEEM</button></form><p id="redeemStatus" class="tiny muted"></p></div>';
 }
 function vouchersPage(){
  return header("My Vouchers")+'<div class="row-list" id="voucherList"><div class="panel tiny muted">Loading vouchers…</div></div><div class="panel" style="margin-top:13px"><h3>Redeem Gift Code</h3><form id="voucherRedeemForm" class="form-stack"><div class="field"><label>Gift Code</label><input name="code" required placeholder="Enter voucher or gift code"></div><button class="primary-button" type="submit">REDEEM</button></form><p id="voucherStatus" class="tiny muted"></p></div>';
@@ -107,7 +112,25 @@ function speedPage(){
 }
 function networkPage(){
  const n=S.network||{};
- return header("Network Analyzer")+'<div class="panel"><div class="eyebrow">CURRENT NETWORK</div><div class="section-row" style="margin:8px 0"><b style="font-size:20px">'+esc(n.networkType||n.label||"Detecting…")+'</b><span class="pill '+(n.available?"green":"warn")+'">'+(n.available?"DETECTED":"NOT READ")+'</span></div><p class="tiny muted">'+esc(n.message||"Reading the current Android data network when permitted.")+'</p><div class="separator"></div><div class="stat-grid"><div class="stat-box"><span>Connection</span><strong style="font-size:14px">'+esc(n.transport||"Unknown")+'</strong></div><div class="stat-box"><span>Signal</span><strong style="font-size:14px">'+esc(n.signal||"Not exposed")+'</strong></div></div><button class="secondary-button" data-action="refresh-network">Refresh Network</button> <button class="secondary-button" data-action="open-network-settings">SIM & Network Settings</button></div><div class="menu-list">'+row(icons.speed,"Network Speedtest","Measure latency, download and upload","","speed")+row(icons.signal,"Network Diagnostic","Test the Railway connection and active route","","diagnostics")+row(icons.wallet,"Calls & SMS Preference","Choose the SIM line in Android settings","","network-settings")+'</div><div id="diagnosticMessage" class="status-banner">Radio and SIM details depend on Android permissions and device capabilities.</div>';
+ return header("Network Analyzer")+'<div class="panel"><div class="eyebrow">CURRENT NETWORK</div><div class="section-row" style="margin:8px 0"><b style="font-size:20px">'+esc(n.networkType||n.label||"Detecting…")+'</b><span class="pill '+(n.available?"green":"warn")+'">'+(n.available?"DETECTED":"NOT READ")+'</span></div><p class="tiny muted">'+esc(n.message||"Reading the current Android data network when permitted.")+'</p><div class="separator"></div><div class="stat-grid"><div class="stat-box"><span>Connection</span><strong style="font-size:14px">'+esc(n.transport||"Unknown")+'</strong></div><div class="stat-box"><span>Signal</span><strong style="font-size:14px">'+esc(n.signal||"Not exposed")+'</strong></div></div><button class="secondary-button" data-action="refresh-network">Refresh Network</button> <button class="secondary-button" data-action="open-network-settings">SIM & Network Settings</button></div><div class="menu-list">'+row(icons.speed,"Network Speedtest","Measure latency, download and upload","","speed")+row(icons.signal,"Network Diagnostic","Test the Railway connection and active route","","diagnostics")+row(icons.signal,"Preferred Network","Select Auto, 4G or 5G for the eSIM line","","network-settings")+row(icons.wallet,"Battery & Device Info","Battery, storage and device diagnostics","","battery")+'</div><div id="diagnosticMessage" class="status-banner">Radio and SIM details depend on Android permissions and device capabilities.</div>';
+}
+function networkSettingsPage(){
+ const mode=S.preferredNetwork||"auto";
+ const modes=[["auto","Automatic","Use all supported network technologies"],["4g","4G LTE","Prefer LTE mobile data"],["5g","5G","Prefer 5G NR with LTE fallback"]];
+ return header("Preferred Network")+'<div class="panel"><div class="eyebrow">MOBILE NETWORK MODE</div><p class="tiny muted">Select the preferred radio mode for the enabled eSIM line. The phone or carrier may restrict direct switching.</p><div class="menu-list">'+modes.map(x=>'<button class="menu-action" data-action="set-network" data-mode="'+x[0]+'"><span class="menu-symbol">'+(mode===x[0]?"●":"○")+'</span><span>'+x[1]+'<small>'+x[2]+'</small></span><em>'+(mode===x[0]?"SELECTED":"›")+'</em></button>').join("")+'</div><p class="tiny muted" id="networkModeMessage">Current preference: '+esc(mode.toUpperCase())+'</p><button class="secondary-button" data-action="open-network-settings">Open Android SIM settings</button></div><p class="footer-note">Network mode changes are device-controlled. This app does not guarantee 4G/5G availability where the carrier has no coverage.</p>';
+}
+function batteryPage(){return header("Battery & Device Info")+'<div id="deviceHealth" class="panel"><div class="tiny muted">Reading device diagnostics…</div></div><button class="secondary-button" data-action="open-battery-settings">Open Battery Settings</button>';}
+async function loadPreferredNetwork(){
+ const n=window.ExpertESimNative;
+ if(n&&typeof n.getPreferredNetwork==="function"){try{const v=JSON.parse(n.getPreferredNetwork());S.preferredNetwork=v.mode||"auto";}catch(e){S.preferredNetwork="auto";}}
+ else S.preferredNetwork="auto";
+ if(S.page==="network-settings")render();
+}
+function loadDeviceHealth(){
+ const el=$("deviceHealth");if(!el)return;
+ const n=window.ExpertESimNative;
+ if(n&&typeof n.getDeviceHealth==="function"){try{const d=JSON.parse(n.getDeviceHealth());el.innerHTML='<h3>Device health</h3>'+[["Battery",d.batteryPercent==null?"Not reported":d.batteryPercent+"%"],["Charging",d.charging?"Yes":"No"],["Memory available",(d.memoryAvailableMb??"—")+" MB"],["Storage available",(d.storageAvailableMb??"—")+" MB"],["Thermal status",d.thermalStatus||"Not reported"]].map(x=>'<div class="list-row"><span class="row-copy"><b>'+esc(x[0])+'</b></span><span class="row-tail">'+esc(x[1])+'</span></div>').join("");}catch(e){el.textContent="Device diagnostics unavailable: "+e.message;}}
+ else el.innerHTML='<h3>Device diagnostics</h3><p class="tiny muted">Battery, memory and storage readings are available inside the Android Expert app. Browser access is limited.</p>';
 }
 function usagePage(){
  const u=S.usage||{};
@@ -198,7 +221,7 @@ async function runSpeed(){
   const upBytes=500000,body=new Uint8Array(upBytes),ustart=performance.now();await fetch("/api/v1/tools/speedtest/upload",{method:"POST",headers:{"content-type":"application/octet-stream"},body:body,cache:"no-store"});const ul=upBytes*8/(Math.max(1,performance.now()-ustart)*1000);
   S.speed={download:dl,upload:ul,ping:ping,jitter:jitter};
   $("speedDownload").textContent=dl.toFixed(1);$("speedUpload").textContent=ul.toFixed(1)+" Mbps";$("speedPing").textContent=ping.toFixed(0)+" ms";$("speedJitter").textContent=jitter.toFixed(1)+" ms";
-  if(S.user){await api("/app/speed-test",{method:"POST",body:JSON.stringify({downloadMbps:Number((dl*1000).toFixed(1)),uploadMbps:Number((ul*1000).toFixed(1)),pingMs:Number(ping.toFixed(1)),jitterMs:Number(jitter.toFixed(1))})}).catch(()=>{});}
+  if(S.user){await api("/app/speed-test",{method:"POST",body:JSON.stringify({downloadMbps:Number(dl.toFixed(1)),uploadMbps:Number(ul.toFixed(1)),pingMs:Number(ping.toFixed(1)),jitterMs:Number(jitter.toFixed(1))})}).catch(()=>{});}
   if(msg)msg.textContent="Test completed against the Railway service. It measures the active route, not a provider-specific mobile data entitlement.";
  }catch(e){if(msg)msg.textContent="Speedtest failed: "+e.message;}
  finally{if(btn)btn.disabled=false;}
@@ -273,6 +296,13 @@ async function handleClick(e){
  if(a==="share-referral"){await shareReferral();return;}
  if(a==="run-speed"){await runSpeed();return;}
  if(a==="refresh-network"){refreshNetwork();notify("Refreshing network details…");return;}
+ if(a==="set-network"){
+  const n=window.ExpertESimNative;const mode=b.dataset.mode||"auto";S.preferredNetwork=mode;
+  if(n&&typeof n.setPreferredNetwork==="function"){try{n.setPreferredNetwork(mode);render();}catch(err){notify(err.message);}}
+  else{render();notify("This browser cannot change the handset radio mode. Use Android SIM settings.");}
+  return;
+ }
+ if(a==="open-battery-settings"){const n=window.ExpertESimNative;if(n&&typeof n.openBatterySettings==="function")n.openBatterySettings();else notify("Open Battery from your device settings.");return;}
  if(a==="open-network-settings"||a==="open-sim-settings"){
   const n=window.ExpertESimNative;if(n&&typeof n.openNetworkSettings==="function")n.openNetworkSettings();else notify("Open your phone's Settings to select the SIM and preferred network.");return;
  }
@@ -286,6 +316,7 @@ async function handleClick(e){
  if(a==="free-data"){await requestUnavailable("/geniex/ad-reward/claim","Free data reward");return;}
  if(a==="balance-recharge"){await requestUnavailable("/geniex/balance/recharge","Balance recharge");return;}
  if(a==="balance-transfer"){await requestUnavailable("/geniex/balance/transfer","Balance transfer");return;}
+ if(a==="exchange-coins"){await requestUnavailable("/geniex/balance/exchange","G-Coin exchange");return;}
 }
 document.addEventListener("click",handleClick);
 document.addEventListener("submit",async e=>{
