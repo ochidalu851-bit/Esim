@@ -1,46 +1,25 @@
 # Expert eSIM
 
-Standalone eSIM destination catalogue and plan-browser application.
+A single, mobile-first **Expert eSIM** internet dashboard. The former 206-destination catalogue, country pages, provider list and country plan browser have been removed.
 
-## Current build
+## Product features
 
-- Standalone GitHub repository: `ochidalu851-bit/Esim`
-- Designed for Railway deployment.
-- Contains the 206 destinations transcribed from the supplied eSIM reference video.
-- Includes searchable destination selection and a single **Data** plan category.
-- Mobile-first dark interface.
-- Country-specific eSIM partner coverage adapters are implemented for **eSIM Go** and **Airalo**.
-- Partner integrations remain disconnected until valid partner credentials are configured in Railway.
-- Provider names are only displayed for a partner whose API returns coverage for the selected destination.
-- No fake plans, prices, data allowances, checkout, QR codes, or activation states are displayed.
+- **Internet Browsing** — search the web or open a website in the device browser. Traffic uses the device's currently active Wi-Fi or mobile-data connection.
+- **Preferred Network** — save the user's preference as Automatic, 4G LTE or 5G in the app on that device.
+- **Speed Test** — measures latency, jitter, download and upload performance against Cloudflare's edge test endpoints. A full test transfers approximately 6 MB.
 
-## Provider setup (Railway Variables)
+The web app deliberately does not claim to change the handset's radio mode. A web page can store a preference, but actual network-mode control is governed by the mobile operating system, modem and carrier privileges.
 
-Configure these variables on the `expert-esim-web` service in Railway:
+## Important: cellular service provisioning
 
-| Provider | Required variables |
-|---|---|
-| eSIM Go | `ESIM_GO_API_KEY` |
-| Airalo | `AIRALO_CLIENT_ID`, `AIRALO_CLIENT_SECRET` |
+This web app is **not yet an active mobile network or an issued eSIM subscription**. Browsing works through the internet connection already active on the phone. For Expert eSIM to supply its own cellular data, it needs a commercial mobile-network/wholesale connectivity partner and a real eSIM profile provisioning arrangement (including SM-DP+ / GSMA Remote SIM Provisioning). The carrier must issue a profile and the user must install/enable it on a compatible device.
 
-Obtain the credentials from the respective partner portals. Never commit API credentials to GitHub or paste them into source files. The app uses them server-side only.
-
-eSIM Go country coverage uses its authenticated `GET /networks?isos=<ISO>` endpoint and reads returned network names and speed values.
-
-Airalo obtains a partner access token from `POST /v2/token`, then reads package coverage from `GET /v2/packages`, including supported networks and network types.
-
-Provider APIs require an approved partner account and may have commercial, credit, or usage requirements. Merely adding the integration code does not activate an account.
+An eSIM profile is not created by the website alone. No mobile data service, carrier contract, eSIM profile or activation is being represented as live in this build.
 
 ## API
 
-- `GET /health` — service health and destination count.
-- `GET /api/status` — current app capability flags.
-- `GET /api/destinations?q=nigeria` — search destinations.
-- `GET /api/providers/status` — reports which eSIM partner credentials are configured. It never returns secret values.
-- `GET /api/network-info?destinationId=135` — country-level provider networks and supported speeds; uses connected partners when available and the national network register only as a fallback.
-- `GET /api/network-audit` — reports which destinations have network-register speed data.
-- `GET /api/plans?destinationId=135&kind=data` — returns an empty catalogue until a real plan catalogue is connected.
-- `POST /api/activate` — currently disabled and returns HTTP 503.
+- `GET /health` — service health.
+- `GET /api/status` — current Expert eSIM feature and carrier-provisioning readiness. It does not expose or list destinations.
 
 ## Run locally
 
@@ -50,4 +29,4 @@ Requires Node.js 20 or later.
 npm start
 ```
 
-The app uses Node.js built-ins only. No eSIM provider SDK or payment dependency is required.
+The app uses Node.js built-ins only. The browser opens external websites using the device browser; the speed test uses Cloudflare's public measurement service.
