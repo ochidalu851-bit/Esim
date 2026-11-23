@@ -37,7 +37,7 @@ class MainActivity : Activity() {
 
     private val euiccReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent != null) handleEuiccResult(intent)
+            if (intent != null) handleEuiccResult(intent, resultCode)
         }
     }
 
@@ -237,7 +237,13 @@ class MainActivity : Activity() {
 
     private fun findExpertProfile(): SubscriptionInfo? {
         val subscriptionManager = getSystemService(SubscriptionManager::class.java) ?: return null
-        val available = runCatching { subscriptionManager.availableSubscriptionInfoList }.getOrNull().orEmpty()
+        val available = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                subscriptionManager.getAllSubscriptionInfoList()
+            } else {
+                subscriptionManager.activeSubscriptionInfoList.orEmpty()
+            }
+        }.getOrNull().orEmpty()
         return available.firstOrNull { info ->
             val name = info.displayName?.toString().orEmpty()
             val carrier = info.carrierName?.toString().orEmpty()
@@ -424,11 +430,7 @@ class MainActivity : Activity() {
         callbackRegistered = true
     }
 
-    private fun handleEuiccResult(resultIntent: Intent) {
-        val result = resultIntent.getIntExtra(
-            EuiccManager.EXTRA_EMBEDDED_SUBSCRIPTION_RESULT,
-            EuiccManager.EMBEDDED_SUBSCRIPTION_RESULT_ERROR
-        )
+    private fun handleEuiccResult(resultIntent: Intent, result: Int) {
         when (result) {
             EuiccManager.EMBEDDED_SUBSCRIPTION_RESULT_OK -> {
                 when (operation) {
