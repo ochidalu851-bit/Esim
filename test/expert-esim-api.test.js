@@ -405,32 +405,56 @@ test('unsigned or unconfigured provider callbacks cannot create live service', a
   assert.equal(kyc.status, 503);
 });
 
-test('the subscriber UI hides authentication when a session exists and keeps it available for signed-out users', () => {
-  const accountJs = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
+test('GENIEX-style client routes expose only real provider readiness', async () => {
+  const status = await request('/api/v1/geniex/status');
+  assert.equal(status.status, 200);
+  assert.equal(status.body.networkProviderConfigured, false);
+  assert.equal(status.body.dataCatalogueConfigured, false);
+  assert.equal(status.body.usageFeedConfigured, false);
+  assert.equal(status.body.walletProviderConfigured, false);
+  assert.equal(status.body.sponsorProviderConfigured, false);
+
+  const catalog = await request('/api/v1/geniex/catalog');
+  assert.equal(catalog.status, 200);
+  assert.deepEqual(catalog.body.plans, []);
+  assert.deepEqual(catalog.body.bundles, []);
+
+  const usage = await request('/api/v1/geniex/usage');
+  assert.equal(usage.status, 200);
+  assert.equal(usage.body.usage.available, false);
+
+  const anonymousConnect = await request('/api/v1/geniex/connect', { method: 'POST', body: '{}' });
+  assert.equal(anonymousConnect.status, 401);
+  const connect = await request('/api/v1/geniex/connect', { method: 'POST', headers: authHeaders(), body: '{}' });
+  assert.equal(connect.status, 503);
+  assert.equal(connect.body.connected, false);
+
+  const recharge = await request('/api/v1/geniex/balance/recharge', { method: 'POST', headers: authHeaders(), body: '{}' });
+  assert.equal(recharge.status, 503);
+  const ads = await request('/api/v1/geniex/ad-reward/claim', { method: 'POST', headers: authHeaders(), body: '{}' });
+  assert.equal(ads.status, 503);
+});
+
+test('customer UI is replaced by the GENIEX-style mobile interface and same-origin actions', () => {
   const mainHtml = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
-  const featureJs = fs.readFileSync(path.join(root, 'public/expert-features.js'), 'utf8');
-  assert.doesNotThrow(() => new Function(featureJs));
-  assert.match(featureJs, /onNetworkInfo/);
-
-  assert.match(mainHtml, /expert-features\.js/);
-  assert.doesNotMatch(mainHtml, /speed\.cloudflare\.com/);
-  assert.match(mainHtml, /api\/v1\/tools\/speedtest/);
-  assert.doesNotMatch(accountJs, /https?:\/\//);
-  assert.doesNotMatch(featureJs, /https?:\/\//);
-  assert.match(mainHtml, /return average;/);
-  assert.match(accountJs, /getDeviceInfo/);
-  assert.doesNotMatch(accountJs, /portalDeviceName|portalDevicePlatform|portalDeviceModel/);
-  assert.match(accountJs, /#activateView \[hidden\]\{display:none!important\}/);
-  assert.match(accountJs, /portalAuth"\)\.hidden = true/);
-  assert.match(accountJs, /portalMember"\)\.hidden = false/);
-  assert.match(accountJs, /portalChecking"\)\.hidden = false/);
-  assert.match(accountJs, /credentials:"same-origin"/);
-
-  assert.doesNotMatch(mainHtml, /<span>My eSIM<\/span>/);
-  const inline = mainHtml.match(/<script>([\s\S]*?)<\/script>/);
-  assert.ok(inline, 'main inline script exists');
-  assert.doesNotThrow(() => new Function(inline[1]));
-  assert.match(mainHtml, /<script src="\/account\.js"><\/script>/);
+  const appJs = fs.readFileSync(path.join(root, 'public/geniex-app.js'), 'utf8');
+  const appCss = fs.readFileSync(path.join(root, 'public/geniex.css'), 'utf8');
+  const serviceWorker = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
+  assert.match(mainHtml, /geniex-app\.js/);
+  assert.match(mainHtml, /geniex\.css/);
+  assert.doesNotMatch(mainHtml, /account\.js|expert-features\.js|Activate eSIM|My eSIM/);
+  assert.doesNotThrow(() => new Function(appJs));
+  assert.doesNotMatch(appJs, /https?:\/\//);
+  assert.match(appJs, /Data Bundles/);
+  assert.match(appJs, /App Bundles/);
+  assert.match(appJs, /Network Analyzer/);
+  assert.match(appJs, /setPreferredNetwork/);
+  assert.match(appJs, /Battery & Device Info/);
+  assert.match(appJs, /api\/v1\/tools\/speedtest/);
+  assert.match(appCss, /power-button/);
+  assert.match(appCss, /bottom-nav/);
+  assert.match(serviceWorker, /geniex-app\.js/);
+  assert.doesNotMatch(serviceWorker, /account\.js|expert-features\.js/);
 
   const adminHtml = fs.readFileSync(path.join(root, 'public/admin.html'), 'utf8');
   assert.match(adminHtml, /Supplier \/ sponsor transaction reference/);
