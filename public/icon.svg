@@ -1,8 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#03194a"/><stop offset="1" stop-color="#020817"/></linearGradient><linearGradient id="sim" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2876d4"/><stop offset="1" stop-color="#07142e"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff16c"/><stop offset="1" stop-color="#efa21a"/></linearGradient><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-<rect width="192" height="192" rx="44" fill="url(#bg)"/>
-<g fill="none" stroke="#00e9f5" stroke-width="9" stroke-linecap="round" filter="url(#glow)"><path d="M35 42a87 87 0 0 1 122 0"/><path d="M52 65a63 63 0 0 1 88 0"/><path d="M73 88a33 33 0 0 1 46 0"/></g><circle cx="96" cy="101" r="6" fill="#20f0fa" filter="url(#glow)"/>
-<g fill="none" stroke="#08bfe7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 121h24l13 11h17M179 121h-24l-13 11h-17M14 145h28l12-11h13M178 145h-28l-12-11h-13M20 104h15l13 13h14M172 104h-15l-13 13h-14"/></g>
-<path d="M61 105h53l18 18v45a11 11 0 0 1-11 11H72a11 11 0 0 1-11-11z" fill="url(#sim)" stroke="#00dff0" stroke-width="4"/>
-<path d="M73 118h15v15H73zM91 118h15v15H91zM109 118h15v15H109zM73 137h15v15H73zM91 137h15v15H91zM109 137h15v15H109zM73 156h15v15H73zM91 156h15v15H91zM109 156h15v15H109z" fill="url(#gold)" stroke="#fff0a6" stroke-width="1.1"/><path d="M96 118v53M73 136h51M73 155h51" stroke="#bb811a" stroke-width="1.5"/>
+<rect width="192" height="192" rx="42" fill="#101a28"/>
+<g fill="none" stroke="#00e978" stroke-width="12" stroke-linecap="square" stroke-linejoin="round">
+  <path d="M148 47a72 72 0 1 0 4 90l-20-12a49 49 0 1 1-6-69z"/>
+  <path d="M124 72a43 43 0 1 0 4 55l-18-11a22 22 0 1 1-5-34z"/>
+  <path d="M96 96h35"/>
+</g>
+<circle cx="96" cy="96" r="8" fill="#00e978"/>
 </svg>
