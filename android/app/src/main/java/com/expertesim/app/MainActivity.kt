@@ -358,12 +358,12 @@ class MainActivity : Activity() {
             reportNetworkMode(false, mode, "Unknown network selection.")
             return
         }
+        esimPrefs.edit().putString("preferred_network", mode).apply()
         val model = (Build.MODEL ?: "").uppercase()
         if (mode == "5g" && (model.contains("CPH2127") || model.contains("A53"))) {
-            reportNetworkMode(false, mode, "This OPPO A53 (CPH2127) has 4G LTE radio hardware, not 5G. A 5G handset is required.")
+            reportNetworkMode(false, mode, "This OPPO A53 (CPH2127) has 4G LTE radio hardware, not 5G. Your 5G preference is saved, but this phone cannot connect to 5G.")
             return
         }
-        esimPrefs.edit().putString("preferred_network", mode).apply()
         val profile = findExpertProfile()
         if (profile == null) {
             reportNetworkMode(true, mode, "Saved for Expert eSIM. This preference will be applied to the Expert eSIM subscription after your provider-issued profile is installed and activated.", pending = true)
@@ -380,8 +380,7 @@ class MainActivity : Activity() {
             return false
         }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            openAndroidNetworkSettings()
-            if (reportResult) reportNetworkMode(false, mode, "Android 13 or newer is required for this app to request the selected radio mode. Android network settings were opened; choose the Expert eSIM line there.")
+            if (reportResult) reportNetworkMode(false, mode, "This Android version does not allow this app to set the eSIM radio mode directly. Your preference is saved, but Android 13 or newer and carrier/device privileges are needed to apply it from the app.")
             return false
         }
         try {
@@ -418,11 +417,9 @@ class MainActivity : Activity() {
             }
             return true
         } catch (security: SecurityException) {
-            openAndroidNetworkSettings()
-            if (reportResult) reportNetworkMode(false, mode, "Android/carrier privileges are required to set the radio mode directly for this eSIM. Android network settings were opened; select the Expert eSIM line manually.")
+            if (reportResult) reportNetworkMode(false, mode, "Android or the carrier denied direct radio-mode control for the Expert eSIM. Your selection is saved, but the network mode was not changed.")
         } catch (unsupported: UnsupportedOperationException) {
-            openAndroidNetworkSettings()
-            if (reportResult) reportNetworkMode(false, mode, "This handset or carrier does not expose direct network-mode control for the Expert eSIM. Android network settings were opened.")
+            if (reportResult) reportNetworkMode(false, mode, "This handset or carrier does not expose direct network-mode control for the Expert eSIM. The selected preference is saved but was not applied.")
         } catch (error: Exception) {
             if (reportResult) reportNetworkMode(false, mode, error.message ?: "Android could not apply the requested network mode to Expert eSIM.")
         }
@@ -437,12 +434,11 @@ class MainActivity : Activity() {
                 return
             }
             val expertProfile = findExpertProfile()
-            val subId = expertProfile?.subscriptionId ?: SubscriptionManager.getDefaultDataSubscriptionId()
-            val manager = if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                baseManager.createForSubscriptionId(subId)
-            } else {
-                baseManager
+            if (expertProfile == null) {
+                reportNetworkInfo("Expert eSIM profile not installed", message = "Install a provider-issued Expert eSIM profile before checking its mobile network.")
+                return
             }
+            val manager = baseManager.createForSubscriptionId(expertProfile.subscriptionId)
             val type = manager.dataNetworkType
             val label = when (type) {
                 TelephonyManager.NETWORK_TYPE_NR -> "5G"
@@ -466,7 +462,7 @@ class MainActivity : Activity() {
                 message = if (supports5gKnownNo) {
                     "Device detected: OPPO A53 (CPH2127). This phone supports 4G LTE, not 5G."
                 } else {
-                    if (expertProfile != null) "Network type is read from the saved Expert eSIM subscription." else "No Expert eSIM profile was found; showing the current default data SIM."
+                    "Network type is read from the saved Expert eSIM subscription."
                 }
             )
         } catch (security: SecurityException) {
