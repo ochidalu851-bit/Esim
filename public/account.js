@@ -3,6 +3,8 @@
   const view = document.getElementById("activateView");
   if (!view) return;
   let authMode = "register";
+  let legacySessionToken = "";
+  try { legacySessionToken = localStorage.getItem("expertEsimAccountToken") || ""; } catch (e) {}
   const $ = id => document.getElementById(id);
   const escapeHtml = value => String(value == null ? "" : value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   view.innerHTML = '<style>' +
@@ -94,12 +96,17 @@
   async function api(route, options) {
     options = options || {};
     const headers = Object.assign({"content-type":"application/json"}, options.headers || {});
+    if (legacySessionToken && !headers.authorization) headers.authorization = "Bearer " + legacySessionToken;
     const response = await fetch("/api/v1" + route, Object.assign({}, options, {headers, credentials:"same-origin"}));
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const error = new Error(data.error || "Request failed (" + response.status + ")");
       error.status = response.status;
       throw error;
+    }
+    if (route === "/me" && legacySessionToken) {
+      try { localStorage.removeItem("expertEsimAccountToken"); } catch (e) {}
+      legacySessionToken = "";
     }
     return data;
   }
