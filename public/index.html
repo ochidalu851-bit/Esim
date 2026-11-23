@@ -93,7 +93,7 @@ main{flex:1;display:flex;flex-direction:column}
  <div class="drawer-label">MENU</div>
  <button class="nav-button active" data-page="home" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg><span>Dashboard</span></button>
  <button class="nav-button" data-page="network" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16V8M10 16V4M15 16v-6M20 16V2"/></svg><span>Preferred Network</span></button>
- <button class="nav-button" data-page="activate" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M9 7h6M9 11h6M9 15h2"/></svg><span>Activate eSIM</span></button>
+ <button class="nav-button" data-page="activate" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M9 7h6M9 11h6M9 15h2"/></svg><span>My eSIM</span></button>
  <button class="nav-button" data-page="speed" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a9 9 0 1 1 16 0M12 13l5-5M12 13l-2 4"/></svg><span>Speed Test</span></button>
  <div class="drawer-foot">Expert eSIM · Mobile connection</div>
 </aside>
@@ -110,7 +110,7 @@ main{flex:1;display:flex;flex-direction:column}
   document.querySelectorAll(".nav-button").forEach(btn=>btn.classList.toggle("active",btn.dataset.page===page));
   showDrawer(false);
   if(page==="network")refreshNetworkInfo();
-  if(page==="activate")refreshActivationCapabilities();
+  if(page==="activate" && window.ExpertAccountPortal)window.ExpertAccountPortal.refresh();
  }
  menuButton.addEventListener("click",()=>showDrawer(true));
  $("closeDrawer").addEventListener("click",()=>showDrawer(false));
@@ -131,15 +131,16 @@ main{flex:1;display:flex;flex-direction:column}
  function connectionError(message){connected=false;busy=false;renderConnection();connectionState.textContent="Not connected";connectionDetail.textContent=message||"The eSIM service could not be activated.";}
  window.onExpertEsimNativeResult=function(result){
   if(!result||typeof result!=="object")return;
+  if(result.operation==="download"){
+   busy=false;renderConnection();
+   connectionState.textContent=result.ok?"eSIM profile installed":"Profile installation not completed";
+   connectionDetail.textContent=result.message||"Android returned an eSIM profile installation result.";
+   if(window.ExpertAccountPortal){window.ExpertAccountPortal.refreshOrders();}
+   return;
+  }
   if(result.connected===true){connected=true;busy=false;renderConnection();connectionDetail.textContent=result.message||"Android confirmed the Expert eSIM connection.";}
   else if(result.ok===true&&result.connected===false){connected=false;busy=false;renderConnection();connectionDetail.textContent=result.message||"Expert eSIM disconnected.";}
   else connectionError(result.message||"Android could not complete the eSIM operation.");
-  if(result.operation==="download"){
-   $("activationStatus").textContent=result.message||"Android returned an eSIM activation result.";
-   if(result.ok){$("activationCode").value="";$("confirmationCode").value="";}
-   $("downloadProfileButton").disabled=false;
-   $("downloadProfileButton").textContent="Download and activate eSIM";
-  }
  };
  async function toggleConnection(){
   if(busy)return;busy=true;renderConnection();connectionDetail.textContent=connected?"Requesting eSIM disconnection…":"Checking the Expert eSIM profile and mobile provider…";
@@ -289,5 +290,6 @@ main{flex:1;display:flex;flex-direction:column}
  if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));}
 })();
 </script>
+<script src="/account.js"></script>
 </body>
 </html>
