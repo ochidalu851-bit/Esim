@@ -177,3 +177,17 @@ A provider's public country-count or API description does not prove unlimited da
 ## 13. Automatic device detection boundary
 
 The native Android app reads manufacturer, model, OS version and the eUICC feature/enabled state. It stores a random app-install identifier, not an IMEI or hardware serial. It does not retrieve EID because Android requires carrier privileges to access it. If a provider requires EID binding, complete that step through its authorised carrier/LPA SDK or supported installation flow. Browser-only sessions can provide less reliable device details and may not confirm eSIM hardware.
+
+
+## 14. Additional integrations required by migrated app features
+
+The Expert eSIM app now has native Railway modules for loyalty points, task rewards, daily spin, coupon and code redemption, points transfers, reward orders, in-app announcements and queued airtime/data-grant requests. These are Expert eSIM functions; no Geniex endpoints, SDKs, ad identifiers or payment credentials are reused.
+
+External services still needed before the related functions can be advertised as delivered:
+- Authenticated carrier usage API for megabytes consumed, remaining allowance and session records.
+- Contracted airtime/top-up supplier and production credentials to submit and verify international recharges.
+- Sponsor/offer provider and a signed reward policy if paid offers or ad-view rewards are required.
+- Production email sender credentials so account verification and security messages can be delivered.
+- If Expert eSIM ever plans to hold, transfer, deposit or withdraw fiat money, an authorised financial provider, compliance programme and legal review are required. Expert Points are not a cash wallet.
+
+Customer-facing app requests stay on the Expert eSIM Railway origin. Third-party connectivity, identity, email or airtime requests—when configured—are server-to-server integrations using credentials stored in Railway, not vendor SDKs embedded in the customer interface.
