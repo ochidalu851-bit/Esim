@@ -532,6 +532,64 @@ async function route(req, res, url) {
     url.pathname.startsWith('/api/v1/admin/plans/');
   if (legacyCheckout) return send(res, 410, { ok: false, code: 'SPONSORED_DEVICE_PROFILE_FLOW', error: 'Customer data-package sales are disabled. Register a device and request its sponsored eSIM profile.' });
   const p = url.pathname, m = req.method;
+
+  // GENIEX-style mobile client routes. These expose real readiness only; no
+  // catalogue, carrier usage, payment, ad reward or network access is simulated.
+  if (p === '/api/v1/geniex/status' && m === 'GET') {
+    const cfg = providerStatus();
+    return send(res, 200, {
+      ok: true,
+      networkProviderConfigured: cfg.globalConnectivityPartnerConfigured && cfg.profileProviderConfigured && cfg.smdpPartnerConfigured && cfg.globalCoverageConfirmed,
+      dataCatalogueConfigured: false,
+      usageFeedConfigured: false,
+      walletProviderConfigured: false,
+      sponsorProviderConfigured: false,
+      esimProvisioningConfigured: readyToProvisionGlobally(),
+      message: 'The app interface is ready. Live mobile connectivity, bundle inventory, carrier usage, cash wallet and sponsor rewards require their authorised providers.'
+    });
+  }
+  if (p === '/api/v1/geniex/catalog' && m === 'GET') {
+    return send(res, 200, { ok: true, plans: [], bundles: [], message: 'No authorised data-plan or app-bundle catalogue is connected.' });
+  }
+  if (p === '/api/v1/geniex/usage' && m === 'GET') {
+    return send(res, 200, { ok: true, usage: { available: false, usedMb: null, remainingMb: null, message: 'An authenticated carrier usage feed is not connected.' } });
+  }
+  if (p === '/api/v1/geniex/connect' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, connected: false, code: 'NETWORK_PROVIDER_NOT_CONFIGURED', error: 'No authorised mobile-network provider and active subscriber service are connected. No mobile-data session was started.' });
+  }
+  if (p === '/api/v1/geniex/disconnect' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 409, { ok: false, connected: false, code: 'NO_ACTIVE_NETWORK_SESSION', error: 'There is no active provider-backed mobile-data session to disconnect.' });
+  }
+  if (p === '/api/v1/geniex/data/order' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'Data-plan inventory and provider fulfilment are not connected.' });
+  }
+  if (p === '/api/v1/geniex/app-bundle/order' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'App-bundle inventory and provider fulfilment are not connected.' });
+  }
+  if (p === '/api/v1/geniex/balance/recharge' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'A regulated wallet and payment provider are not connected. No money has been charged.' });
+  }
+  if (p === '/api/v1/geniex/balance/transfer' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'Cash balance transfer is unavailable because a regulated wallet provider is not connected.' });
+  }
+  if (p === '/api/v1/geniex/balance/exchange' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'G-Coin exchange into cash requires an authorised wallet partner and an approved exchange rule.' });
+  }
+  if (p === '/api/v1/geniex/ad-reward/claim' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'No sponsor or rewarded-ad provider is connected, so no free-data reward can be issued.' });
+  }
+  if (p === '/api/v1/geniex/boost' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'Network speed-boost controls require the active carrier provider and its authorised API.' });
+  }
   if (p === '/health' && m === 'GET') {
     await fsp.mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
     await loadStore();
