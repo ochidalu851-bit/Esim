@@ -590,6 +590,25 @@ async function route(req, res, url) {
     await signedIn(req);
     return send(res, 503, { ok: false, error: 'Network speed-boost controls require the active carrier provider and its authorised API.' });
   }
+  if (p === '/api/v1/geniex/sponsor/offers' && m === 'GET') {
+    return send(res, 200, { ok: true, offers: [], rewardedAdsConfigured: false, message: 'No sponsor or rewarded-ad partner is connected.' });
+  }
+  if (p === '/api/v1/geniex/balance/account' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'A regulated wallet provider is not connected, so a cash balance account cannot be opened.' });
+  }
+  if (p === '/api/v1/geniex/balance/pin/setup' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'A secure transaction-PIN service is unavailable until a regulated wallet provider is connected.' });
+  }
+  if (p === '/api/v1/geniex/balance/pin/reset' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'A secure transaction-PIN reset service is unavailable until a regulated wallet provider is connected.' });
+  }
+  if (p === '/api/v1/geniex/balance/unfreeze' && m === 'POST') {
+    await signedIn(req);
+    return send(res, 503, { ok: false, error: 'Wallet unfreeze is unavailable until the regulated wallet provider verifies the account state.' });
+  }
   if (p === '/health' && m === 'GET') {
     await fsp.mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
     await loadStore();
