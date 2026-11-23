@@ -49,9 +49,7 @@ function servePublicFile(req, res, urlPath) {
   }
 
   const filePath = safePublicPath(urlPath);
-  if (!filePath) {
-    return sendJson(res, 400, { error: "Invalid path." });
-  }
+  if (!filePath) return sendJson(res, 400, { error: "Invalid path." });
 
   fs.readFile(filePath, (error, content) => {
     if (error) {
@@ -100,26 +98,51 @@ const server = http.createServer((req, res) => {
     return sendJson(res, 200, {
       ok: true,
       service: "Expert eSIM",
-      mode: "unified-internet-experience"
+      mode: "one-button-esim-control"
     });
   }
 
-  if (url.pathname === "/api/status") {
-    const carrierPartnerConfigured = Boolean(
-      process.env.CARRIER_CONNECTIVITY_API_URL &&
-      process.env.CARRIER_CONNECTIVITY_API_KEY
-    );
+  if (url.pathname === "/api/status" && req.method === "GET") {
     return sendJson(res, 200, {
       service: "Expert eSIM",
-      mode: "unified-internet-experience",
+      mode: "one-button-esim-control",
       countryCatalogueEnabled: false,
-      internetBrowsing: "device-current-internet-connection",
-      preferredNetwork: "saved-app-preference-only",
+      primaryAction: "connect-disconnect",
       speedTest: "Cloudflare edge measurement",
-      carrierPartnerConfigured,
-      cellularDataProvisioning: "not-connected",
-      liveMobileDataService: false,
-      note: "The web app can browse through the phone's active data or Wi-Fi connection. A carrier/wholesale partner must issue a real eSIM profile before Expert eSIM can provide its own cellular data service."
+      nativeAndroidControl: "required",
+      eSimProvider: "not-configured",
+      eSimProfile: "not-issued",
+      cellularDataProvisioning: "not-active",
+      connected: false
+    });
+  }
+
+  if (url.pathname === "/api/esim/status" && req.method === "GET") {
+    return sendJson(res, 200, {
+      ok: true,
+      connected: false,
+      nativeAndroidControlRequired: true,
+      providerConfigured: false,
+      profileIssued: false,
+      message: "A real eSIM provider and an issued profile are required before Expert eSIM can connect."
+    });
+  }
+
+  if (url.pathname === "/api/esim/connect" && req.method === "POST") {
+    return sendJson(res, 503, {
+      ok: false,
+      connected: false,
+      code: "ESIM_PROVIDER_NOT_CONFIGURED",
+      message: "Expert eSIM is not connected yet. A mobile-network provider must issue an eSIM profile, and the native Android app must complete activation."
+    });
+  }
+
+  if (url.pathname === "/api/esim/disconnect" && req.method === "POST") {
+    return sendJson(res, 409, {
+      ok: false,
+      connected: false,
+      code: "NO_ACTIVE_EXPERT_ESIM_SESSION",
+      message: "There is no active Expert eSIM session to disconnect from this web app."
     });
   }
 
@@ -127,7 +150,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log("Expert eSIM listening on port " + PORT + " (unified internet experience)");
+  console.log("Expert eSIM listening on port " + PORT + " (one-button eSIM control)");
 });
 
 server.on("error", (error) => {
