@@ -172,3 +172,8 @@ These are prospects for due diligence, not confirmed Expert eSIM partners:
 A provider's public country-count or API description does not prove unlimited data in every country. Request a written coverage matrix, sponsor-funded wholesale terms, permanent-roaming rules, fair-use schedule and production API access before implementation is treated as live.
 
 **Do not set readiness flags to true merely to make the app appear ready.** They represent real contracts, credentials, coverage and tested service. The application intentionally withholds profile activation details until the provider confirms the required service attributes.
+
+
+## 13. Automatic device detection boundary
+
+The native Android app reads manufacturer, model, OS version and the eUICC feature/enabled state. It stores a random app-install identifier, not an IMEI or hardware serial. It does not retrieve EID because Android requires carrier privileges to access it. If a provider requires EID binding, complete that step through its authorised carrier/LPA SDK or supported installation flow. Browser-only sessions can provide less reliable device details and may not confirm eSIM hardware.
