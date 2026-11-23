@@ -118,6 +118,13 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
     if (!device) throw Object.assign(new Error('This device is not registered to your account.'), { statusCode: 404 });
     let profile = snapshot.profiles.filter(x => x.deviceId === device.id && x.userId === user.id && !['provider_error','cancelled'].includes(x.status)).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
     if (profile) {
+      if (profile.status === 'verification_required' && user.kycStatus === 'verified') {
+        await transact(store => {
+          const item = store.profiles.find(x => x.id === profile.id);
+          if (item) { item.status = 'awaiting_partners'; item.verificationRequired = false; item.message = 'Identity verification is complete. Checking global profile-provider readiness.'; item.updatedAt = new Date().toISOString(); }
+        });
+        const fresh = await loadStore(); profile = fresh.profiles.find(x => x.id === profile.id) || profile;
+      }
       if (['awaiting_partners','awaiting_verification'].includes(profile.status) && isReady()) {
         await provisionProfile(profile.id);
         const latest = await loadStore(); profile = latest.profiles.find(x => x.id === profile.id) || profile;
