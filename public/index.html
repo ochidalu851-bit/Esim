@@ -50,7 +50,7 @@ main{flex:1;display:flex;flex-direction:column}
 </section>
 
 <section class="view subpage" id="networkView">
- <div class="backline"><button class="back-button" data-go="home" type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><div><div class="page-title">Preferred Network</div><div class="page-subtitle">Select the mobile radio mode for your active data SIM.</div></div></div>
+ <div class="backline"><button class="back-button" data-go="home" type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><div><div class="page-title">Preferred Network</div><div class="page-subtitle">Select the mobile radio mode for your Expert eSIM profile.</div></div></div>
  <div class="card current-network"><div><div class="current-label">CURRENT MOBILE NETWORK</div><div class="current-value" id="currentNetworkValue">Checking device…</div></div><div class="status-pill" id="networkCapability">Android device</div></div>
  <div class="mode-list" role="group" aria-label="Manual network selection">
   <button class="mode-option selected" data-mode="auto" type="button"><span class="mode-radio"></span><span><span class="mode-title">Automatic</span><span class="mode-description">Let the mobile network select the best available technology.</span></span></button>
@@ -58,7 +58,6 @@ main{flex:1;display:flex;flex-direction:column}
   <button class="mode-option" data-mode="5g" type="button"><span class="mode-radio"></span><span><span class="mode-title">5G</span><span class="mode-description">Prefer 5G NR, with LTE fallback.</span></span></button>
  </div>
  <p class="mode-status" id="networkModeStatus" aria-live="polite">Select a mode to request the change on your Android phone.</p>
- <button class="action-button" id="openNetworkSettings" type="button">Open Android network settings</button>
 </section>
 
 <section class="view subpage" id="activateView">
@@ -210,11 +209,6 @@ main{flex:1;display:flex;flex-direction:column}
   if(native&&typeof native.setPreferredNetwork==="function"){native.setPreferredNetwork(mode);}
   else networkStatus.textContent="This website can remember your preference, but only the native Android app can request the radio mode for the Expert eSIM subscription.";
  }));
- $("openNetworkSettings").addEventListener("click",()=>{
-  const native=window.ExpertESimNative;
-  if(native&&typeof native.openNetworkSettings==="function"){native.openNetworkSettings();}
-  else networkStatus.textContent="Open your phone's Settings → SIM cards / Mobile network → Preferred network type.";
- });
 
  function fmt(value){if(!Number.isFinite(value)||value<0)return "—";return value>=1000?(value/1000).toFixed(2):value.toFixed(1);}
  function progress(value){$("testProgress").style.width=Math.max(0,Math.min(100,value))+"%";}
