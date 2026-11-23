@@ -112,7 +112,6 @@ function createGlobalEsim({ loadStore, transact, hashToken, encryptSecret, decry
     }
   }
   async function requestProfile(user, deviceId) {
-    if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before requesting a sponsored profile.'), { statusCode: 403 });
     const crypto = require('node:crypto');
     const snapshot = await loadStore(), device = snapshot.devices.find(x => x.id === deviceId && x.userId === user.id);
     if (!device) throw Object.assign(new Error('This device is not registered to your account.'), { statusCode: 404 });
