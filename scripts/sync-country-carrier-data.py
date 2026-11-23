@@ -377,19 +377,29 @@ def main():
       "globalTravelProviders":global_providers,"countries":countries
     }
     (OUT/"country-carrier-data.json").write_text(json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
-    provider_count=sum(bool(x["esimCarrierCount"]) for x in countries.values())
-    local_provider_count=sum(bool(x["localEsimCarrierCount"]) for x in countries.values())
-    travel_provider_count=sum(bool(x["travelEsimProviderCount"]) for x in countries.values())
-    speed_count=sum(x["networkDataVerified"] for x in countries.values())
+    provider_count=sum(bool(countries.get(destination["code"],{}).get("esimCarrierCount")) for destination in rows)
+    local_provider_count=sum(bool(countries.get(destination["code"],{}).get("localEsimCarrierCount")) for destination in rows)
+    travel_provider_count=sum(bool(countries.get(destination["code"],{}).get("travelEsimProviderCount")) for destination in rows)
+    speed_count=sum(bool(countries.get(destination["code"],{}).get("networkDataVerified")) for destination in rows)
+    unique_local_provider_count=sum(bool(x["localEsimCarrierCount"]) for x in countries.values())
+    unique_travel_provider_count=sum(bool(x["travelEsimProviderCount"]) for x in countries.values())
+    unique_speed_count=sum(bool(x["networkDataVerified"]) for x in countries.values())
     status={
-      "generatedAt":now,"destinationCount":len(rows),"countriesWithAppleListedEsimProviders":provider_count,
-      "countriesWithListedTravelEsimProviders":travel_provider_count,
-      "territoryNetworkOverrideCountries":sum(bool(x.get("networkOverrideSource")) for x in countries.values()),
-      "countriesWithoutAppleListedEsimProviders":len(rows)-provider_count,
-      "countriesWithAppleListedLocalCarriers":local_provider_count,
-      "countriesWithAppleListedTravelProviders":travel_provider_count,
-      "countriesWithNetworkGenerations":speed_count,"countriesWithoutNetworkGenerations":len(rows)-speed_count,
-      "appleGlobalTravelProviders":len(global_providers),"mccNetworkRecords":len(networks),
+      "generatedAt":now,
+      "destinationCount":len(rows),
+      "uniqueIsoCountryCodes":len(countries),
+      "destinationsWithEsimProviderListing":provider_count,
+      "destinationsWithoutEsimProviderListing":len(rows)-provider_count,
+      "destinationsWithAppleListedLocalCarriers":local_provider_count,
+      "destinationsWithTravelEsimProvider":travel_provider_count,
+      "destinationsWithNetworkGenerations":speed_count,
+      "destinationsWithoutNetworkGenerations":len(rows)-speed_count,
+      "countryCodesWithAppleListedLocalCarriers":unique_local_provider_count,
+      "countryCodesWithTravelEsimProvider":unique_travel_provider_count,
+      "countryCodesWithNetworkGenerations":unique_speed_count,
+      "territoryNetworkOverrideCountryCodes":sum(bool(x.get("networkOverrideSource")) for x in countries.values()),
+      "appleGlobalTravelProviders":len(global_providers),
+      "mccNetworkRecords":len(networks),
       "applePublishedDate":apple_date,
       "sampleNigeria":countries.get("NG")
     }
