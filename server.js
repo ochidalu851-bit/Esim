@@ -308,11 +308,11 @@ async function createPlan(data) {
   const dataMb = Number(data.dataMb);
   const validityDays = Number(data.validityDays);
   const priceMinor = Number(data.priceMinor);
-  const currency = String(data.currency || 'NGN').toUpperCase();
+  const currency = String(data.currency || 'USD').toUpperCase();
   if (name.length < 2 || name.length > 80) throw Object.assign(new Error('Enter a plan name between 2 and 80 characters.'), { statusCode: 400 });
   if (!Number.isInteger(dataMb) || dataMb < 1) throw Object.assign(new Error('Data allowance must be a positive number of MB.'), { statusCode: 400 });
   if (!Number.isInteger(validityDays) || validityDays < 1 || validityDays > 3650) throw Object.assign(new Error('Validity must be between 1 and 3650 days.'), { statusCode: 400 });
-  if (!Number.isSafeInteger(priceMinor) || priceMinor < 0) throw Object.assign(new Error('Price must be provided in minor currency units (kobo for NGN).'), { statusCode: 400 });
+  if (!Number.isSafeInteger(priceMinor) || priceMinor < 0) throw Object.assign(new Error('If a legacy internal plan is used, price must be provided in minor currency units.'), { statusCode: 400 });
   if (!/^[A-Z]{3}$/.test(currency)) throw Object.assign(new Error('Currency must be an ISO code.'), { statusCode: 400 });
   const supported = Array.isArray(data.networkModes) ? data.networkModes.filter(x => ['auto', '4g', '5g'].includes(x)) : ['auto', '4g', '5g'];
   return transact(store => {
@@ -871,34 +871,30 @@ async function createPrivacyRequest(user, data) {
 
 async function dashboard() {
   const store = await loadStore();
-  const count = status => store.orders.filter(x => x.status === status).length;
   return {
     provider: providerStatus(),
     totals: {
       subscribers: store.users.length,
       emailUnverified: store.users.filter(x => !x.emailVerified).length,
-      kycPending: store.users.filter(x => x.kycStatus === 'pending').length,
-      kycVerified: store.users.filter(x => x.kycStatus === 'verified').length,
-      plans: store.plans.length,
-      publishedPlans: store.plans.filter(x => x.status === 'published').length,
-      orders: store.orders.length,
+      identityPending: store.users.filter(x => x.kycStatus === 'pending').length,
+      identityVerified: store.users.filter(x => x.kycStatus === 'verified').length,
       registeredDevices: store.devices.length,
       deviceProfiles: store.profiles.length,
       profilesAwaitingPartners: store.profiles.filter(x => x.status === 'awaiting_partners').length,
+      profilesProvisioning: store.profiles.filter(x => x.status === 'provisioning').length,
       profilesIssued: store.profiles.filter(x => x.status === 'profile_issued').length,
       activeDeviceProfiles: store.profiles.filter(x => x.status === 'active').length,
-      awaitingPayment: count('awaiting_payment'),
-      awaitingPartner: count('awaiting_partner'),
-      provisioning: count('provisioning'),
-      profilesIssued: count('profile_issued'),
-      activeProfiles: count('active'),
-      providerErrors: count('provider_error'),
+      profilesInReview: store.profiles.filter(x => x.status === 'partner_review').length,
+      providerErrors: store.profiles.filter(x => x.status === 'provider_error').length,
       openTickets: store.supportTickets.filter(x => x.status === 'open' || x.status === 'in_progress').length,
       privacyRequests: store.privacyRequests.filter(x => x.status === 'received' || x.status === 'in_review').length
     },
-    plans: store.plans.map(x => ({ id: x.id, name: x.name, dataMb: x.dataMb, validityDays: x.validityDays, priceMinor: x.priceMinor, currency: x.currency, status: x.status, networkModes: x.networkModes })),
     recentSubscribers: store.users.slice(-100).reverse().map(userView),
-    recentOrders: store.orders.slice(-30).reverse().map(orderView),
+    recentDevices: store.devices.slice(-100).reverse().map(device => {
+      const latest = store.profiles.filter(x => x.deviceId === device.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
+      return deviceView(device, latest || null);
+    }),
+    recentProfiles: store.profiles.slice(-100).reverse().map(profileView),
     recentTickets: store.supportTickets.slice(-30).reverse().map(({message, ...ticket}) => ticket),
     recentPrivacyRequests: store.privacyRequests.slice(-30).reverse()
   };
@@ -1053,7 +1049,7 @@ async function route(req, res, url) {
       id: x.id, name: x.name, description: x.description, dataMb: x.dataMb,
       validityDays: x.validityDays, priceMinor: x.priceMinor, currency: x.currency, networkModes: x.networkModes
     }));
-    return send(res, 200, { ok: true, plans, availability: plans.length ? 'available' : 'awaiting-network-partner' });
+    return send(res, 200, { ok: true, plans, availability: plans.length ? 'available' : 'awaiting-connectivity-partner' });
   }
   if (p === '/api/v1/esim/orders' && m === 'GET') {
     const user = await signedIn(req), store = await loadStore();
