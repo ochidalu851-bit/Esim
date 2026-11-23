@@ -929,6 +929,18 @@ async function route(req, res, url) {
       exportedAt: new Date().toISOString(),
       account: userView(user),
       orders: store.orders.filter(x => x.userId === user.id).map(orderView),
+      devices: store.devices.filter(x => x.userId === user.id).map(device => ({
+        id: device.id, deviceName: device.deviceName, platform: device.platform, model: device.model || null,
+        status: device.status, createdAt: device.createdAt
+      })),
+      profiles: store.profiles.filter(x => x.userId === user.id).map(profile => ({
+        id: profile.id, reference: profile.reference, deviceId: profile.deviceId, status: profile.status,
+        dataPolicy: 'sponsored-unlimited', coverageScope: profile.coverageScope || null,
+        unlimitedDataConfirmed: Boolean(profile.unlimitedDataConfirmed),
+        coverageConfirmed: Boolean(profile.coverageConfirmed), providerProfileId: profile.providerProfileId || null,
+        createdAt: profile.createdAt, updatedAt: profile.updatedAt, issuedAt: profile.issuedAt || null,
+        activatedAt: profile.activatedAt || null
+      })),
       consents: store.consents.filter(x => x.userId === user.id),
       supportTickets: store.supportTickets.filter(x => x.userId === user.id),
       privacyRequests: store.privacyRequests.filter(x => x.userId === user.id)
