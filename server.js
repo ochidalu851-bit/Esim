@@ -15,10 +15,10 @@ const SESSION_DAYS = 30;
 let writeQueue = Promise.resolve();
 
 function emptyStore() {
-  return { version: 1, users: [], sessions: [], plans: [], orders: [], audit: [], providerEvents: [], paymentEvents: [], consents: [], supportTickets: [], privacyRequests: [] };
+  return { version: 1, users: [], sessions: [], plans: [], orders: [], devices: [], profiles: [], audit: [], providerEvents: [], paymentEvents: [], consents: [], supportTickets: [], privacyRequests: [] };
 }
 function normalizeStore(store) {
-  for (const key of ['users','sessions','plans','orders','audit','providerEvents','paymentEvents','consents','supportTickets','privacyRequests']) {
+  for (const key of ['users','sessions','plans','orders','devices','profiles','audit','providerEvents','paymentEvents','consents','supportTickets','privacyRequests']) {
     if (!Array.isArray(store[key])) store[key] = [];
   }
   for (const user of store.users) {
@@ -142,29 +142,37 @@ function adminOk(req) {
   return Boolean(secret) && equal(req.headers['x-expert-admin-key'] || tokenFrom(req), secret);
 }
 function providerStatus() {
-  let validUrl = false;
-  try { validUrl = new URL(process.env.ESIM_PROVIDER_CREATE_ORDER_URL || '').protocol === 'https:'; } catch {}
-  let kycUrlValid = false;
-  try { kycUrlValid = new URL(process.env.KYC_PROVIDER_START_URL || '').protocol === 'https:'; } catch {}
+  const profileUrl = process.env.GLOBAL_ESIM_PROFILE_API_URL || '';
+  const identityUrl = process.env.GLOBAL_IDENTITY_PROVIDER_START_URL || process.env.KYC_PROVIDER_START_URL || '';
+  let profileUrlValid = false, identityUrlValid = false;
+  try { profileUrlValid = new URL(profileUrl).protocol === 'https:'; } catch {}
+  try { identityUrlValid = new URL(identityUrl).protocol === 'https:'; } catch {}
+  const profileEncryptionConfigured = Boolean(encryptionKey());
   return {
-    adapterConfigured: validUrl && Boolean(process.env.ESIM_PROVIDER_API_KEY) && Boolean(process.env.ESIM_PROFILE_ENCRYPTION_KEY),
+    profileProviderConfigured: profileUrlValid && Boolean(process.env.GLOBAL_ESIM_PROFILE_API_KEY) && profileEncryptionConfigured,
     webhookConfigured: Boolean(process.env.ESIM_PROVIDER_WEBHOOK_SECRET),
-    profileEncryptionConfigured: Boolean(encryptionKey()),
-    hostNetworkAgreement: process.env.HOST_NETWORK_AGREEMENT_ACTIVE === 'true',
+    profileEncryptionConfigured,
+    globalConnectivityPartnerConfigured: Boolean(process.env.GLOBAL_CONNECTIVITY_PROVIDER_NAME) && process.env.GLOBAL_CONNECTIVITY_AGREEMENT_ACTIVE === 'true',
+    globalCoverageConfirmed: process.env.GLOBAL_ESIM_GLOBAL_COVERAGE_CONFIRMED === 'true',
+    unlimitedDataContractConfirmed: process.env.GLOBAL_ESIM_UNLIMITED_DATA_CONFIRMED === 'true',
     smdpPartnerConfigured: process.env.SMDP_PARTNER_ACTIVE === 'true',
     serviceEnabled: process.env.EXPERT_ESIM_SERVICE_ENABLED === 'true',
-    paystackConfigured: Boolean(process.env.PAYSTACK_SECRET_KEY) && Boolean(process.env.PAYSTACK_WEBHOOK_SECRET),
-    kycProviderConfigured: kycUrlValid && Boolean(process.env.KYC_PROVIDER_API_KEY) && Boolean(process.env.KYC_PROVIDER_WEBHOOK_SECRET),
+    identityProviderConfigured: identityUrlValid && Boolean(process.env.GLOBAL_IDENTITY_PROVIDER_API_KEY || process.env.KYC_PROVIDER_API_KEY) && Boolean(process.env.GLOBAL_IDENTITY_PROVIDER_WEBHOOK_SECRET || process.env.KYC_PROVIDER_WEBHOOK_SECRET),
     emailDeliveryConfigured: Boolean(process.env.RESEND_API_KEY) && Boolean(process.env.EXPERT_ESIM_EMAIL_FROM),
-    nccLicenceConfirmed: process.env.NCC_MVNO_LICENCE_CONFIRMED === 'true',
     privacyGovernanceReady: process.env.PRIVACY_GOVERNANCE_READY === 'true',
     consumerSupportReady: process.env.CONSUMER_SUPPORT_READY === 'true',
-    hostNetworkName: process.env.HOST_NETWORK_NAME || null
+    connectivityProviderName: process.env.GLOBAL_CONNECTIVITY_PROVIDER_NAME || null,
+    coverageMode: 'global-roaming-subject-to-partner-footprint'
   };
 }
-function readyToSell() {
+function readyToProvisionGlobally() {
   const p = providerStatus();
-  return p.adapterConfigured && p.webhookConfigured && p.hostNetworkAgreement && p.smdpPartnerConfigured && p.serviceEnabled && p.nccLicenceConfirmed && p.kycProviderConfigured && p.privacyGovernanceReady && p.consumerSupportReady;
+  return p.profileProviderConfigured && p.webhookConfigured && p.globalConnectivityPartnerConfigured &&
+    p.globalCoverageConfirmed && p.unlimitedDataContractConfirmed && p.smdpPartnerConfigured &&
+    p.serviceEnabled && p.identityProviderConfigured && p.privacyGovernanceReady && p.consumerSupportReady;
+}
+function readyToSell() {
+  return readyToProvisionGlobally();
 }
 function encryptionKey() {
   const text = process.env.ESIM_PROFILE_ENCRYPTION_KEY || '';
@@ -285,7 +293,7 @@ async function login(data) {
   });
 }
 async function publishPlan(planId) {
-  if (!readyToSell()) throw Object.assign(new Error('Cannot publish packages until the NCC MVNO licence, host-network agreement, authorised SM-DP+ provider, NIMC-capable identity verification, privacy/support controls and provider API are confirmed.'), { statusCode: 409 });
+  if (!readyToSell()) throw Object.assign(new Error('Global connectivity, authorised eSIM profile provisioning, unlimited-data terms, identity verification, privacy and support must be confirmed before profile issuance.'), { statusCode: 409 });
   return transact(store => {
     const plan = store.plans.find(x => x.id === planId);
     if (!plan) throw Object.assign(new Error('Plan not found.'), { statusCode: 404 });
@@ -411,6 +419,885 @@ async function startOrderProvisioning(orderId) {
     throw error;
   }
 }
+
+function deviceView(device, latestProfile) {
+  return {
+    id: device.id, deviceName: device.deviceName, platform: device.platform,
+    model: device.model || null, status: device.status, createdAt: device.createdAt,
+    latestProfile: latestProfile ? profileView(latestProfile) : null
+  };
+}
+function profileView(profile) {
+  return {
+    id: profile.id, reference: profile.reference, deviceId: profile.deviceId,
+    status: profile.status, dataPolicy: profile.dataPolicy || 'sponsored-unlimited',
+    coverageScope: profile.coverageScope || null, unlimitedDataConfirmed: Boolean(profile.unlimitedDataConfirmed),
+    coverageConfirmed: Boolean(profile.coverageConfirmed), providerProfileId: profile.providerProfileId || null,
+    message: profile.message || '', createdAt: profile.createdAt, updatedAt: profile.updatedAt,
+    issuedAt: profile.issuedAt || null, activatedAt: profile.activatedAt || null
+  };
+}
+async function createDevice(user, data) {
+  const clientDeviceId = String(data.clientDeviceId || '').trim();
+  if (!/^[a-zA-Z0-9_-]{16,128}$/.test(clientDeviceId)) throw Object.assign(new Error('This device could not be identified safely. Refresh the app and try again.'), { statusCode: 400 });
+  const deviceName = String(data.deviceName || 'My device').trim().slice(0, 80);
+  const platform = String(data.platform || 'other').toLowerCase();
+  if (!['android','ios','other'].includes(platform)) throw Object.assign(new Error('Choose a supported device platform.'), { statusCode: 400 });
+  const model = String(data.model || '').trim().slice(0, 100);
+  const clientDeviceHash = hashToken(clientDeviceId);
+  return transact(store => {
+    const existing = store.devices.find(x => x.userId === user.id && x.clientDeviceHash === clientDeviceHash);
+    if (existing) {
+      existing.deviceName = deviceName;
+      existing.platform = platform;
+      existing.model = model;
+      existing.updatedAt = new Date().toISOString();
+      return deviceView(existing, store.profiles.filter(x => x.deviceId === existing.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0]);
+    }
+    const now = new Date().toISOString();
+    const device = { id: crypto.randomUUID(), userId: user.id, clientDeviceHash, deviceName, platform, model, status: 'registered', createdAt: now, updatedAt: now };
+    store.devices.push(device);
+    store.audit.push({ id: crypto.randomUUID(), event: 'device.registered', subject: device.id, at: now });
+    return deviceView(device, null);
+  });
+}
+async function listUserDevices(user) {
+  const store = await loadStore();
+  return store.devices.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(device => {
+    const latest = store.profiles.filter(x => x.deviceId === device.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return deviceView(device, latest || null);
+  });
+}
+async function provisionGlobalProfile(profileId) {
+  const snapshot = await loadStore();
+  const profile = snapshot.profiles.find(x => x.id === profileId);
+  if (!profile) throw Object.assign(new Error('Device profile request not found.'), { statusCode: 404 });
+  const user = snapshot.users.find(x => x.id === profile.userId);
+  const device = snapshot.devices.find(x => x.id === profile.deviceId);
+  if (!user || !device) throw new Error('Device or subscriber record is unavailable.');
+  if (!readyToProvisionGlobally()) {
+    await transact(store => {
+      const current = store.profiles.find(x => x.id === profileId);
+      if (current) {
+        current.status = 'awaiting_partners';
+        current.message = 'Waiting for a contracted global connectivity partner, confirmed coverage, unlimited-data terms and authorised eSIM profile provisioning. No profile has been issued.';
+        current.updatedAt = new Date().toISOString();
+      }
+    });
+    return;
+  }
+  if (user.kycStatus !== 'verified') throw Object.assign(new Error('Complete the secure identity-verification step required by the connectivity partner before profile issuance.'), { statusCode: 403 });
+  const base = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')).replace(/\/$/, '');
+  await transact(store => {
+    const current = store.profiles.find(x => x.id === profileId);
+    if (current) {
+      current.status = 'provisioning';
+      current.message = 'Submitting a unique device profile request to the contracted global eSIM provider.';
+      current.updatedAt = new Date().toISOString();
+    }
+  });
+  try {
+    const response = await fetch(process.env.GLOBAL_ESIM_PROFILE_API_URL, {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + process.env.GLOBAL_ESIM_PROFILE_API_KEY, 'content-type': 'application/json', accept: 'application/json', 'idempotency-key': profile.reference },
+      body: JSON.stringify({
+        reference: profile.reference,
+        subscriber: { subscriberReference: user.id, name: user.fullName, email: user.email },
+        device: { deviceReference: device.id, name: device.deviceName, platform: device.platform, model: device.model || undefined },
+        service: { type: 'mobile-data', dataPolicy: 'unlimited', funding: 'sponsored-by-expert-esim', roamingScope: 'global' },
+        callbackUrl: base + '/api/v1/global-esim/webhook'
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error('Global eSIM provider responded with HTTP ' + response.status);
+    const payload = result.data || result;
+    const profileData = payload.profile || payload.simProfile || {};
+    let activationCode = payload.activationCode || profileData.activationCode || '';
+    if (!activationCode && profileData.matchingId && profileData.smdpAddress) activationCode = profileData.smdpAddress + '
+  if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before ordering mobile service.'), { statusCode: 403 });
+  if (user.kycStatus !== 'verified') throw Object.assign(new Error('Complete the authorised subscriber identity verification before ordering an eSIM.'), { statusCode: 403 });
+  const snapshot = await loadStore();
+  const plan = snapshot.plans.find(x => x.id === String(data.planId || '') && x.status === 'published');
+  if (!plan) throw Object.assign(new Error('This data package is not available.'), { statusCode: 404 });
+  const preferredNetwork = String(data.preferredNetwork || 'auto');
+  if (!['auto', '4g', '5g'].includes(preferredNetwork)) throw Object.assign(new Error('Select Automatic, 4G or 5G.'), { statusCode: 400 });
+  if (!plan.networkModes.includes(preferredNetwork) && !plan.networkModes.includes('auto')) throw Object.assign(new Error('This plan does not support the selected network mode.'), { statusCode: 400 });
+  const now = new Date().toISOString();
+  const paid = Number(plan.priceMinor) === 0;
+  const order = {
+    id: crypto.randomUUID(), reference: refCode(), userId: user.id, planId: plan.id,
+    planName: plan.name, dataMb: plan.dataMb, validityDays: plan.validityDays,
+    priceMinor: plan.priceMinor, currency: plan.currency, preferredNetwork,
+    paymentStatus: paid ? 'paid' : 'pending',
+    paymentReference: null,
+    status: paid ? (readyToSell() ? 'provisioning' : 'awaiting_partner') : 'awaiting_payment',
+    providerOrderId: null, encryptedActivationCode: null, encryptedConfirmationCode: null,
+    message: paid
+      ? (readyToSell() ? 'Order is being submitted for eSIM provisioning.' : 'The order is recorded. Live eSIM provisioning is waiting for the authorised host-network and SM-DP+ partners.')
+      : 'Your eSIM order is awaiting payment. After payment is verified, provisioning will continue when the required host-network and eSIM partners are connected.',
+    createdAt: now, updatedAt: now
+  };
+  await transact(store => {
+    store.orders.push(order);
+    store.audit.push({ id: crypto.randomUUID(), event: 'esim.order.created', subject: order.id, at: now });
+  });
+  if (paid && readyToSell()) {
+    try { await startOrderProvisioning(order.id); } catch {}
+  }
+  const current = await loadStore();
+  return orderView(current.orders.find(x => x.id === order.id));
+}
+async function initializePaystackPayment(user, orderId) {
+  if (!process.env.PAYSTACK_SECRET_KEY || !process.env.PAYSTACK_WEBHOOK_SECRET) throw Object.assign(new Error('Paystack is not configured yet. Payments are not enabled.'), { statusCode: 503 });
+  const snapshot = await loadStore();
+  const order = snapshot.orders.find(x => x.id === orderId && x.userId === user.id);
+  if (!order) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+  if (order.paymentStatus === 'paid') throw Object.assign(new Error('This order has already been paid.'), { statusCode: 409 });
+  if (!Number.isSafeInteger(order.priceMinor) || order.priceMinor < 1) throw Object.assign(new Error('This order does not require payment.'), { statusCode: 400 });
+  const reference = 'EXPAY-' + crypto.randomBytes(16).toString('hex').toUpperCase();
+  const callbackUrl = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')) + '/?payment_return=1';
+  const response = await fetch('https://api.paystack.co/transaction/initialize', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY, 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      email: user.email, amount: order.priceMinor, currency: order.currency, reference,
+      callback_url: callbackUrl,
+      metadata: { orderId: order.id, orderReference: order.reference, customerId: user.id }
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.status !== true || !result.data || !result.data.authorization_url) throw Object.assign(new Error('Paystack could not initialise this payment.'), { statusCode: 502 });
+  await transact(store => {
+    const current = store.orders.find(x => x.id === order.id && x.userId === user.id);
+    if (!current || current.paymentStatus === 'paid') throw Object.assign(new Error('Order payment state changed.'), { statusCode: 409 });
+    current.paymentReference = reference;
+    current.paymentStatus = 'pending';
+    current.updatedAt = new Date().toISOString();
+    store.audit.push({ id: crypto.randomUUID(), event: 'payment.initialized', subject: order.id, at: current.updatedAt });
+  });
+  return { authorizationUrl: result.data.authorization_url, accessCode: result.data.access_code, reference, amount: order.priceMinor, currency: order.currency };
+}
+function verifyPaystackSignature(raw, headers) {
+  const key = process.env.PAYSTACK_WEBHOOK_SECRET || '';
+  if (!key) return false;
+  const modern = String(headers['paystack-signature'] || '');
+  if (modern) {
+    const fields = modern.split(',').map(x => x.trim());
+    const timestampField = fields.find(x => x.startsWith('t='));
+    const time = timestampField ? Number(timestampField.slice(2)) : 0;
+    if (!time || Math.abs(Date.now() / 1000 - time) > 300) return false;
+    const expected = crypto.createHmac('sha512', key).update(String(time) + '.').update(raw).digest('hex');
+    const signatures = fields.filter(x => x.startsWith('v1=')).map(x => x.slice(3).split(':').pop());
+    return signatures.some(signature => /^[a-f0-9]{128}$/i.test(signature) && equal(expected, signature.toLowerCase()));
+  }
+  const legacy = String(headers['x-paystack-signature'] || '');
+  if (!/^[a-f0-9]{128}$/i.test(legacy)) return false;
+  const expected = crypto.createHmac('sha512', process.env.PAYSTACK_SECRET_KEY || key).update(raw).digest('hex');
+  return equal(expected, legacy.toLowerCase());
+}
+async function verifyPaystackTransaction(reference) {
+  const response = await fetch('https://api.paystack.co/transaction/verify/' + encodeURIComponent(reference), {
+    headers: { authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY, accept: 'application/json' },
+    signal: AbortSignal.timeout(15000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || result.status !== true || !result.data) throw new Error('Paystack transaction verification failed.');
+  return result.data;
+}
+async function confirmPaystackPayment(user, orderId) {
+  const snapshot = await loadStore();
+  const order = snapshot.orders.find(x => x.id === orderId && x.userId === user.id);
+  if (!order) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+  if (order.paymentStatus === 'paid') return orderView(order);
+  if (!order.paymentReference) throw Object.assign(new Error('No payment attempt is recorded for this order.'), { statusCode: 409 });
+  const verification = await verifyPaystackTransaction(order.paymentReference);
+  if (verification.status !== 'success' || Number(verification.amount) !== Number(order.priceMinor) || String(verification.currency) !== String(order.currency) || String(verification.reference) !== String(order.paymentReference)) {
+    throw Object.assign(new Error('Paystack has not confirmed a matching successful payment for this order.'), { statusCode: 409 });
+  }
+  const updated = await transact(store => {
+    const current = store.orders.find(x => x.id === order.id && x.userId === user.id);
+    if (!current) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+    if (current.paymentStatus !== 'paid') {
+      current.paymentStatus = 'paid';
+      current.paidAt = new Date().toISOString();
+      current.paymentProvider = 'paystack';
+      current.updatedAt = current.paidAt;
+      store.paymentEvents.push({ id: crypto.randomUUID(), providerEventId: 'verify:' + order.paymentReference, reference: order.paymentReference, orderId: current.id, receivedAt: current.paidAt });
+      store.audit.push({ id: crypto.randomUUID(), event: 'payment.verified_by_customer', subject: current.id, at: current.paidAt });
+    }
+    return orderView(current);
+  });
+  await startOrderProvisioning(order.id);
+  const latest = await loadStore();
+  return orderView(latest.orders.find(x => x.id === order.id) || updated);
+}
+async function paystackWebhook(raw, headers) {
+  if (!verifyPaystackSignature(raw, headers)) throw Object.assign(new Error('Invalid Paystack webhook signature.'), { statusCode: 401 });
+  let event;
+  try { event = JSON.parse(raw.toString('utf8')); } catch { throw Object.assign(new Error('Webhook body must be valid JSON.'), { statusCode: 400 }); }
+  if (event.event !== 'charge.success') return { received: true, ignored: true, event: event.event || 'unknown' };
+  const reference = String(event.data && event.data.reference || '');
+  if (!reference) throw Object.assign(new Error('Payment reference is missing.'), { statusCode: 400 });
+  const verification = await verifyPaystackTransaction(reference);
+  const snapshot = await loadStore();
+  const order = snapshot.orders.find(x => x.paymentReference === reference);
+  if (!order) throw Object.assign(new Error('No Expert eSIM order matches this payment reference.'), { statusCode: 404 });
+  if (verification.status !== 'success' || Number(verification.amount) !== Number(order.priceMinor) || String(verification.currency) !== String(order.currency) || String(verification.reference) !== reference) {
+    throw Object.assign(new Error('Verified payment does not match the order amount, currency or reference.'), { statusCode: 409 });
+  }
+  const eventId = String(event.data.id || reference);
+  const updated = await transact(store => {
+    if (store.paymentEvents.some(item => item.providerEventId === eventId)) {
+      const existing = store.orders.find(x => x.id === order.id);
+      return { duplicate: true, order: orderView(existing) };
+    }
+    const current = store.orders.find(x => x.id === order.id);
+    if (!current) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+    current.paymentStatus = 'paid';
+    current.paidAt = new Date().toISOString();
+    current.paymentProvider = 'paystack';
+    current.updatedAt = current.paidAt;
+    store.paymentEvents.push({ id: crypto.randomUUID(), providerEventId: eventId, reference, orderId: current.id, receivedAt: current.paidAt });
+    store.audit.push({ id: crypto.randomUUID(), event: 'payment.verified', subject: current.id, at: current.paidAt });
+    return { duplicate: false, order: orderView(current) };
+  });
+  if (!updated.duplicate) await startOrderProvisioning(order.id);
+  return { received: true, duplicate: updated.duplicate, order: updated.order };
+}
+
+async function providerWebhook(raw, signature) {
+  const secret = process.env.ESIM_PROVIDER_WEBHOOK_SECRET || '';
+  if (!secret) throw Object.assign(new Error('Provider webhook authentication is not configured.'), { statusCode: 503 });
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest();
+  const supplied = Buffer.from(String(signature || '').replace(/^sha256=/i, '').trim(), 'hex');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) throw Object.assign(new Error('Invalid provider webhook signature.'), { statusCode: 401 });
+  let event;
+  try { event = JSON.parse(raw.toString('utf8')); } catch { throw Object.assign(new Error('Webhook body must be valid JSON.'), { statusCode: 400 }); }
+  const data = event.data || event;
+  const reference = String(data.reference || event.reference || '');
+  const type = String(event.type || event.event || '');
+  if (!reference) throw Object.assign(new Error('Provider event is missing its Expert eSIM order reference.'), { statusCode: 400 });
+  return transact(store => {
+    const order = store.orders.find(x => x.reference === reference);
+    if (!order) throw Object.assign(new Error('Unknown Expert eSIM order.'), { statusCode: 404 });
+    const now = new Date().toISOString();
+    const providerEventId = String(event.id || data.eventId || (reference + ':' + type));
+    if (store.providerEvents.some(item => item.id === providerEventId)) return { received: true, duplicate: true, reference, status: order.status };
+    const subscriber = store.users.find(item => item.id === order.userId);
+    if (order.paymentStatus !== 'paid' || !subscriber || subscriber.kycStatus !== 'verified') throw Object.assign(new Error('Payment and authorised subscriber identity verification must be complete before eSIM profile activation.'), { statusCode: 409 });
+    if (type === 'esim.profile.issued') {
+      if (!data.activationCode) throw Object.assign(new Error('Issued-profile event must contain an activation code.'), { statusCode: 400 });
+      order.encryptedActivationCode = encryptSecret(String(data.activationCode));
+      if (data.confirmationCode) order.encryptedConfirmationCode = encryptSecret(String(data.confirmationCode));
+      order.providerOrderId = data.providerOrderId || order.providerOrderId || null;
+      order.status = 'profile_issued'; order.profileIssuedAt = now;
+      order.message = 'Your authorised Expert eSIM profile is ready to install.';
+    } else if (type === 'esim.profile.activated') {
+      if (!order.encryptedActivationCode) throw Object.assign(new Error('The eSIM profile has not been issued.'), { statusCode: 409 });
+      order.status = 'active'; order.activatedAt = now;
+      order.message = 'The provider confirmed your eSIM subscription is active.';
+    } else if (type === 'esim.profile.failed') {
+      order.status = 'provider_error'; order.message = 'The provider reported a provisioning failure.';
+    } else {
+      throw Object.assign(new Error('Unsupported provider event type.'), { statusCode: 400 });
+    }
+    order.updatedAt = now;
+    store.providerEvents.push({ id: providerEventId, reference, type, receivedAt: now });
+    store.audit.push({ id: crypto.randomUUID(), event: 'provider.' + type, subject: order.id, at: now });
+    return { received: true, duplicate: false, reference, status: order.status };
+  });
+}
+async function profileForUser(userId, orderId) {
+  const store = await loadStore();
+  const order = store.orders.find(x => x.id === orderId && x.userId === userId);
+  if (!order) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+  if (order.paymentStatus !== 'paid' || !['profile_issued', 'active'].includes(order.status)) throw Object.assign(new Error('Payment and provider profile issuance must both be confirmed before installation.'), { statusCode: 409 });
+  return {
+    activationCode: decryptSecret(order.encryptedActivationCode),
+    confirmationCode: order.encryptedConfirmationCode ? decryptSecret(order.encryptedConfirmationCode) : '',
+    reference: order.reference
+  };
+}
+async function sendVerificationEmail(user) {
+  if (!providerStatus().emailDeliveryConfigured) return { sent: false, reason: 'email_provider_not_configured' };
+  const token = crypto.randomBytes(32).toString('base64url');
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  await transact(store => {
+    const current = store.users.find(x => x.id === user.id);
+    if (!current) throw Object.assign(new Error('Subscriber account not found.'), { statusCode: 404 });
+    current.emailVerificationTokenHash = tokenHash;
+    current.emailVerificationExpiresAt = expiresAt;
+  });
+  const base = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')).replace(/\/$/, '');
+  const link = base + '/api/v1/auth/verify-email?token=' + encodeURIComponent(token);
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + process.env.RESEND_API_KEY, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      from: process.env.EXPERT_ESIM_EMAIL_FROM,
+      to: [user.email],
+      subject: 'Verify your Expert eSIM email address',
+      html: '<p>Hello ' + String(user.fullName).replace(/[&<>]/g, '') + ',</p><p>Confirm your email address for your Expert eSIM subscriber account.</p><p><a href="' + link + '">Verify email address</a></p><p>This link expires in 60 minutes. If you did not create this account, you can ignore this message.</p>'
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    await transact(store => {
+      const current = store.users.find(x => x.id === user.id);
+      if (current) { delete current.emailVerificationTokenHash; delete current.emailVerificationExpiresAt; }
+    });
+    throw Object.assign(new Error('Email verification could not be sent. Check the configured email sender.'), { statusCode: 502 });
+  }
+  return { sent: true, expiresAt, providerMessageId: data.id || null };
+}
+async function verifyEmailToken(token) {
+  const tokenHash = hashToken(String(token || ''));
+  return transact(store => {
+    const user = store.users.find(x => x.emailVerificationTokenHash === tokenHash && x.emailVerificationExpiresAt && Date.parse(x.emailVerificationExpiresAt) > Date.now());
+    if (!user) throw Object.assign(new Error('This verification link is invalid or has expired.'), { statusCode: 400 });
+    user.emailVerified = true;
+    user.emailVerifiedAt = new Date().toISOString();
+    delete user.emailVerificationTokenHash;
+    delete user.emailVerificationExpiresAt;
+    store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.email_verified', subject: user.id, at: user.emailVerifiedAt });
+    return userView(user);
+  });
+}
+async function beginKyc(user) {
+  if (!providerStatus().identityProviderConfigured) throw Object.assign(new Error('The secure identity-verification partner is not connected yet.'), { statusCode: 503 });
+  if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before starting subscriber verification.'), { statusCode: 403 });
+  if (user.kycStatus === 'verified') return { verified: true, status: 'verified', message: 'Your identity has already been verified.' };
+  const base = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')).replace(/\/$/, '');
+  const identityStartUrl = process.env.GLOBAL_IDENTITY_PROVIDER_START_URL || process.env.KYC_PROVIDER_START_URL;
+  const identityApiKey = process.env.GLOBAL_IDENTITY_PROVIDER_API_KEY || process.env.KYC_PROVIDER_API_KEY;
+  const response = await fetch(identityStartUrl, {
+    method: 'POST',
+    headers: { authorization: 'Bearer ' + identityApiKey, 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({
+      subscriberReference: user.id,
+      customer: { fullName: user.fullName, email: user.email, phone: user.phone || undefined },
+      returnUrl: base + '/?kyc=return',
+      webhookUrl: base + '/api/v1/kyc/webhook'
+    }),
+    signal: AbortSignal.timeout(15000)
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.verificationUrl || !result.reference) throw Object.assign(new Error('The identity-verification partner did not return a valid secure verification session.'), { statusCode: 502 });
+  await transact(store => {
+    const current = store.users.find(x => x.id === user.id);
+    if (current) {
+      current.kycStatus = 'pending';
+      current.kycProviderReference = String(result.reference);
+      current.kycStartedAt = new Date().toISOString();
+    }
+    store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.kyc_started', subject: user.id, at: new Date().toISOString() });
+  });
+  return { status: 'pending', verificationUrl: result.verificationUrl, reference: result.reference, message: 'Continue in the secure identity-verification partner page. Requirements depend on the destination market and connectivity partner.' };
+}
+async function kycWebhook(raw, signature) {
+  const secret = process.env.GLOBAL_IDENTITY_PROVIDER_WEBHOOK_SECRET || process.env.KYC_PROVIDER_WEBHOOK_SECRET || '';
+  if (!secret) throw Object.assign(new Error('Identity provider webhook authentication is not configured.'), { statusCode: 503 });
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest();
+  const supplied = Buffer.from(String(signature || '').replace(/^sha256=/i, '').trim(), 'hex');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) throw Object.assign(new Error('Invalid identity provider signature.'), { statusCode: 401 });
+  let event;
+  try { event = JSON.parse(raw.toString('utf8')); } catch { throw Object.assign(new Error('Webhook body must be valid JSON.'), { statusCode: 400 }); }
+  const data = event.data || event;
+  const reference = String(data.subscriberReference || data.reference || '');
+  const state = String(event.type || event.event || data.status || '');
+  if (!reference) throw Object.assign(new Error('Identity callback is missing its subscriber reference.'), { statusCode: 400 });
+  return transact(store => {
+    const user = store.users.find(x => x.id === reference || x.kycProviderReference === reference);
+    if (!user) throw Object.assign(new Error('Subscriber identity record not found.'), { statusCode: 404 });
+    const eventId = String(event.id || data.eventId || (reference + ':' + state));
+    if (store.providerEvents.some(x => x.id === eventId)) return { received: true, duplicate: true, status: user.kycStatus };
+    if (['subscriber.kyc.verified', 'verified', 'kyc.verified'].includes(state)) {
+      user.kycStatus = 'verified';
+      user.kycVerifiedAt = new Date().toISOString();
+    } else if (['subscriber.kyc.rejected', 'rejected', 'kyc.rejected'].includes(state)) {
+      user.kycStatus = 'rejected';
+      user.kycRejectedAt = new Date().toISOString();
+    } else if (['subscriber.kyc.pending', 'pending', 'kyc.pending'].includes(state)) {
+      user.kycStatus = 'pending';
+    } else {
+      throw Object.assign(new Error('Unsupported identity provider event.'), { statusCode: 400 });
+    }
+    store.providerEvents.push({ id: eventId, reference, type: state, receivedAt: new Date().toISOString() });
+    store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.kyc_' + user.kycStatus, subject: user.id, at: new Date().toISOString() });
+    return { received: true, duplicate: false, status: user.kycStatus };
+  });
+}
+async function createSupportTicket(user, data) {
+  const subject = String(data.subject || '').trim();
+  const message = String(data.message || '').trim();
+  const category = String(data.category || 'general');
+  const allowed = ['activation', 'billing', 'network', 'technical', 'privacy', 'other'];
+  if (!allowed.includes(category)) throw Object.assign(new Error('Select a valid support category.'), { statusCode: 400 });
+  if (subject.length < 4 || subject.length > 120) throw Object.assign(new Error('Subject must be 4 to 120 characters.'), { statusCode: 400 });
+  if (message.length < 20 || message.length > 4000) throw Object.assign(new Error('Describe the issue in 20 to 4000 characters.'), { statusCode: 400 });
+  return transact(store => {
+    const now = new Date().toISOString();
+    const ticket = {
+      id: crypto.randomUUID(),
+      reference: 'EXSUP-' + new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14) + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+      userId: user.id, category, subject, message, status: 'open', createdAt: now, updatedAt: now
+    };
+    store.supportTickets.push(ticket);
+    store.audit.push({ id: crypto.randomUUID(), event: 'support.ticket_created', subject: ticket.id, at: now });
+    return ticket;
+  });
+}
+async function createPrivacyRequest(user, data) {
+  const type = String(data.type || '');
+  const allowed = ['access', 'correction', 'deletion', 'portability', 'objection'];
+  if (!allowed.includes(type)) throw Object.assign(new Error('Choose a valid privacy request type.'), { statusCode: 400 });
+  const details = String(data.details || '').trim().slice(0, 1500);
+  return transact(store => {
+    const now = new Date().toISOString();
+    const record = {
+      id: crypto.randomUUID(),
+      reference: 'EXPR-' + new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14) + '-' + crypto.randomBytes(3).toString('hex').toUpperCase(),
+      userId: user.id, type, details, status: 'received', createdAt: now, updatedAt: now
+    };
+    store.privacyRequests.push(record);
+    store.audit.push({ id: crypto.randomUUID(), event: 'privacy.request_received', subject: record.id, at: now });
+    return record;
+  });
+}
+
+async function dashboard() {
+  const store = await loadStore();
+  const count = status => store.orders.filter(x => x.status === status).length;
+  return {
+    provider: providerStatus(),
+    totals: {
+      subscribers: store.users.length,
+      emailUnverified: store.users.filter(x => !x.emailVerified).length,
+      kycPending: store.users.filter(x => x.kycStatus === 'pending').length,
+      kycVerified: store.users.filter(x => x.kycStatus === 'verified').length,
+      plans: store.plans.length,
+      publishedPlans: store.plans.filter(x => x.status === 'published').length,
+      orders: store.orders.length,
+      registeredDevices: store.devices.length,
+      deviceProfiles: store.profiles.length,
+      profilesAwaitingPartners: store.profiles.filter(x => x.status === 'awaiting_partners').length,
+      profilesIssued: store.profiles.filter(x => x.status === 'profile_issued').length,
+      activeDeviceProfiles: store.profiles.filter(x => x.status === 'active').length,
+      awaitingPayment: count('awaiting_payment'),
+      awaitingPartner: count('awaiting_partner'),
+      provisioning: count('provisioning'),
+      profilesIssued: count('profile_issued'),
+      activeProfiles: count('active'),
+      providerErrors: count('provider_error'),
+      openTickets: store.supportTickets.filter(x => x.status === 'open' || x.status === 'in_progress').length,
+      privacyRequests: store.privacyRequests.filter(x => x.status === 'received' || x.status === 'in_review').length
+    },
+    plans: store.plans.map(x => ({ id: x.id, name: x.name, dataMb: x.dataMb, validityDays: x.validityDays, priceMinor: x.priceMinor, currency: x.currency, status: x.status, networkModes: x.networkModes })),
+    recentSubscribers: store.users.slice(-100).reverse().map(userView),
+    recentOrders: store.orders.slice(-30).reverse().map(orderView),
+    recentTickets: store.supportTickets.slice(-30).reverse().map(({message, ...ticket}) => ticket),
+    recentPrivacyRequests: store.privacyRequests.slice(-30).reverse()
+  };
+}
+
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml',
+  '.webmanifest': 'application/manifest+json; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.ico': 'image/x-icon'
+};
+function serveStatic(req, res, pathname) {
+  if (!['GET', 'HEAD'].includes(req.method)) return send(res, 405, { error: 'Method not allowed.' });
+  const requested = pathname === '/admin' || pathname === '/admin/' ? '/admin.html' : pathname;
+  let decoded;
+  try { decoded = decodeURIComponent(requested); } catch { return send(res, 400, { error: 'Invalid path.' }); }
+  const rel = decoded === '/' ? 'index.html' : decoded.replace(/^\/+/, '');
+  const file = path.resolve(PUBLIC_DIR, rel);
+  if (file !== PUBLIC_DIR && !file.startsWith(PUBLIC_DIR + path.sep)) return send(res, 400, { error: 'Invalid path.' });
+  fs.readFile(file, (error, content) => {
+    if (error) return send(res, error.code === 'ENOENT' ? 404 : 500, { error: 'File not found.' });
+    const ext = path.extname(file).toLowerCase();
+    res.writeHead(200, {
+      'content-type': MIME[ext] || 'application/octet-stream',
+      'cache-control': ['.html', '.js'].includes(ext) ? 'no-cache' : 'public, max-age=3600',
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://speed.cloudflare.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    });
+    if (req.method === 'HEAD') return res.end();
+    res.end(content);
+  });
+}
+async function route(req, res, url) {
+  const p = url.pathname, m = req.method;
+  if (p === '/health' && m === 'GET') {
+    await fsp.mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+    await loadStore();
+    return send(res, 200, { ok: true, service: 'Expert eSIM', persistentStoreReady: true, provider: providerStatus() });
+  }
+  if ((p === '/api/status' || p === '/api/v1/status') && m === 'GET') {
+    const cfg = providerStatus();
+    return send(res, 200, {
+      ok: true, service: 'Expert eSIM', product: 'global-sponsored-esim-connectivity-platform',
+      subscriberAccounts: true, persistentSubscriberStore: true,
+      providerProvisioning: readyToProvisionGlobally() ? 'configured' : 'awaiting-global-connectivity-and-esim-partners',
+      profileEncryption: cfg.profileEncryptionConfigured ? 'configured' : 'not-configured',
+      cellularDataProvisioning: 'not-active-until-global-provider-confirms-profile-and-roaming',
+      message: 'Expert eSIM requests a separate sponsored-unlimited profile for each registered device. Real connectivity depends on contracted global roaming coverage and an authorised eSIM profile provider.'
+    });
+  }
+  if (p === '/api/esim/status' && m === 'GET') return send(res, 200, { ok: true, connected: false, providerConfigured: readyToProvisionGlobally(), profileIssued: false, message: 'A contracted global connectivity provider and authorised eSIM profile provider must issue and activate a device profile before it can connect.' });
+
+  if (p === '/api/v1/auth/register' && m === 'POST') {
+    rateLimit(req, 'register', 5, 15 * 60 * 1000);
+    const result = await register(await body(req));
+    let delivery = { sent: false, reason: 'email_provider_not_configured' };
+    if (providerStatus().emailDeliveryConfigured) {
+      try { delivery = await sendVerificationEmail(result.user); }
+      catch (error) { delivery = { sent: false, reason: 'delivery_failed' }; }
+    }
+    return send(res, 201, { ok: true, user: result.user, emailVerification: delivery, message: delivery.sent ? 'Account created. Verify your email to continue.' : 'Account created. Email verification is not yet configured; mobile service ordering remains locked until verification is available.' }, { 'set-cookie': sessionCookie(result.token) });
+  }
+  if (p === '/api/v1/auth/login' && m === 'POST') {
+    rateLimit(req, 'login', 8, 15 * 60 * 1000);
+    const result = await login(await body(req));
+    return send(res, 200, { ok: true, user: result.user }, { 'set-cookie': sessionCookie(result.token) });
+  }
+  if (p === '/api/v1/auth/logout' && m === 'POST') {
+    const token = tokenFrom(req), tokenHash = token ? hashToken(token) : '';
+    await transact(store => { store.sessions = store.sessions.filter(x => x.tokenHash !== tokenHash); });
+    return send(res, 200, { ok: true }, { 'set-cookie': clearSessionCookie() });
+  }
+  if (p === '/api/v1/auth/verification/send' && m === 'POST') {
+    const user = await signedIn(req);
+    if (user.emailVerified) return send(res, 200, { ok: true, verified: true });
+    const delivery = await sendVerificationEmail(user);
+    return send(res, 200, { ok: true, ...delivery });
+  }
+  if (p === '/api/v1/auth/verify-email' && m === 'GET') {
+    await verifyEmailToken(url.searchParams.get('token'));
+    res.writeHead(303, { location: '/?email_verified=1', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+    return res.end();
+  }
+  if (p === '/api/v1/me' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    const orders = store.orders.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(orderView);
+    const tickets = store.supportTickets.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    const privacyRequests = store.privacyRequests.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    const headers = {};
+    if (String(req.headers.authorization || '').startsWith('Bearer ')) headers['set-cookie'] = sessionCookie(tokenFrom(req));
+    return send(res, 200, { ok: true, user: userView(user), orders, devices: await listUserDevices(user), tickets, privacyRequests, readiness: providerStatus() }, headers);
+  }
+  if (p === '/api/v1/devices' && m === 'GET') {
+    return send(res, 200, { ok: true, devices: await listUserDevices(await signedIn(req)) });
+  }
+  if (p === '/api/v1/devices' && m === 'POST') {
+    const device = await createDevice(await signedIn(req), await body(req));
+    return send(res, 201, { ok: true, device, message: 'This device has been registered to your Expert eSIM account.' });
+  }
+  const deviceProfileRequest = p.match(/^\/api\/v1\/devices\/([0-9a-f-]{36})\/profile$/i);
+  if (deviceProfileRequest && m === 'POST') {
+    const profile = await requestDeviceProfile(await signedIn(req), deviceProfileRequest[1]);
+    return send(res, profile.status === 'profile_issued' || profile.status === 'active' ? 201 : 202, { ok: true, profile, message: profile.message });
+  }
+  const deviceProfileRead = p.match(/^\/api\/v1\/devices\/([0-9a-f-]{36})\/profile$/i);
+  if (deviceProfileRead && m === 'GET') {
+    return send(res, 200, { ok: true, profile: await getDeviceProfile(await signedIn(req), deviceProfileRead[1]) });
+  }
+  if (p === '/api/v1/global-esim/webhook' && m === 'POST') {
+    return send(res, 200, { ok: true, ...(await globalEsimWebhook(await rawBody(req), req.headers['x-expert-signature'])) });
+  }
+  if (p === '/api/v1/kyc/start' && m === 'POST') {
+    const user = await signedIn(req);
+    return send(res, 200, { ok: true, ...(await beginKyc(user)) });
+  }
+  if (p === '/api/v1/support/tickets' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    const tickets = store.supportTickets.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt));
+    return send(res, 200, { ok: true, tickets });
+  }
+  if (p === '/api/v1/support/tickets' && m === 'POST') {
+    const user = await signedIn(req);
+    const ticket = await createSupportTicket(user, await body(req));
+    return send(res, 201, { ok: true, ticket, message: 'Your support case has been recorded.' });
+  }
+  if (p === '/api/v1/privacy/requests' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    return send(res, 200, { ok: true, requests: store.privacyRequests.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)) });
+  }
+  if (p === '/api/v1/privacy/export' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      account: userView(user),
+      orders: store.orders.filter(x => x.userId === user.id).map(orderView),
+      devices: store.devices.filter(x => x.userId === user.id).map(device => deviceView(device, store.profiles.filter(x => x.deviceId === device.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0])),
+      profiles: store.profiles.filter(x => x.userId === user.id).map(profileView),
+      consents: store.consents.filter(x => x.userId === user.id),
+      supportTickets: store.supportTickets.filter(x => x.userId === user.id),
+      privacyRequests: store.privacyRequests.filter(x => x.userId === user.id)
+    };
+    return send(res, 200, exportData, { 'content-disposition': 'attachment; filename="expert-esim-personal-data.json"' });
+  }
+  if (p === '/api/v1/privacy/requests' && m === 'POST') {
+    const user = await signedIn(req);
+    const request = await createPrivacyRequest(user, await body(req));
+    return send(res, 201, { ok: true, request, message: 'Your privacy request has been recorded for review.' });
+  }
+  if (p === '/api/v1/plans' && m === 'GET') {
+    const store = await loadStore();
+    const plans = store.plans.filter(x => x.status === 'published').map(x => ({
+      id: x.id, name: x.name, description: x.description, dataMb: x.dataMb,
+      validityDays: x.validityDays, priceMinor: x.priceMinor, currency: x.currency, networkModes: x.networkModes
+    }));
+    return send(res, 200, { ok: true, plans, availability: plans.length ? 'available' : 'awaiting-network-partner' });
+  }
+  if (p === '/api/v1/esim/orders' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    return send(res, 200, { ok: true, orders: store.orders.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(orderView) });
+  }
+  if (p === '/api/v1/esim/orders' && m === 'POST') {
+    const user = await signedIn(req), result = await createOrder(user, await body(req));
+    return send(res, ['awaiting_partner','awaiting_payment','provisioning'].includes(result.status) ? 202 : 201, { ok: true, order: result, message: result.message });
+  }
+  const paymentInit = p.match(/^\/api\/v1\/esim\/orders\/([0-9a-f-]{36})\/pay$/i);
+  if (paymentInit && m === 'POST') {
+    const user = await signedIn(req);
+    return send(res, 200, { ok: true, payment: await initializePaystackPayment(user, paymentInit[1]) });
+  }
+  const verifyPaymentMatch = p.match(/^\/api\/v1\/esim\/orders\/([0-9a-f-]{36})\/verify-payment$/i);
+  if (verifyPaymentMatch && m === 'POST') {
+    const user = await signedIn(req);
+    const order = await confirmPaystackPayment(user, verifyPaymentMatch[1]);
+    return send(res, 200, { ok: true, order });
+  }
+  if (p === '/api/v1/payments/paystack/webhook' && m === 'POST') {
+    const result = await paystackWebhook(await rawBody(req), req.headers);
+    return send(res, 200, { ok: true, ...result });
+  }
+  if (p === '/api/v1/kyc/webhook' && m === 'POST') {
+    const result = await kycWebhook(await rawBody(req), req.headers['x-kyc-signature']);
+    return send(res, 200, { ok: true, ...result });
+  }
+  const profileMatch = p.match(/^\/api\/v1\/esim\/orders\/([0-9a-f-]{36})\/profile$/i);
+  if (profileMatch && m === 'GET') return send(res, 200, { ok: true, profile: await profileForUser((await signedIn(req)).id, profileMatch[1]) });
+  const installedMatch = p.match(/^\/api\/v1\/esim\/orders\/([0-9a-f-]{36})\/install-requested$/i);
+  if (installedMatch && m === 'POST') {
+    const user = await signedIn(req);
+    const result = await transact(store => {
+      const order = store.orders.find(x => x.id === installedMatch[1] && x.userId === user.id);
+      if (!order || !['profile_issued', 'active'].includes(order.status)) throw Object.assign(new Error('This order does not have an issued profile.'), { statusCode: 409 });
+      order.installRequestedAt = new Date().toISOString(); order.updatedAt = order.installRequestedAt;
+      return orderView(order);
+    });
+    return send(res, 200, { ok: true, order: result });
+  }
+  if (p === '/api/v1/provider/webhook' && m === 'POST') {
+    const result = await providerWebhook(await rawBody(req), req.headers['x-expert-signature']);
+    return send(res, 200, { ok: true, ...result });
+  }
+  if (p.startsWith('/api/v1/admin/')) {
+    if (!adminOk(req)) return send(res, 401, { ok: false, error: 'Admin authentication is required.' });
+    if (p === '/api/v1/admin/dashboard' && m === 'GET') return send(res, 200, { ok: true, dashboard: await dashboard() });
+    if (p === '/api/v1/admin/users' && m === 'GET') {
+      const store = await loadStore();
+      return send(res, 200, { ok: true, users: store.users.map(userView) });
+    }
+    if (p === '/api/v1/admin/plans' && m === 'POST') {
+      const plan = await createPlan(await body(req));
+      return send(res, 201, { ok: true, plan, message: 'Plan saved as a draft. Publishing is blocked until network, provisioning and payment requirements are configured.' });
+    }
+    if (p === '/api/v1/admin/support/tickets' && m === 'GET') {
+      const store = await loadStore();
+      return send(res, 200, { ok: true, tickets: store.supportTickets.slice(-200).reverse() });
+    }
+    const ticketStatus = p.match(/^\/api\/v1\/admin\/support\/tickets\/([0-9a-f-]{36})\/status$/i);
+    if (ticketStatus && m === 'POST') {
+      const data = await body(req), next = String(data.status || '');
+      if (!['open','in_progress','resolved','closed'].includes(next)) throw Object.assign(new Error('Invalid support-ticket status.'), { statusCode: 400 });
+      const updated = await transact(store => {
+        const ticket = store.supportTickets.find(x => x.id === ticketStatus[1]);
+        if (!ticket) throw Object.assign(new Error('Support case not found.'), { statusCode: 404 });
+        ticket.status = next; ticket.updatedAt = new Date().toISOString();
+        store.audit.push({ id: crypto.randomUUID(), event: 'support.ticket_status_changed', subject: ticket.id, at: ticket.updatedAt });
+        return ticket;
+      });
+      return send(res, 200, { ok: true, ticket: updated });
+    }
+    if (p === '/api/v1/admin/privacy/requests' && m === 'GET') {
+      const store = await loadStore();
+      return send(res, 200, { ok: true, requests: store.privacyRequests.slice(-200).reverse() });
+    }
+    const privacyStatus = p.match(/^\/api\/v1\/admin\/privacy\/requests\/([0-9a-f-]{36})\/status$/i);
+    if (privacyStatus && m === 'POST') {
+      const data = await body(req), next = String(data.status || '');
+      if (!['received','in_review','fulfilled','rejected'].includes(next)) throw Object.assign(new Error('Invalid privacy-request status.'), { statusCode: 400 });
+      const updated = await transact(store => {
+        const request = store.privacyRequests.find(x => x.id === privacyStatus[1]);
+        if (!request) throw Object.assign(new Error('Privacy request not found.'), { statusCode: 404 });
+        request.status = next; request.updatedAt = new Date().toISOString();
+        store.audit.push({ id: crypto.randomUUID(), event: 'privacy.request_status_changed', subject: request.id, at: request.updatedAt });
+        return request;
+      });
+      return send(res, 200, { ok: true, request: updated });
+    }
+    const publish = p.match(/^\/api\/v1\/admin\/plans\/([0-9a-f-]{36})\/publish$/i);
+    if (publish && m === 'POST') return send(res, 200, { ok: true, plan: await publishPlan(publish[1]) });
+    return send(res, 404, { ok: false, error: 'Admin endpoint not found.' });
+  }
+  if (p === '/api/esim/connect' && m === 'POST') return send(res, 503, { ok: false, connected: false, code: 'ESIM_SERVICE_NOT_PROVISIONED', message: 'No authorised Expert eSIM subscription is assigned to this device yet.' });
+  if (p === '/api/esim/disconnect' && m === 'POST') return send(res, 409, { ok: false, connected: false, code: 'NO_ACTIVE_EXPERT_ESIM_SESSION', message: 'There is no active Expert eSIM mobile-data session to disconnect.' });
+  return serveStatic(req, res, p);
+}
+const server = http.createServer(async (req, res) => {
+  let url;
+  try { url = new URL(req.url, 'http://' + (req.headers.host || 'localhost')); }
+  catch { return send(res, 400, { error: 'Invalid request URL.' }); }
+  if (req.method === 'OPTIONS') { res.writeHead(204, { 'cache-control': 'no-store' }); return res.end(); }
+  try {
+    if (['POST','PUT','PATCH','DELETE'].includes(req.method) && !['/api/v1/provider/webhook','/api/v1/kyc/webhook','/api/v1/payments/paystack/webhook'].includes(url.pathname)) enforceSameOrigin(req);
+    if (['POST','PUT','PATCH','DELETE'].includes(req.method) && url.pathname.startsWith('/api/v1/admin/')) rateLimit(req, 'admin', 120, 60 * 1000);
+    await route(req, res, url);
+  } catch (error) { fail(res, error); }
+});
+server.listen(PORT, '0.0.0.0', () => console.log('Expert eSIM API listening on port ' + PORT));
+server.on('error', error => { console.error('Expert eSIM server error:', error.message); process.exitCode = 1; });
+ + profileData.matchingId;
+    const unlimited = payload.unlimitedData === true || payload.dataPolicy === 'unlimited' || (payload.service && payload.service.dataPolicy === 'unlimited');
+    const global = payload.coverageScope === 'global' || payload.roamingScope === 'global' || (payload.service && payload.service.roamingScope === 'global');
+    await transact(store => {
+      const current = store.profiles.find(x => x.id === profileId);
+      if (!current) return;
+      current.providerProfileId = payload.profileId || profileData.id || payload.subscriptionId || null;
+      current.unlimitedDataConfirmed = unlimited;
+      current.coverageConfirmed = global;
+      current.coverageScope = global ? 'global' : (payload.coverageScope || 'unconfirmed');
+      if (payload.status === 'failed' || payload.status === 'rejected') {
+        current.status = 'provider_error';
+        current.message = 'The global eSIM provider rejected this device request. No profile was issued.';
+      } else if (activationCode && unlimited && global) {
+        current.encryptedActivationCode = encryptSecret(String(activationCode));
+        if (payload.confirmationCode || profileData.confirmationCode) current.encryptedConfirmationCode = encryptSecret(String(payload.confirmationCode || profileData.confirmationCode));
+        current.status = 'profile_issued';
+        current.issuedAt = new Date().toISOString();
+        current.message = 'The provider confirmed a unique profile with the contracted unlimited-data and global-roaming attributes. Install it on this device.';
+      } else if (!unlimited || !global) {
+        current.status = 'partner_review';
+        current.message = 'The provider response did not confirm both unlimited data and global roaming. The profile is withheld pending contractual verification.';
+      } else {
+        current.status = 'provisioning';
+        current.message = 'The provider accepted the unique device request. Waiting for its signed profile-issued callback.';
+      }
+      current.updatedAt = new Date().toISOString();
+      store.audit.push({ id: crypto.randomUUID(), event: 'device.profile_provider_response', subject: current.id, at: current.updatedAt });
+    });
+  } catch (error) {
+    await transact(store => {
+      const current = store.profiles.find(x => x.id === profileId);
+      if (current) {
+        current.status = 'provider_error';
+        current.message = 'The global eSIM provider could not complete the request. No profile was issued.';
+        current.updatedAt = new Date().toISOString();
+      }
+      store.audit.push({ id: crypto.randomUUID(), event: 'device.profile_request_failed', subject: profileId, at: new Date().toISOString() });
+    });
+    throw error;
+  }
+}
+async function requestDeviceProfile(user, deviceId) {
+  if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before requesting a mobile profile.'), { statusCode: 403 });
+  if (user.kycStatus !== 'verified') throw Object.assign(new Error('Complete the secure identity verification required by the connectivity partner before requesting a profile.'), { statusCode: 403 });
+  const store = await loadStore();
+  const device = store.devices.find(x => x.id === deviceId && x.userId === user.id);
+  if (!device) throw Object.assign(new Error('This device is not registered to your account.'), { statusCode: 404 });
+  let existing = store.profiles.filter(x => x.deviceId === device.id && x.userId === user.id && !['provider_error','cancelled'].includes(x.status)).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
+  if (existing) {
+    if (existing.status === 'awaiting_partners' && readyToProvisionGlobally()) {
+      await provisionGlobalProfile(existing.id);
+      const latest = await loadStore();
+      existing = latest.profiles.find(x => x.id === existing.id) || existing;
+    }
+    return profileView(existing);
+  }
+  const now = new Date().toISOString();
+  const profile = {
+    id: crypto.randomUUID(), reference: 'EXG-' + now.replace(/[-:TZ.]/g, '').slice(0,14) + '-' + crypto.randomBytes(4).toString('hex').toUpperCase(),
+    userId: user.id, deviceId: device.id, status: 'awaiting_partners', dataPolicy: 'sponsored-unlimited',
+    coverageScope: null, unlimitedDataConfirmed: false, coverageConfirmed: false, providerProfileId: null,
+    encryptedActivationCode: null, encryptedConfirmationCode: null,
+    message: 'Your device is registered. Profile issuance is waiting for a contracted global connectivity partner and an authorised eSIM provisioning provider.',
+    createdAt: now, updatedAt: now
+  };
+  await transact(store => {
+    store.profiles.push(profile);
+    store.audit.push({ id: crypto.randomUUID(), event: 'device.profile_requested', subject: profile.id, at: now });
+  });
+  if (readyToProvisionGlobally()) await provisionGlobalProfile(profile.id);
+  const latest = await loadStore();
+  return profileView(latest.profiles.find(x => x.id === profile.id) || profile);
+}
+async function getDeviceProfile(user, deviceId) {
+  const store = await loadStore();
+  const device = store.devices.find(x => x.id === deviceId && x.userId === user.id);
+  if (!device) throw Object.assign(new Error('This device is not registered to your account.'), { statusCode: 404 });
+  const profile = store.profiles.filter(x => x.deviceId === deviceId && x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
+  if (!profile || !['profile_issued','active'].includes(profile.status) || !profile.encryptedActivationCode) {
+    throw Object.assign(new Error('A genuine profile has not been issued for this device yet.'), { statusCode: 409 });
+  }
+  return { ...profileView(profile), activationCode: decryptSecret(profile.encryptedActivationCode), confirmationCode: profile.encryptedConfirmationCode ? decryptSecret(profile.encryptedConfirmationCode) : '' };
+}
+async function globalEsimWebhook(raw, signature) {
+  const secret = process.env.ESIM_PROVIDER_WEBHOOK_SECRET || '';
+  if (!secret) throw Object.assign(new Error('Global eSIM provider webhook authentication is not configured.'), { statusCode: 503 });
+  const expected = crypto.createHmac('sha256', secret).update(raw).digest();
+  const supplied = Buffer.from(String(signature || '').replace(/^sha256=/i, '').trim(), 'hex');
+  if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) throw Object.assign(new Error('Invalid global eSIM provider signature.'), { statusCode: 401 });
+  let event;
+  try { event = JSON.parse(raw.toString('utf8')); } catch { throw Object.assign(new Error('Webhook body must be valid JSON.'), { statusCode: 400 }); }
+  const data = event.data || event;
+  const reference = String(data.reference || event.reference || '');
+  const type = String(event.type || event.event || '');
+  if (!reference) throw Object.assign(new Error('Provider event is missing its Expert eSIM profile reference.'), { statusCode: 400 });
+  return transact(store => {
+    const profile = store.profiles.find(x => x.reference === reference || (data.profileId && x.providerProfileId === String(data.profileId)));
+    if (!profile) throw Object.assign(new Error('Global eSIM profile request not found.'), { statusCode: 404 });
+    const eventId = String(event.id || data.eventId || (reference + ':' + type));
+    if (store.providerEvents.some(x => x.id === eventId)) return { received: true, duplicate: true, status: profile.status };
+    const now = new Date().toISOString();
+    const unlimited = data.unlimitedData === true || data.dataPolicy === 'unlimited';
+    const global = data.coverageScope === 'global' || data.roamingScope === 'global';
+    if (type === 'esim.profile.issued') {
+      const activationCode = data.activationCode || (data.profile && data.profile.activationCode);
+      if (!activationCode) throw Object.assign(new Error('Issued-profile event must contain a provider-issued activation code.'), { statusCode: 400 });
+      if (!unlimited || !global) {
+        profile.status = 'partner_review';
+        profile.message = 'Provider callback did not confirm unlimited data and global roaming. Activation details remain withheld.';
+      } else {
+        profile.encryptedActivationCode = encryptSecret(String(activationCode));
+        if (data.confirmationCode) profile.encryptedConfirmationCode = encryptSecret(String(data.confirmationCode));
+        profile.providerProfileId = data.profileId || profile.providerProfileId || null;
+        profile.unlimitedDataConfirmed = true; profile.coverageConfirmed = true; profile.coverageScope = 'global';
+        profile.status = 'profile_issued'; profile.issuedAt = now;
+        profile.message = 'The authorised provider issued your unique device profile.';
+      }
+    } else if (type === 'esim.profile.activated') {
+      if (!profile.encryptedActivationCode || !profile.unlimitedDataConfirmed || !profile.coverageConfirmed) throw Object.assign(new Error('The verified global unlimited profile has not been issued.'), { statusCode: 409 });
+      profile.status = 'active'; profile.activatedAt = now; profile.message = 'The provider confirmed this device profile is active.';
+    } else if (type === 'esim.profile.failed') {
+      profile.status = 'provider_error'; profile.message = 'The provider reported a device-profile provisioning failure.';
+    } else {
+      throw Object.assign(new Error('Unsupported global eSIM provider event type.'), { statusCode: 400 });
+    }
+    profile.updatedAt = now;
+    store.providerEvents.push({ id: eventId, reference, type, receivedAt: now });
+    store.audit.push({ id: crypto.randomUUID(), event: 'global_esim.' + type, subject: profile.id, at: now });
+    return { received: true, duplicate: false, reference, status: profile.status };
+  });
+}
+
 async function createOrder(user, data) {
   if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before ordering mobile service.'), { statusCode: 403 });
   if (user.kycStatus !== 'verified') throw Object.assign(new Error('Complete the authorised subscriber identity verification before ordering an eSIM.'), { statusCode: 403 });
@@ -665,13 +1552,15 @@ async function verifyEmailToken(token) {
   });
 }
 async function beginKyc(user) {
-  if (!providerStatus().kycProviderConfigured) throw Object.assign(new Error('Authorised telecom identity verification is not connected yet. Expert eSIM will not collect your NIN or face image directly.'), { statusCode: 503 });
+  if (!providerStatus().identityProviderConfigured) throw Object.assign(new Error('The secure identity-verification partner is not connected yet.'), { statusCode: 503 });
   if (!user.emailVerified) throw Object.assign(new Error('Verify your email address before starting subscriber verification.'), { statusCode: 403 });
   if (user.kycStatus === 'verified') return { verified: true, status: 'verified', message: 'Your identity has already been verified.' };
   const base = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')).replace(/\/$/, '');
-  const response = await fetch(process.env.KYC_PROVIDER_START_URL, {
+  const identityStartUrl = process.env.GLOBAL_IDENTITY_PROVIDER_START_URL || process.env.KYC_PROVIDER_START_URL;
+  const identityApiKey = process.env.GLOBAL_IDENTITY_PROVIDER_API_KEY || process.env.KYC_PROVIDER_API_KEY;
+  const response = await fetch(identityStartUrl, {
     method: 'POST',
-    headers: { authorization: 'Bearer ' + process.env.KYC_PROVIDER_API_KEY, 'content-type': 'application/json', accept: 'application/json' },
+    headers: { authorization: 'Bearer ' + identityApiKey, 'content-type': 'application/json', accept: 'application/json' },
     body: JSON.stringify({
       subscriberReference: user.id,
       customer: { fullName: user.fullName, email: user.email, phone: user.phone || undefined },
@@ -691,10 +1580,10 @@ async function beginKyc(user) {
     }
     store.audit.push({ id: crypto.randomUUID(), event: 'subscriber.kyc_started', subject: user.id, at: new Date().toISOString() });
   });
-  return { status: 'pending', verificationUrl: result.verificationUrl, reference: result.reference, message: 'Continue in the authorised identity-verification partner page. Expert eSIM does not store your NIN or biometric image.' };
+  return { status: 'pending', verificationUrl: result.verificationUrl, reference: result.reference, message: 'Continue in the secure identity-verification partner page. Requirements depend on the destination market and connectivity partner.' };
 }
 async function kycWebhook(raw, signature) {
-  const secret = process.env.KYC_PROVIDER_WEBHOOK_SECRET || '';
+  const secret = process.env.GLOBAL_IDENTITY_PROVIDER_WEBHOOK_SECRET || process.env.KYC_PROVIDER_WEBHOOK_SECRET || '';
   if (!secret) throw Object.assign(new Error('Identity provider webhook authentication is not configured.'), { statusCode: 503 });
   const expected = crypto.createHmac('sha256', secret).update(raw).digest();
   const supplied = Buffer.from(String(signature || '').replace(/^sha256=/i, '').trim(), 'hex');
