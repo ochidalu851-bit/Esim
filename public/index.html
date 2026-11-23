@@ -232,9 +232,9 @@ main{flex:1;display:flex;flex-direction:column}
   try{
    if(!navigator.onLine)throw new Error("This phone is offline. Connect to mobile data or Wi-Fi first.");
    $("testStatus").textContent="Measuring live latency and jitter…";progress(3);await runPingTest();
-   $("testStatus").textContent="Measuring real-time download throughput…";await runDownloadTest(8000000);
+   $("testStatus").textContent="Measuring real-time download throughput…";const downloadAverage=await runDownloadTest(8000000);
    $("testStatus").textContent="Measuring real-time upload throughput…";await runUploadTest(2000000);
-   $("speedLabel").textContent="DOWNLOAD AVERAGE";$("testStatus").textContent="Completed · live measurements from the phone's active internet connection.";
+   $("speedMain").textContent=fmt(downloadAverage);$("speedLabel").textContent="DOWNLOAD AVERAGE";$("testStatus").textContent="Completed · live measurements from the phone's active internet connection.";
   }catch(error){$("testStatus").textContent="Test could not complete: "+(error&&error.message?error.message:"network error");}
   finally{running=false;button.disabled=false;button.textContent="Run Speed Test Again";}
  });
