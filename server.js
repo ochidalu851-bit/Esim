@@ -453,7 +453,7 @@ async function initializePaystackPayment(user, orderId) {
   if (order.paymentStatus === 'paid') throw Object.assign(new Error('This order has already been paid.'), { statusCode: 409 });
   if (!Number.isSafeInteger(order.priceMinor) || order.priceMinor < 1) throw Object.assign(new Error('This order does not require payment.'), { statusCode: 400 });
   const reference = 'EXPAY-' + crypto.randomBytes(16).toString('hex').toUpperCase();
-  const callbackUrl = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')) + '/';
+  const callbackUrl = (process.env.EXPERT_ESIM_PUBLIC_URL || 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'expert-esim-web-production.up.railway.app')) + '/?payment_return=1';
   const response = await fetch('https://api.paystack.co/transaction/initialize', {
     method: 'POST',
     headers: { authorization: 'Bearer ' + process.env.PAYSTACK_SECRET_KEY, 'content-type': 'application/json', accept: 'application/json' },
@@ -502,6 +502,33 @@ async function verifyPaystackTransaction(reference) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok || result.status !== true || !result.data) throw new Error('Paystack transaction verification failed.');
   return result.data;
+}
+async function confirmPaystackPayment(user, orderId) {
+  const snapshot = await loadStore();
+  const order = snapshot.orders.find(x => x.id === orderId && x.userId === user.id);
+  if (!order) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+  if (order.paymentStatus === 'paid') return orderView(order);
+  if (!order.paymentReference) throw Object.assign(new Error('No payment attempt is recorded for this order.'), { statusCode: 409 });
+  const verification = await verifyPaystackTransaction(order.paymentReference);
+  if (verification.status !== 'success' || Number(verification.amount) !== Number(order.priceMinor) || String(verification.currency) !== String(order.currency) || String(verification.reference) !== String(order.paymentReference)) {
+    throw Object.assign(new Error('Paystack has not confirmed a matching successful payment for this order.'), { statusCode: 409 });
+  }
+  const updated = await transact(store => {
+    const current = store.orders.find(x => x.id === order.id && x.userId === user.id);
+    if (!current) throw Object.assign(new Error('eSIM order not found.'), { statusCode: 404 });
+    if (current.paymentStatus !== 'paid') {
+      current.paymentStatus = 'paid';
+      current.paidAt = new Date().toISOString();
+      current.paymentProvider = 'paystack';
+      current.updatedAt = current.paidAt;
+      store.paymentEvents.push({ id: crypto.randomUUID(), providerEventId: 'verify:' + order.paymentReference, reference: order.paymentReference, orderId: current.id, receivedAt: current.paidAt });
+      store.audit.push({ id: crypto.randomUUID(), event: 'payment.verified_by_customer', subject: current.id, at: current.paidAt });
+    }
+    return orderView(current);
+  });
+  await startOrderProvisioning(order.id);
+  const latest = await loadStore();
+  return orderView(latest.orders.find(x => x.id === order.id) || updated);
 }
 async function paystackWebhook(raw, headers) {
   if (!verifyPaystackSignature(raw, headers)) throw Object.assign(new Error('Invalid Paystack webhook signature.'), { statusCode: 401 });
@@ -841,8 +868,9 @@ async function route(req, res, url) {
     return send(res, 200, { ok: true, ...delivery });
   }
   if (p === '/api/v1/auth/verify-email' && m === 'GET') {
-    const user = await verifyEmailToken(url.searchParams.get('token'));
-    return send(res, 200, { ok: true, verified: true, user, message: 'Email verified. Return to Expert eSIM and sign in.' });
+    await verifyEmailToken(url.searchParams.get('token'));
+    res.writeHead(303, { location: '/?email_verified=1', 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+    return res.end();
   }
   if (p === '/api/v1/me' && m === 'GET') {
     const user = await signedIn(req), store = await loadStore();
@@ -908,6 +936,12 @@ async function route(req, res, url) {
   if (paymentInit && m === 'POST') {
     const user = await signedIn(req);
     return send(res, 200, { ok: true, payment: await initializePaystackPayment(user, paymentInit[1]) });
+  }
+  const verifyPaymentMatch = p.match(/^\/api\/v1\/esim\/orders\/([0-9a-f-]{36})\/verify-payment$/i);
+  if (verifyPaymentMatch && m === 'POST') {
+    const user = await signedIn(req);
+    const order = await confirmPaystackPayment(user, verifyPaymentMatch[1]);
+    return send(res, 200, { ok: true, order });
   }
   if (p === '/api/v1/payments/paystack/webhook' && m === 'POST') {
     const result = await paystackWebhook(await rawBody(req), req.headers);
