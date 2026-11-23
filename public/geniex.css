@@ -23,3 +23,6 @@ body.light-theme .status-banner{background:#fff8e8;color:#705a23;border-color:#e
 body.light-theme .balance-card{background:linear-gradient(125deg,#e2f5ea,#deedf4);color:#18352b;border-color:#b8e1ce}
 body.light-theme .balance-card small,body.light-theme .balance-card .balance-label{color:#436e5b}
 body.reduce-motion *,body.reduce-motion *:before,body.reduce-motion *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+
+.nav-item span{font-size:0;line-height:0;}
+.nav-item svg{width:25px;height:25px;}
