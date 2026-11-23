@@ -266,7 +266,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "GET" && url.pathname === "/api/plans") {
     const id = Number(url.searchParams.get("destinationId"));
-    const kind = url.searchParams.get("kind") === "full" ? "Data + Calls + Text" : "Data";
+    const kind = "Data";
     const destination = DESTINATION_ROWS.find((item) => item.id === id);
     if (!destination) {
       return sendJson(res, 400, { error: "Choose a valid destination." });
