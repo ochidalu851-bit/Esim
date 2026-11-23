@@ -200,6 +200,7 @@ async function loadNetworkInfo(destination){
   const response=await fetch("/api/network-info?destinationId="+encodeURIComponent(destination.id));
   const data=await response.json();
   if(!response.ok||data.available!==true) throw new Error(data.message||"Country network information is unavailable.");
+  provider.textContent=data.provider||"Not connected";
   speed.textContent=Array.isArray(data.generations)&&data.generations.length?data.generations.join(" / "):"Not verified";
  }catch(error){
   speed.textContent="Not verified";
