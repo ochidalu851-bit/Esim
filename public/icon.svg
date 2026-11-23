@@ -1,21 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-<defs>
- <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#081b43"/><stop offset="1" stop-color="#020817"/></linearGradient>
- <linearGradient id="sim" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#275eac"/><stop offset="1" stop-color="#07142e"/></linearGradient>
- <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe66c"/><stop offset="1" stop-color="#ed9f18"/></linearGradient>
- <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-</defs>
+<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#03194a"/><stop offset="1" stop-color="#020817"/></linearGradient><linearGradient id="sim" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#2876d4"/><stop offset="1" stop-color="#07142e"/></linearGradient><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff16c"/><stop offset="1" stop-color="#efa21a"/></linearGradient><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
 <rect width="192" height="192" rx="44" fill="url(#bg)"/>
-<g fill="none" stroke="#00e7f3" stroke-width="9" stroke-linecap="round" filter="url(#glow)">
- <path d="M42 45a78 78 0 0 1 108 0"/>
- <path d="M58 66a54 54 0 0 1 76 0"/>
- <path d="M76 87a28 28 0 0 1 40 0"/>
-</g>
-<circle cx="96" cy="101" r="6" fill="#20f0fa" filter="url(#glow)"/>
-<g fill="none" stroke="#08bfe7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
- <path d="M36 119H52l11 10h12M156 119h-16l-11 10h-12M35 143H55l10 8h10M157 143h-20l-9 8h-11"/>
-</g>
-<path d="M62 106h51l17 17v42a10 10 0 0 1-10 10H72a10 10 0 0 1-10-10z" fill="url(#sim)" stroke="#00dff0" stroke-width="4"/>
-<path d="M80 126h13v12H80zM99 126h13v12H99zM80 144h13v12H80zM99 144h13v12H99z" fill="url(#gold)" stroke="#fff0a6" stroke-width="1.2"/>
-<path d="M96 126v30M80 138h32" stroke="#bc7714" stroke-width="1.5"/>
+<g fill="none" stroke="#00e9f5" stroke-width="9" stroke-linecap="round" filter="url(#glow)"><path d="M35 42a87 87 0 0 1 122 0"/><path d="M52 65a63 63 0 0 1 88 0"/><path d="M73 88a33 33 0 0 1 46 0"/></g><circle cx="96" cy="101" r="6" fill="#20f0fa" filter="url(#glow)"/>
+<g fill="none" stroke="#08bfe7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 121h24l13 11h17M179 121h-24l-13 11h-17M14 145h28l12-11h13M178 145h-28l-12-11h-13M20 104h15l13 13h14M172 104h-15l-13 13h-14"/></g>
+<path d="M61 105h53l18 18v45a11 11 0 0 1-11 11H72a11 11 0 0 1-11-11z" fill="url(#sim)" stroke="#00dff0" stroke-width="4"/>
+<path d="M73 118h15v15H73zM91 118h15v15H91zM109 118h15v15H109zM73 137h15v15H73zM91 137h15v15H91zM109 137h15v15H109zM73 156h15v15H73zM91 156h15v15H91zM109 156h15v15H109z" fill="url(#gold)" stroke="#fff0a6" stroke-width="1.1"/><path d="M96 118v53M73 136h51M73 155h51" stroke="#bb811a" stroke-width="1.5"/>
 </svg>
