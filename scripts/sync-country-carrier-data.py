@@ -45,7 +45,7 @@ SPECIAL={
  "northmacedonia":"MK","palestine":"PS","kosovo":"XK","canaryislands":"ES",
  "azores":"PT","frenchguiana":"GF","frenchwestindies":"MQ","southkorea":"KR",
  "republicofkorea":"KR","unitedstates":"US","unitedstatesofamerica":"US",
- "vaticancity":"VA"
+ "vaticancity":"VA","turksandcaicos":"TC","turkscaicos":"TC"
 }
 
 def iso_for(name, rows):
@@ -80,7 +80,7 @@ def apple_directory(html, rows):
         key=norm(title)
         later=h.find_all_next(["h2","h3"])
         stop=later[0] if later else None
-        if h.name=="h2" and key=="worldwideserviceproviders":
+        if h.name=="h3" and key=="worldwideserviceproviders":
             for item in list_entries_after(h,stop,APPLE):
                 globals_.setdefault(norm(item["name"]),item)
             continue
@@ -99,10 +99,13 @@ def apple_directory(html, rows):
             record=local[code].setdefault(k,{**item,"activationMethods":[]})
             if item.get("website") and not record.get("website"): record["website"]=item["website"]
             if title not in record["activationMethods"]: record["activationMethods"].append(title)
-    # Island territories that Apple groups with their sovereign country.
-    for child,parent in {"GF":"FR"}.items():
-        if child in codes and child not in local and parent in local:
-            local[child]={k:{**v,"activationMethods":list(v["activationMethods"])} for k,v in local[parent].items()}
+    # Apple publishes a worldwide provider list separately from country-specific carriers.
+    # Mark brands appearing in that list as travel eSIM providers when they are also
+    # named in a country's list; this keeps them distinct from local mobile operators.
+    global_keys=set(globals_)
+    for records in local.values():
+        for record in records.values():
+            record["providerType"]="global_travel_esim" if norm(record["name"]) in global_keys else "local_mobile_carrier"
     return ({c:sorted(v.values(),key=lambda x:x["name"].casefold()) for c,v in local.items()},
             sorted(globals_.values(),key=lambda x:x["name"].casefold()),
             published.group(1) if published else None)
@@ -182,12 +185,35 @@ def main():
         for carrier in carriers.get(code,[]):
             detail=match_carrier(carrier["name"],local)
             esim.append({**carrier,"networkGenerations":detail["generations"],"matchedNetworkCount":detail["matchedNetworkCount"]})
+
+        source_notes=[]
+        if code=="NG":
+            # NCC/Ookla August 2026 measurements observed 5G-capable device activity
+            # on 5G for MTN, Airtel, T2 and Glo in Lagos and Abuja. T2 is the new
+            # brand for 9mobile. This is evidence of active 5G usage, not nationwide coverage.
+            ng_5g_names={"mtn","airtel","glo","9mobile","t2"}
+            for carrier in esim:
+                if norm(carrier["name"]) in ng_5g_names and "5G" not in carrier["networkGenerations"]:
+                    carrier["networkGenerations"]=[g for g in GENS if g in set(carrier["networkGenerations"]+["5G"])]
+                    carrier["radioEvidenceSource"]="https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf"
+            for operator in operators:
+                if norm(operator["name"]) in ng_5g_names and "5G" not in operator["generations"]:
+                    operator["generations"]=[g for g in GENS if g in set(operator["generations"]+["5G"])]
+            if "5G" not in all_gens: all_gens.append("5G")
+            all_gens=sorted(set(all_gens),key=GENS.index)
+            source_notes.append("NCC/Ookla recorded 5G-capable device activity using 5G on MTN, Airtel, T2 (formerly 9mobile) and Glo in Lagos and Abuja in August 2026. T2's sample was small; this is not a promise of nationwide 5G coverage.")
+
+        local_carriers=[item for item in esim if item.get("providerType")=="local_mobile_carrier"]
+        travel_providers=[item for item in esim if item.get("providerType")=="global_travel_esim"]
         updated=[str(r.get("updatedAt")) for r in local if r.get("updatedAt")]
         countries[code]={
-            "country":destination["name"],"code":code,"esimCarrierCount":len(esim),"esimCarriers":esim,
+            "country":destination["name"],"code":code,
+            "esimCarrierCount":len(esim),"esimCarriers":esim,
+            "localEsimCarrierCount":len(local_carriers),"localEsimCarriers":local_carriers,
+            "travelEsimProviderCount":len(travel_providers),"travelEsimProviders":travel_providers,
             "generations":all_gens,"operatorCount":len(operators),"operators":operators,
             "networkRecordCount":len(local),"networkSourceUpdatedAt":max(updated) if updated else None,
-            "networkDataVerified":bool(all_gens)
+            "networkDataVerified":bool(all_gens),"sourceNotes":source_notes
         }
     now=dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     data={
@@ -196,16 +222,21 @@ def main():
         "esimCarriers":{"name":"Apple Support eSIM wireless carrier directory","url":APPLE,
           "publishedDate":apple_date,"scope":"Local wireless carriers listed by Apple as supporting eSIM activation on iPhone; device, plan and activation eligibility may vary."},
         "mobileNetworks":{"name":"MCC-MNC.org Networks API","url":MCC,
-          "license":"Free for commercial and non-commercial use; attribute mcc-mnc.org",**network_meta}
+          "license":"Free for commercial and non-commercial use; attribute mcc-mnc.org",**network_meta},
+        "nigeriaRadioEnrichment":{"name":"Nigerian Communications Commission and Ookla — Network Performance Report","url":"https://www.ncc.gov.ng/sites/default/files/2026-11/Network-Performance.pdf","scope":"Observed 5G-capable device activity using 5G by operator in Lagos and Abuja, August 2026; T2 sample is small."}
       },
       "globalTravelProviders":global_providers,"countries":countries
     }
     (OUT/"country-carrier-data.json").write_text(json.dumps(data,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
     provider_count=sum(bool(x["esimCarrierCount"]) for x in countries.values())
+    local_provider_count=sum(bool(x["localEsimCarrierCount"]) for x in countries.values())
+    travel_provider_count=sum(bool(x["travelEsimProviderCount"]) for x in countries.values())
     speed_count=sum(x["networkDataVerified"] for x in countries.values())
     status={
-      "generatedAt":now,"destinationCount":len(rows),"providerCountries":provider_count,
-      "countriesWithoutListedLocalEsimCarrier":len(rows)-provider_count,
+      "generatedAt":now,"destinationCount":len(rows),"countriesWithAppleListedEsimProviders":provider_count,
+      "countriesWithoutAppleListedEsimProviders":len(rows)-provider_count,
+      "countriesWithAppleListedLocalCarriers":local_provider_count,
+      "countriesWithAppleListedTravelProviders":travel_provider_count,
       "countriesWithNetworkGenerations":speed_count,"countriesWithoutNetworkGenerations":len(rows)-speed_count,
       "appleGlobalTravelProviders":len(global_providers),"mccNetworkRecords":len(networks),
       "applePublishedDate":apple_date,
