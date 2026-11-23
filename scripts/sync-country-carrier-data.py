@@ -279,7 +279,7 @@ def main():
         entry={**airalo_record,"providerType":"global_travel_esim",
                "activationMethods":["Local eSIM package listed in Airalo's Local eSIM directory"],
                "coverageSource":airalo_source}
-        existing=carriers[code]
+        existing=carriers.setdefault(code,[])
         if not any(norm(item["name"])=="airalo" for item in existing):
             existing.append(entry)
     networks,network_meta=fetch_networks()
@@ -339,7 +339,13 @@ def main():
             operators=override["operators"]
             source_notes.append(override["note"])
             for carrier in esim:
-                carrier["radioEvidenceSource"]=override["source"]
+                if carrier.get("providerType")=="local_mobile_carrier":
+                    match=next((operator for operator in operators
+                                if norm(operator["name"])==norm(carrier["name"])
+                                or (len(norm(carrier["name"]))>=4 and norm(carrier["name"]) in norm(operator["name"]))),None)
+                    if match:
+                        carrier["networkGenerations"]=match["generations"]
+                        carrier["radioEvidenceSource"]=override["source"]
             # Replace the arrays in the country record with the territory-specific evidence.
             local_carriers=[item for item in esim if item.get("providerType")=="local_mobile_carrier"]
             travel_providers=[item for item in esim if item.get("providerType")=="global_travel_esim"]
@@ -377,6 +383,8 @@ def main():
     speed_count=sum(x["networkDataVerified"] for x in countries.values())
     status={
       "generatedAt":now,"destinationCount":len(rows),"countriesWithAppleListedEsimProviders":provider_count,
+      "countriesWithListedTravelEsimProviders":travel_provider_count,
+      "territoryNetworkOverrideCountries":sum(bool(x.get("networkOverrideSource")) for x in countries.values()),
       "countriesWithoutAppleListedEsimProviders":len(rows)-provider_count,
       "countriesWithAppleListedLocalCarriers":local_provider_count,
       "countriesWithAppleListedTravelProviders":travel_provider_count,
