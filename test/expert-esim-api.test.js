@@ -113,6 +113,7 @@ test('existing subscriber session opens account dashboard, not registration pane
   assert.equal(me.body.user.kycStatus, 'not_started');
   assert.equal(Array.isArray(me.body.orders), true);
   assert.equal(Array.isArray(me.body.devices), true);
+  assert.equal(me.body.devices.length, 0);
   const addedDevice = await request('/api/v1/devices', {
     method: 'POST',
     headers: authHeaders(),
@@ -163,20 +164,19 @@ test('cross-origin state-changing requests are rejected', async () => {
   assert.equal(result.status, 403);
 });
 
-test('identity checks and legacy checkout stay disabled until global partners are configured', async () => {
+test('market identity checks can be initiated only with a configured partner and customer checkout is retired', async () => {
   const kyc = await request('/api/v1/kyc/start', { method: 'POST', headers: authHeaders() });
   assert.equal(kyc.status, 503);
 
   const plans = await request('/api/v1/plans');
-  assert.equal(plans.status, 200);
-  assert.equal(plans.body.plans.length, 0);
-  assert.equal(plans.body.availability, 'awaiting-connectivity-partner');
+  assert.equal(plans.status, 410);
+  assert.equal(plans.body.code, 'SPONSORED_DEVICE_PROFILE_FLOW');
 
   const payInit = await request('/api/v1/esim/orders/00000000-0000-4000-8000-000000000000/pay', {
     method: 'POST',
     headers: authHeaders()
   });
-  assert.equal(payInit.status, 503);
+  assert.equal(payInit.status, 410);
 });
 
 test('subscriber can raise a support case and privacy request and export their own account data', async () => {
@@ -205,13 +205,15 @@ test('subscriber can raise a support case and privacy request and export their o
   assert.equal(Object.hasOwn(exported.body.account, 'passwordHash'), false);
 });
 
-test('admin endpoints reject unauthorised access and cannot publish plans before launch readiness', async () => {
+test('admin endpoints show global profile readiness and reject retired package sales', async () => {
   const rejected = await request('/api/v1/admin/dashboard');
   assert.equal(rejected.status, 401);
 
   const dashboard = await request('/api/v1/admin/dashboard', { headers: { 'x-expert-admin-key': adminKey } });
   assert.equal(dashboard.status, 200);
   assert.equal(dashboard.body.dashboard.totals.subscribers, 1);
+  assert.equal(dashboard.body.dashboard.totals.registeredDevices, 1);
+  assert.equal(Array.isArray(dashboard.body.dashboard.recentDevices), true);
   assert.equal(dashboard.body.dashboard.totals.openTickets, 1);
   assert.equal(dashboard.body.dashboard.totals.privacyRequests, 1);
   assert.equal(dashboard.body.dashboard.provider.globalCoverageConfirmed, false);
@@ -219,16 +221,15 @@ test('admin endpoints reject unauthorised access and cannot publish plans before
   const plan = await request('/api/v1/admin/plans', {
     method: 'POST',
     headers: { 'x-expert-admin-key': adminKey },
-    body: JSON.stringify({ name: 'Test 3 GB', dataMb: 3072, validityDays: 30, priceMinor: 100000, currency: 'USD', networkModes: ['auto', '4g', '5g'] })
+    body: JSON.stringify({ name: 'Legacy package', dataMb: 3072, validityDays: 30, priceMinor: 100000, currency: 'USD' })
   });
-  assert.equal(plan.status, 201);
-  assert.equal(plan.body.plan.status, 'draft');
+  assert.equal(plan.status, 410);
 
-  const publish = await request('/api/v1/admin/plans/' + plan.body.plan.id + '/publish', {
+  const publish = await request('/api/v1/admin/plans/00000000-0000-4000-8000-000000000000/publish', {
     method: 'POST',
     headers: { 'x-expert-admin-key': adminKey }
   });
-  assert.equal(publish.status, 409);
+  assert.equal(publish.status, 410);
 
   const ticketStatus = await request('/api/v1/admin/support/tickets/' + dashboard.body.dashboard.recentTickets[0].id + '/status', {
     method: 'POST',
