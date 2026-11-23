@@ -301,9 +301,9 @@ function generationsForRecord(record) {
 
     if (declared.length) continue;
     const label = (String(type.name || "") + " " + String(type.slug || "")).toUpperCase();
-    if (/\\b5G\\b|\\bNR\\b/.test(label)) found.add("5G");
-    else if (/\\bLTE\\b|\\b4G\\b/.test(label)) found.add("4G");
-    else if (/\\bUMTS\\b|\\bWCDMA\\b|\\b3G\\b/.test(label)) found.add("3G");
+    if (label.includes("5G") || label.includes(" NR")) found.add("5G");
+    else if (label.includes("LTE") || label.includes("4G")) found.add("4G");
+    else if (label.includes("UMTS") || label.includes("WCDMA") || label.includes("3G")) found.add("3G");
   }
 
   return found;
