@@ -7,7 +7,7 @@ Standalone eSIM destination catalogue and plan-browser application.
 - Standalone GitHub repository: `ochidalu851-bit/Esim`
 - Designed for Railway deployment.
 - Contains the 206 destinations transcribed from the supplied eSIM reference video.
-- Includes searchable destination selection and the two plan categories shown in the reference: **Data** and **Data + Calls + Text**.
+- Includes searchable destination selection and a single **Data** plan category.
 - Mobile-first dark interface.
 - No third-party mobile/eSIM provider has been integrated.
 - No fake plans, prices, data allowances, checkout, QR codes, or activation states are displayed.
