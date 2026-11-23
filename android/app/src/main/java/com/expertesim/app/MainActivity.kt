@@ -386,11 +386,6 @@ class MainActivity : Activity() {
             return
         }
         esimPrefs.edit().putString("preferred_network", mode).apply()
-        val model = (Build.MODEL ?: "").uppercase()
-        if (mode == "5g" && (model.contains("CPH2127") || model.contains("A53"))) {
-            reportNetworkMode(false, mode, "This OPPO A53 (CPH2127) has 4G LTE radio hardware, not 5G. Your 5G preference is saved, but this phone cannot connect to 5G.")
-            return
-        }
         val profile = findExpertProfile()
         if (profile == null) {
             reportNetworkMode(true, mode, "Saved for Expert eSIM. This preference will be applied to the Expert eSIM subscription after your provider-issued profile is installed and activated.", pending = true)
@@ -401,11 +396,6 @@ class MainActivity : Activity() {
 
     private fun applyPreferredNetworkToSubscription(subId: Int, mode: String, reportResult: Boolean): Boolean {
         if (mode !in listOf("auto", "4g", "5g")) return false
-        val model = (Build.MODEL ?: "").uppercase()
-        if (mode == "5g" && (model.contains("CPH2127") || model.contains("A53"))) {
-            if (reportResult) reportNetworkMode(false, mode, "This OPPO A53 (CPH2127) has 4G LTE radio hardware, not 5G. A 5G handset is required.")
-            return false
-        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             if (reportResult) reportNetworkMode(false, mode, "This Android version does not allow this app to set the eSIM radio mode directly. Your preference is saved, but Android 13 or newer and carrier/device privileges are needed to apply it from the app.")
             return false
@@ -480,17 +470,11 @@ class MainActivity : Activity() {
                 TelephonyManager.NETWORK_TYPE_GSM -> "2G GSM"
                 else -> "Network type unavailable"
             }
-            val model = (Build.MODEL ?: "").uppercase()
-            val supports5gKnownNo = model.contains("CPH2127") || model.contains("A53")
             reportNetworkInfo(
                 label,
                 hasRadio = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS),
                 supports5g = type == TelephonyManager.NETWORK_TYPE_NR,
-                message = if (supports5gKnownNo) {
-                    "Device detected: OPPO A53 (CPH2127). This phone supports 4G LTE, not 5G."
-                } else {
-                    "Network type is read from the saved Expert eSIM subscription."
-                }
+                message = "Network type is read from the saved Expert eSIM subscription."
             )
         } catch (security: SecurityException) {
             reportNetworkInfo("Permission required", message = "Android denied access to current mobile network information.")
