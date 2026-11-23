@@ -114,7 +114,6 @@ submitAdminForm("adminCouponForm","/coupons","couponStatus",function(d){d.points
 submitAdminForm("adminRewardForm","/rewards/items","rewardStatus",function(d){d.pointsCost=Number(d.pointsCost||0);return d;});
 submitAdminForm("adminCodeForm","/rewards/codes","codeStatus",function(d){d.points=Number(d.points||0);d.dataMb=Number(d.dataMb||0);d.maxRedemptions=Number(d.maxRedemptions||0);return d;});
 submitAdminForm("adminMessageForm","/messages","messageStatus");
-submitAdminForm("adminPointsForm","/users/"+encodeURIComponent("PLACEHOLDER")+"/points","pointsStatus");
 $("adminPointsForm").addEventListener("submit",function(event){event.preventDefault();var d=formData(event.currentTarget);api("/users/"+encodeURIComponent(d.userId)+"/points",{method:"POST",body:JSON.stringify({points:Number(d.points),reason:d.reason})}).then(function(r){$("pointsStatus").textContent="Adjustment saved. New balance: "+r.pointsBalance;event.currentTarget.reset();refreshFeatures();}).catch(function(e){$("pointsStatus").textContent=e.message;});});
 function refresh(){api("/dashboard").then(function(d){render(d.dashboard);refreshFeatures();$("loginStatus").textContent="Dashboard loaded."; $("loginCard").hidden=true; $("adminPanel").hidden=false;}).catch(function(e){$("loginStatus").textContent=e.message;});}
 $("login").addEventListener("click",function(){key=$("adminKey").value.trim();if(!key){$("loginStatus").textContent="Enter the admin key.";return;}refresh();});
