@@ -358,6 +358,11 @@ class MainActivity : Activity() {
             reportNetworkMode(false, mode, "Unknown network selection.")
             return
         }
+        val model = (Build.MODEL ?: "").uppercase()
+        if (mode == "5g" && (model.contains("CPH2127") || model.contains("A53"))) {
+            reportNetworkMode(false, mode, "This OPPO A53 (CPH2127) has 4G LTE radio hardware, not 5G. A 5G handset is required.")
+            return
+        }
         esimPrefs.edit().putString("preferred_network", mode).apply()
         val profile = findExpertProfile()
         if (profile == null) {
@@ -490,7 +495,7 @@ class MainActivity : Activity() {
                         val profile = findExpertProfile()
                         val networkApplied = profile != null && applyPreferredNetworkToSubscription(profile.subscriptionId, preferredNetworkMode(), reportResult = true)
                         val networkMessage = if (networkApplied) " The saved ${preferredNetworkMode().uppercase()} preference was applied to this eSIM subscription." else " The saved ${preferredNetworkMode().uppercase()} preference could not be enforced directly; Android or the carrier may require manual network settings."
-                        reportSuccess(true, "Android enabled the Expert eSIM carrier profile.$networkMessage")
+                        reportSuccess(true, "Android enabled the Expert eSIM carrier profile. Select this line as the phone's Mobile data SIM in Android SIM settings to use its data plan.$networkMessage")
                     }
                     "download" -> {
                         val profile = captureNewExpertProfile()
@@ -499,7 +504,7 @@ class MainActivity : Activity() {
                         } else {
                             val networkApplied = applyPreferredNetworkToSubscription(profile.subscriptionId, preferredNetworkMode(), reportResult = true)
                             val networkMessage = if (networkApplied) " The saved ${preferredNetworkMode().uppercase()} preference was applied to that eSIM line." else " The ${preferredNetworkMode().uppercase()} preference is saved but Android/carrier privileges may be needed to enforce it."
-                            reportSuccess(true, "The provider-issued eSIM profile was downloaded and Android switched to it.${networkMessage}")
+                            reportSuccess(true, "The provider-issued eSIM profile was downloaded and enabled. Select Expert eSIM as the phone's Mobile data SIM in Android SIM settings if it is not already selected.${networkMessage}")
                         }
                     }
                     else -> reportSuccess(false, "Expert eSIM profile disabled. Check Android SIM settings to confirm which physical SIM is now active for mobile data.")
