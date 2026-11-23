@@ -26,7 +26,7 @@ main{flex:1;display:flex;flex-direction:column}
 .subpage{padding:24px 0 34px;gap:16px}.backline{display:flex;align-items:center;gap:12px;margin-bottom:4px}.back-button{width:38px;height:38px;display:grid;place-items:center;background:#141b26;border:1px solid var(--line);border-radius:12px}.back-button svg{width:19px;height:19px}.page-title{font-size:26px;font-weight:850;letter-spacing:-.045em}.page-subtitle{font-size:12px;color:var(--muted);line-height:1.5;margin-top:5px}
 .card{border:1px solid var(--line);background:linear-gradient(145deg,#151b24,#10151c);border-radius:19px;padding:16px;box-shadow:0 14px 35px #0002}
 .current-network{display:flex;align-items:center;justify-content:space-between;gap:12px}.current-label{font-size:11px;color:var(--muted)}.current-value{font-size:18px;font-weight:820;margin-top:5px}.status-pill{font-size:10px;border-radius:999px;padding:7px 9px;border:1px solid #34445c;background:#172334;color:#c3d5ef;white-space:nowrap}
-.mode-list{display:grid;gap:11px}.mode-option{width:100%;display:flex;align-items:center;gap:13px;text-align:left;padding:15px;border:1px solid #303b4b;background:#0f151d;border-radius:15px}.mode-option.selected{border-color:#88a8db;background:#1a293c;box-shadow:inset 0 0 0 1px #8ba6d844}.mode-radio{height:19px;width:19px;border:2px solid #667890;border-radius:50%;flex:none;display:grid;place-items:center}.mode-option.selected .mode-radio{border-color:#bbd1f1}.mode-option.selected .mode-radio:after{content:"";width:9px;height:9px;border-radius:50%;background:#bbd1f1}.mode-title{font-size:14px;font-weight:800}.mode-description{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.4}.mode-status{font-size:11px;line-height:1.55;color:#aebbd0;min-height:32px}.action-button{width:100%;border-radius:13px;padding:13px;border:1px solid #8198c0;background:linear-gradient(145deg,#bdcdec,#879fc9);color:#101725;font-size:13px;font-weight:850}
+.mode-list{display:grid;gap:11px}.mode-option{width:100%;display:flex;align-items:center;gap:13px;text-align:left;padding:15px;border:1px solid #303b4b;background:#0f151d;border-radius:15px}.mode-option.selected{border-color:#88a8db;background:#1a293c;box-shadow:inset 0 0 0 1px #8ba6d844}.mode-radio{height:19px;width:19px;border:2px solid #667890;border-radius:50%;flex:none;display:grid;place-items:center}.mode-option.selected .mode-radio{border-color:#bbd1f1}.mode-option.selected .mode-radio:after{content:"";width:9px;height:9px;border-radius:50%;background:#bbd1f1}.mode-title{font-size:14px;font-weight:800}.mode-description{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.4}.mode-status{font-size:11px;line-height:1.55;color:#aebbd0;min-height:32px}.action-button{width:100%;border-radius:13px;padding:13px;border:1px solid #8198c0;background:linear-gradient(145deg,#bdcdec,#879fc9);color:#101725;font-size:13px;font-weight:850}.setup-card{display:flex;flex-direction:column;gap:13px}.input-label{font-size:11px;font-weight:800;color:#c7d2e3}.input-field{width:100%;min-height:48px;padding:13px 14px;border:1px solid #344257;border-radius:12px;background:#0b121b;color:#f5f7fb;font:inherit;font-size:13px;outline:none}.input-field:focus{border-color:#9ab5df;box-shadow:0 0 0 3px #8daedc22}.input-field::placeholder{color:#6f8098}.helper-copy{font-size:11px;line-height:1.55;color:#91a0b6;margin:0}.activation-status{font-size:12px;line-height:1.55;color:#c1cee0;min-height:38px}.setup-heading{font-size:16px;font-weight:850}.setup-subtitle{font-size:11px;color:#98a8bd;line-height:1.5}
 .speed-card{display:flex;flex-direction:column;gap:15px}.speed-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.speed-heading{font-size:19px;font-weight:850;letter-spacing:-.025em}.speed-subtitle{font-size:11px;color:var(--muted);line-height:1.45;margin-top:4px}.live-tag{font-size:9px;letter-spacing:.08em;font-weight:850;color:#9ee1bc;border:1px solid #284334;background:#101c16;padding:7px 9px;border-radius:999px}
 .speed-main{display:grid;grid-template-columns:1fr 72px;gap:12px;align-items:center}.speed-value{font-size:42px;line-height:1;font-weight:900;letter-spacing:-.065em;color:#f4f7fc}.speed-unit{font-size:12px;color:#aab9ce;margin-left:5px;font-weight:650}.speed-label{font-size:10px;letter-spacing:.12em;color:var(--muted);margin-top:7px}.speed-gauge{width:68px;height:68px;border-radius:50%;border:5px solid #34435b;border-right-color:#b9cbea;border-top-color:#819bc5;display:grid;place-items:center;background:#101822}.speed-gauge svg{width:26px;height:26px;color:#c0d1ef}
 .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{border:1px solid #2b3544;background:#0d131b;border-radius:12px;padding:10px 9px;min-width:0}.metric-label{font-size:9px;color:#95a3b8;letter-spacing:.08em}.metric-value{font-size:15px;font-weight:800;color:#e8edf6;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.metric-unit{font-size:9px;color:#9ba9bd;font-weight:500}
@@ -61,6 +61,22 @@ main{flex:1;display:flex;flex-direction:column}
  <button class="action-button" id="openNetworkSettings" type="button">Open Android network settings</button>
 </section>
 
+<section class="view subpage" id="activateView">
+ <div class="backline"><button class="back-button" data-go="home" type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><div><div class="page-title">Activate eSIM</div><div class="page-subtitle">Install a profile issued by your mobile-network provider.</div></div></div>
+ <div class="card setup-card">
+  <div><div class="setup-heading">Carrier eSIM profile</div><p class="setup-subtitle">Enter the exact activation code supplied by the carrier or eSIM provider. Expert eSIM does not generate carrier profiles or activation codes.</p></div>
+  <label class="input-label" for="activationCode">Activation code</label>
+  <input class="input-field" id="activationCode" type="text" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste carrier-issued activation code">
+  <label class="input-label" for="confirmationCode">Confirmation code (if provided)</label>
+  <input class="input-field" id="confirmationCode" type="text" inputmode="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Optional carrier confirmation code">
+  <p class="helper-copy">The activation code contains the provider's SM-DP+ address and matching ID. Use the exact LPA activation code or QR details given by the provider. The code is passed to Android's eSIM manager and is not saved by this app.</p>
+  <button class="action-button" id="downloadProfileButton" type="button">Download and activate eSIM</button>
+  <p class="activation-status" id="activationStatus" aria-live="polite">Waiting for a carrier-issued eSIM profile.</p>
+  <p class="helper-copy" id="activationCapability">Device eSIM capability will be checked when this page opens in the Android app.</p>
+  <button class="test-btn" id="openSimSettings" type="button">Open Android SIM settings</button>
+ </div>
+</section>
+
 <section class="view subpage" id="speedView">
  <div class="backline"><button class="back-button" data-go="home" type="button" aria-label="Back to dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><div><div class="page-title">Speed Test</div><div class="page-subtitle">Live measurement on the phone's active internet connection.</div></div></div>
  <article class="card speed-card">
@@ -78,6 +94,7 @@ main{flex:1;display:flex;flex-direction:column}
  <div class="drawer-label">MENU</div>
  <button class="nav-button active" data-page="home" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg><span>Dashboard</span></button>
  <button class="nav-button" data-page="network" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16V8M10 16V4M15 16v-6M20 16V2"/></svg><span>Preferred Network</span></button>
+ <button class="nav-button" data-page="activate" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2.5" width="14" height="19" rx="2.5"/><path d="M9 7h6M9 11h6M9 15h2"/></svg><span>Activate eSIM</span></button>
  <button class="nav-button" data-page="speed" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a9 9 0 1 1 16 0M12 13l5-5M12 13l-2 4"/></svg><span>Speed Test</span></button>
  <div class="drawer-foot">Expert eSIM · Mobile connection</div>
 </aside>
@@ -85,7 +102,7 @@ main{flex:1;display:flex;flex-direction:column}
 (function(){
  "use strict";
  const $=id=>document.getElementById(id);
- const pages={home:$("homeView"),network:$("networkView"),speed:$("speedView")};
+ const pages={home:$("homeView"),network:$("networkView"),activate:$("activateView"),speed:$("speedView")};
  const drawer=$("drawer"),backdrop=$("drawerBackdrop"),menuButton=$("menuButton");
  function showDrawer(open){drawer.classList.toggle("open",open);backdrop.classList.toggle("open",open);drawer.setAttribute("aria-hidden",open?"false":"true");menuButton.setAttribute("aria-expanded",open?"true":"false");}
  function navigate(page){
@@ -94,6 +111,7 @@ main{flex:1;display:flex;flex-direction:column}
   document.querySelectorAll(".nav-button").forEach(btn=>btn.classList.toggle("active",btn.dataset.page===page));
   showDrawer(false);
   if(page==="network")refreshNetworkInfo();
+  if(page==="activate")refreshActivationCapabilities();
  }
  menuButton.addEventListener("click",()=>showDrawer(true));
  $("closeDrawer").addEventListener("click",()=>showDrawer(false));
@@ -117,6 +135,12 @@ main{flex:1;display:flex;flex-direction:column}
   if(result.connected===true){connected=true;busy=false;renderConnection();connectionDetail.textContent=result.message||"Android confirmed the Expert eSIM connection.";}
   else if(result.ok===true&&result.connected===false){connected=false;busy=false;renderConnection();connectionDetail.textContent=result.message||"Expert eSIM disconnected.";}
   else connectionError(result.message||"Android could not complete the eSIM operation.");
+  if(result.operation==="download"){
+   $("activationStatus").textContent=result.message||"Android returned an eSIM activation result.";
+   if(result.ok){$("activationCode").value="";$("confirmationCode").value="";}
+   $("downloadProfileButton").disabled=false;
+   $("downloadProfileButton").textContent="Download and activate eSIM";
+  }
  };
  async function toggleConnection(){
   if(busy)return;busy=true;renderConnection();connectionDetail.textContent=connected?"Requesting eSIM disconnection…":"Checking the Expert eSIM profile and mobile provider…";
@@ -129,14 +153,44 @@ main{flex:1;display:flex;flex-direction:column}
  }
  connectButton.addEventListener("click",toggleConnection);renderConnection();
 
+ const downloadProfileButton=$("downloadProfileButton");
+ downloadProfileButton.addEventListener("click",()=>{
+  const code=$("activationCode").value.trim();
+  const confirmation=$("confirmationCode").value.trim();
+  if(!code){$("activationStatus").textContent="Enter the activation code issued by your mobile-network provider.";return;}
+  const native=window.ExpertESimNative;
+  if(!native||typeof native.downloadProfile!=="function"){$("activationStatus").textContent="Profile installation is available in the Expert eSIM Android APK on a phone with eSIM hardware.";return;}
+  downloadProfileButton.disabled=true;downloadProfileButton.textContent="Starting Android eSIM setup…";
+  $("activationStatus").textContent="Sending the carrier activation code to Android's secure eSIM manager. Follow any system confirmation prompt.";
+  try{native.downloadProfile(code,confirmation);}
+  catch(error){downloadProfileButton.disabled=false;downloadProfileButton.textContent="Download and activate eSIM";$("activationStatus").textContent=error&&error.message?error.message:"Android could not start eSIM activation.";}
+ });
+ $("openSimSettings").addEventListener("click",()=>{
+  const native=window.ExpertESimNative;
+  if(native&&typeof native.openSimSettings==="function")native.openSimSettings();
+  else $("activationStatus").textContent="Open your phone's Settings → SIM cards / Mobile network to review installed profiles.";
+ });
+ function refreshActivationCapabilities(){
+  const native=window.ExpertESimNative;
+  if(!native||typeof native.getCapabilities!=="function"){$("activationCapability").textContent="The native Android APK is required to install carrier profiles.";return;}
+  try{
+   const caps=JSON.parse(native.getCapabilities());
+   $("activationCapability").textContent=caps.hasEuiccHardware&&caps.euiccEnabled?"eSIM hardware detected. A carrier-issued activation code and Android approval are still required.":(caps.hasEuiccHardware?"eSIM hardware detected, but Android eSIM support is disabled.":"No eSIM hardware detected on this phone. A compatible eSIM handset is required.");
+  }catch(error){$("activationCapability").textContent="Could not read this device's eSIM capability.";}
+ }
+
  const networkStatus=$("networkModeStatus"),modeButtons=Array.from(document.querySelectorAll(".mode-option"));
- let selectedMode="auto";
- function selectMode(mode){selectedMode=mode;modeButtons.forEach(btn=>btn.classList.toggle("selected",btn.dataset.mode===mode));}
+ let selectedMode=(()=>{try{const value=localStorage.getItem("expertPreferredNetwork");return ["auto","4g","5g"].includes(value)?value:"auto";}catch(error){return "auto";}})();
+ function selectMode(mode){selectedMode=mode;modeButtons.forEach(btn=>btn.classList.toggle("selected",btn.dataset.mode===mode));try{localStorage.setItem("expertPreferredNetwork",mode);}catch(error){}}
  window.onExpertNetworkModeResult=function(result){
   if(!result)return;
-  if(result.ok&&result.applied){selectMode(result.mode||selectedMode);networkStatus.textContent=result.message||"Android confirmed the selected network mode.";}
-  else{networkStatus.textContent=result.message||"Android could not apply this network mode. Use Android network settings to choose it manually.";}
+  if(result.mode)selectMode(result.mode);
+  networkStatus.textContent=result.message||(result.applied?"Android accepted the selected network mode.":"Android could not apply this network mode. Use Android network settings to choose it manually.");
  };
+ const nativeBridge=window.ExpertESimNative;
+ if(nativeBridge&&typeof nativeBridge.getPreferredNetwork==="function"){
+  try{const saved=JSON.parse(nativeBridge.getPreferredNetwork());if(saved&&["auto","4g","5g"].includes(saved.mode))selectMode(saved.mode);}catch(error){}
+ }
  window.onExpertNetworkInfoResult=function(result){
   if(!result)return;
   $("currentNetworkValue").textContent=result.label||"Unavailable";
@@ -151,10 +205,10 @@ main{flex:1;display:flex;flex-direction:column}
   networkStatus.textContent="Install the Expert eSIM Android app to request network-mode changes on the phone.";
  }
  modeButtons.forEach(btn=>btn.addEventListener("click",()=>{
-  const mode=btn.dataset.mode;networkStatus.textContent="Requesting "+({auto:"automatic","4g":"4G LTE","5g":"5G"}[mode])+" network mode…";
+  const mode=btn.dataset.mode;selectMode(mode);networkStatus.textContent="Saving the "+({auto:"automatic","4g":"4G LTE","5g":"5G"}[mode])+" preference for the Expert eSIM profile…";
   const native=window.ExpertESimNative;
   if(native&&typeof native.setPreferredNetwork==="function"){native.setPreferredNetwork(mode);}
-  else networkStatus.textContent="This website cannot change the phone's radio mode. Open it in the Expert eSIM Android app to request this change.";
+  else networkStatus.textContent="This website can remember your preference, but only the native Android app can request the radio mode for the Expert eSIM subscription.";
  }));
  $("openNetworkSettings").addEventListener("click",()=>{
   const native=window.ExpertESimNative;
