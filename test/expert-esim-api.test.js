@@ -161,7 +161,7 @@ test('KYC, plans and provisioning stay disabled until authorised partners are co
     method: 'POST',
     headers: authHeaders()
   });
-  assert.equal(payInit.status, 404);
+  assert.equal(payInit.status, 503);
 });
 
 test('subscriber can raise a support case and privacy request and export their own account data', async () => {
