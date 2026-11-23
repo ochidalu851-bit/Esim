@@ -1,0 +1,158 @@
+{
+  "generatedAt": "2026-11-23T11:20:36+00:00",
+  "destinationCount": 206,
+  "providerCountries": 182,
+  "countriesWithoutListedLocalEsimCarrier": 24,
+  "countriesWithNetworkGenerations": 187,
+  "countriesWithoutNetworkGenerations": 19,
+  "appleGlobalTravelProviders": 0,
+  "mccNetworkRecords": 2679,
+  "applePublishedDate": "November 19, 2026",
+  "sampleNigeria": {
+    "country": "Nigeria",
+    "code": "NG",
+    "esimCarrierCount": 4,
+    "esimCarriers": [
+      {
+        "name": "9mobile",
+        "website": null,
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods",
+          "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
+        ],
+        "networkGenerations": [
+          "3G",
+          "4G"
+        ],
+        "matchedNetworkCount": 4
+      },
+      {
+        "name": "Airtel",
+        "website": "https://www.airtel.com.ng/eSIM",
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods",
+          "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
+        ],
+        "networkGenerations": [
+          "3G",
+          "4G"
+        ],
+        "matchedNetworkCount": 4
+      },
+      {
+        "name": "Glo",
+        "website": "https://www.gloworld.com/ng/glo-esim",
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods"
+        ],
+        "networkGenerations": [
+          "3G",
+          "4G"
+        ],
+        "matchedNetworkCount": 1
+      },
+      {
+        "name": "MTN",
+        "website": "https://www.mtn.ng/sim/esim/",
+        "activationMethods": [
+          "Wireless carriers that support other eSIM activation methods",
+          "Wireless carriers that support eSIM activation on prepaid plans for international travelers"
+        ],
+        "networkGenerations": [
+          "3G",
+          "4G"
+        ],
+        "matchedNetworkCount": 1
+      }
+    ],
+    "generations": [
+      "3G",
+      "4G"
+    ],
+    "operatorCount": 11,
+    "operators": [
+      {
+        "name": "9mobile",
+        "generations": [
+          "3G",
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Airtel",
+        "generations": [
+          "3G",
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Capcom",
+        "generations": [
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Glo",
+        "generations": [
+          "3G",
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "InterC",
+        "generations": [
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "MTN",
+        "generations": [
+          "3G",
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Ntel",
+        "generations": [
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Smile",
+        "generations": [
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Spectranet",
+        "generations": [
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Swift",
+        "generations": [
+          "4G"
+        ],
+        "networkCount": 1
+      },
+      {
+        "name": "Visafone",
+        "generations": [],
+        "networkCount": 1
+      }
+    ],
+    "networkRecordCount": 11,
+    "networkSourceUpdatedAt": "2025-04-09T13:26:22.159Z",
+    "networkDataVerified": true
+  }
+}
