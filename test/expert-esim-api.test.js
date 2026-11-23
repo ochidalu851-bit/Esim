@@ -335,6 +335,14 @@ test('Expert eSIM rewards, wallet, coupons, referrals, airtime requests, inbox a
   assert.equal(read.status, 200);
   const wallet = await request('/api/v1/app/wallet', { headers: authHeaders() });
   assert.ok(wallet.body.wallet.pointsBalance > 0);
+  const passwordChange = await request('/api/v1/auth/change-password', {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ currentPassword: 'strong-test-password-2026', newPassword: 'updated-strong-password-2026' })
+  });
+  assert.equal(passwordChange.status, 200);
+  const stillSignedIn = await request('/api/v1/me', { headers: authHeaders() });
+  assert.equal(stillSignedIn.status, 200);
+
   const adminFeatures = await request('/api/v1/admin/features', { headers: { 'x-expert-admin-key': adminKey } });
   assert.equal(adminFeatures.status, 200);
   assert.ok(adminFeatures.body.engagement.totalPointsIssued > 0);
@@ -367,6 +375,8 @@ test('the subscriber UI hides authentication when a session exists and keeps it 
   const mainHtml = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
   const featureJs = fs.readFileSync(path.join(root, 'public/expert-features.js'), 'utf8');
   assert.doesNotThrow(() => new Function(featureJs));
+  assert.match(featureJs, /onNetworkInfo/);
+
   assert.match(mainHtml, /expert-features\.js/);
   assert.doesNotMatch(mainHtml, /speed\.cloudflare\.com/);
   assert.match(mainHtml, /api\/v1\/tools\/speedtest/);
