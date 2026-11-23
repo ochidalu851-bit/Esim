@@ -744,6 +744,50 @@ const server = http.createServer((req, res) => {
     return res.end();
   }
 
+async function runExternalSourceDiagnostics() {
+  const targets = [
+    ["apple", "https://support.apple.com/en-us/101569"],
+    ["mccDownload", "https://mcc-mnc.org/downloads/networks.json?generation=3G%2C4G%2C5G"],
+    ["mccApi", "https://mcc-mnc.org/api/v1/networks?country=NG&limit=200&offset=0"]
+  ];
+  const results = [];
+  for (const [id, target] of targets) {
+    try {
+      const response = await fetch(target, {
+        headers: { accept: id === "apple" ? "text/html" : "application/json", "user-agent": "ExpertESIM/1.0 (country carrier index)" },
+        signal: AbortSignal.timeout(18000)
+      });
+      const body = await response.text();
+      let json = null;
+      try { json = JSON.parse(body); } catch {}
+      const keys = json && typeof json === "object" ? Object.keys(json) : [];
+      const candidates = json && typeof json === "object"
+        ? [json.data, json.networks, json.results, json.items, json]
+        : [];
+      const arrays = candidates.filter(Array.isArray);
+      const records = arrays[0] || [];
+      results.push({
+        id, status: response.status, contentType: response.headers.get("content-type"),
+        bytes: Buffer.byteLength(body), keys, recordCount: records.length,
+        firstRecord: records[0] || null,
+        appleHasNigeria: id === "apple" ? body.toLowerCase().includes("nigeria") : undefined,
+        appleHasHeadings: id === "apple" ? (body.match(/<h[1-3]\b/gi) || []).length : undefined,
+        appleTitle: id === "apple" ? (body.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] : undefined,
+        appleNigeriaSnippet: id === "apple"
+          ? body.slice(Math.max(0, body.toLowerCase().indexOf("nigeria") - 400), body.toLowerCase().indexOf("nigeria") + 800)
+          : undefined
+      });
+    } catch (error) {
+      results.push({ id, error: error.message });
+    }
+  }
+  return results;
+}
+
+  if (req.method === "GET" && url.pathname === "/api/source-diagnostic") {
+    return runExternalSourceDiagnostics().then((data) => sendJson(res, 200, { sources: data }));
+  }
+
   if (req.method === "GET" && url.pathname === "/health") {
     return sendJson(res, 200, {
       ok: true,
