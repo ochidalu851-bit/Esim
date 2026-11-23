@@ -118,7 +118,7 @@ button{color:inherit}
   <main class="plan-content">
     <div class="plan-section">DATA PLANS</div>
     <div class="provider-list-heading">PROVIDERS</div>
-    <div class="provider-list" id="providerList" aria-label="eSIM provider connection controls"></div>
+    <div class="provider-list" id="providerList" aria-label="eSIM provider selection controls"></div>
     <p class="provider-selection-note">Connect or disconnect a provider here to choose it in Expert eSIM. This control does not switch or install an eSIM profile on your phone.</p>
     <div class="live-plan-list" id="livePlanList" aria-live="polite"></div>
   </main>
@@ -249,7 +249,7 @@ async function loadNetworkInfo(destination){
 }
 
 function providerInitials(name){
- const parts=String(name||"").trim().split(/\\s+/).filter(Boolean);
+ const parts=String(name||"").trim().split(/\s+/).filter(Boolean);
  if(!parts.length)return "?";
  if(parts.length===1)return parts[0].slice(0,2).toUpperCase();
  return (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
@@ -287,7 +287,7 @@ function updatePlanFooter(){
  const footer=document.getElementById("planFooterStatus");
  if(!footer)return;
  const names=loadedProviderRecords.filter(item=>selectedProviderNames.has(String(item.name||"").toLowerCase())).map(item=>item.name);
- footer.textContent=names.length?("Connected in Expert eSIM: "+names.join(", ")):"No provider connected";
+ footer.textContent=names.length?("Selected in Expert eSIM: "+names.join(", ")):"No provider selected";
 }
 
 async function loadLivePlans(destination){
