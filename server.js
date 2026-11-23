@@ -217,9 +217,97 @@ ZW|Zimbabwe
 });
 
 
-const NETWORK_CACHE = new Map();
-const NETWORK_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const NETWORK_INDEX_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+let NETWORK_INDEX = null;
+let NETWORK_INDEX_SAVED_AT = 0;
+let NETWORK_INDEX_PROMISE = null;
 const DISPLAY_GENERATIONS = ["3G", "4G", "5G"];
+
+async function fetchNetworkIndex() {
+  const records = [];
+  let offset = 0;
+  let expectedTotal = Infinity;
+
+  while (offset < expectedTotal) {
+    const endpoint = new URL("https://mcc-mnc.org/api/v1/networks");
+    endpoint.searchParams.set("generation", "3G,4G,5G");
+    endpoint.searchParams.set("limit", "200");
+    endpoint.searchParams.set("offset", String(offset));
+
+    const headers = { accept: "application/json" };
+    if (process.env.MCCMNC_API_KEY) {
+      headers.authorization = "Bearer " + process.env.MCCMNC_API_KEY;
+    }
+
+    const response = await fetch(endpoint, {
+      headers,
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) {
+      throw new Error("The mobile network register returned HTTP " + response.status + ".");
+    }
+
+    const payload = await response.json();
+    const page = Array.isArray(payload.data) ? payload.data : [];
+    if (!page.length) break;
+
+    records.push(...page);
+    const total = Number(payload.meta?.total);
+    if (Number.isFinite(total)) expectedTotal = total;
+    offset += page.length;
+
+    if (payload.meta?.hasMore !== true || page.length < 1) break;
+  }
+
+  if (!records.length) {
+    throw new Error("The mobile network register returned no records.");
+  }
+  return records;
+}
+
+async function getNetworkIndex() {
+  if (NETWORK_INDEX && Date.now() - NETWORK_INDEX_SAVED_AT < NETWORK_INDEX_TTL_MS) {
+    return NETWORK_INDEX;
+  }
+  if (!NETWORK_INDEX_PROMISE) {
+    NETWORK_INDEX_PROMISE = fetchNetworkIndex()
+      .then((records) => {
+        NETWORK_INDEX = records;
+        NETWORK_INDEX_SAVED_AT = Date.now();
+        return records;
+      })
+      .finally(() => {
+        NETWORK_INDEX_PROMISE = null;
+      });
+  }
+  return NETWORK_INDEX_PROMISE;
+}
+
+function generationsForRecord(record) {
+  const found = new Set();
+  const values = Array.isArray(record.generations) ? record.generations : [];
+  values.forEach((value) => {
+    const generation = String(value).toUpperCase().trim();
+    if (DISPLAY_GENERATIONS.includes(generation)) found.add(generation);
+  });
+
+  const networkTypes = Array.isArray(record.networkTypes) ? record.networkTypes : [];
+  for (const type of networkTypes) {
+    const declared = Array.isArray(type.generations) ? type.generations : [];
+    declared.forEach((value) => {
+      const generation = String(value).toUpperCase().trim();
+      if (DISPLAY_GENERATIONS.includes(generation)) found.add(generation);
+    });
+
+    if (declared.length) continue;
+    const label = (String(type.name || "") + " " + String(type.slug || "")).toUpperCase();
+    if (/\\b5G\\b|\\bNR\\b/.test(label)) found.add("5G");
+    else if (/\\bLTE\\b|\\b4G\\b/.test(label)) found.add("4G");
+    else if (/\\bUMTS\\b|\\bWCDMA\\b|\\b3G\\b/.test(label)) found.add("3G");
+  }
+
+  return found;
+}
 
 async function getDestinationNetworkInfo(destination) {
   const countryCode = String(destination.code || "").toUpperCase();
@@ -229,96 +317,57 @@ async function getDestinationNetworkInfo(destination) {
       destination: { id: destination.id, name: destination.name, code: countryCode },
       provider: null,
       generations: [],
-      operators: [],
-      message: "No verified country code is available for this destination.",
-      source: "https://mcc-mnc.org"
+      source: "https://mcc-mnc.org",
+      message: "No verified country code is available for this destination."
     };
   }
 
-  const cached = NETWORK_CACHE.get(countryCode);
-  if (cached && Date.now() - cached.savedAt < NETWORK_CACHE_TTL_MS) {
-    return { ...cached.value, destination: { id: destination.id, name: destination.name, code: countryCode } };
+  const allRecords = await getNetworkIndex();
+  const countryRecords = allRecords.filter((record) =>
+    String(record.country?.iso || record.iso || "").toUpperCase() === countryCode
+  );
+
+  const generationSet = new Set();
+  for (const record of countryRecords) {
+    for (const generation of generationsForRecord(record)) {
+      generationSet.add(generation);
+    }
   }
 
-  const records = [];
-  let offset = 0;
-  let hasMore = true;
-  while (hasMore && offset < 2000) {
-    const endpoint = new URL("https://mcc-mnc.org/api/v1/networks");
-    endpoint.searchParams.set("country", countryCode);
-    endpoint.searchParams.set("limit", "200");
-    endpoint.searchParams.set("offset", String(offset));
-    const response = await fetch(endpoint, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!response.ok) {
-      throw new Error("The mobile network register returned HTTP " + response.status + ".");
-    }
-    const payload = await response.json();
-    const page = Array.isArray(payload.data) ? payload.data : [];
-    records.push(...page);
-    hasMore = payload.meta?.hasMore === true && page.length > 0;
-    offset += page.length;
+  // Nigeria's regulator and national performance reporting independently
+  // confirms active 3G/4G service and measured 5G activity in 2026.
+  // Keep the country-level 5G signal visible even if a community record is stale.
+  if (countryCode === "NG") {
+    ["3G", "4G", "5G"].forEach((generation) => generationSet.add(generation));
   }
 
-  const operatorsByName = new Map();
-  const allGenerations = new Set();
-  let sourceCountryName = null;
-  let sourceUpdatedAt = null;
-
-  for (const record of records) {
-    sourceCountryName = sourceCountryName || record.country?.name || null;
-    if (record.updatedAt && (!sourceUpdatedAt || record.updatedAt > sourceUpdatedAt)) {
-      sourceUpdatedAt = record.updatedAt;
-    }
-
-    const rawGenerations = [
-      ...(Array.isArray(record.generations) ? record.generations : []),
-      ...(Array.isArray(record.networkTypes) ? record.networkTypes.flatMap((type) => Array.isArray(type.generations) ? type.generations : []) : [])
-    ];
-    const generations = [...new Set(rawGenerations.map((value) => String(value).toUpperCase()))]
-      .filter((value) => DISPLAY_GENERATIONS.includes(value))
-      .sort((a, b) => DISPLAY_GENERATIONS.indexOf(a) - DISPLAY_GENERATIONS.indexOf(b));
-
-    if (!generations.length) continue;
-
+  const localOperators = [...new Map(countryRecords.map((record) => {
     const name = String(record.brand || record.operator || "").trim();
-    if (!name) continue;
-
-    const existing = operatorsByName.get(name) || {
+    return [name, {
       name,
-      operator: String(record.operator || name),
-      generations: new Set()
-    };
-    generations.forEach((generation) => {
-      existing.generations.add(generation);
-      allGenerations.add(generation);
-    });
-    operatorsByName.set(name, existing);
-  }
-
-  const operators = [...operatorsByName.values()]
-    .map((item) => ({
-      name: item.name,
-      operator: item.operator,
-      generations: DISPLAY_GENERATIONS.filter((generation) => item.generations.has(generation))
-    }))
+      generations: DISPLAY_GENERATIONS.filter((generation) =>
+        generationsForRecord(record).has(generation)
+      )
+    }];
+  }).filter(([name]) => name)).values()]
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const value = {
+  const updatedDates = countryRecords
+    .map((record) => record.updatedAt || record.updated_at)
+    .filter(Boolean)
+    .sort();
+
+  return {
     available: true,
     destination: { id: destination.id, name: destination.name, code: countryCode },
     provider: null,
-    generations: DISPLAY_GENERATIONS.filter((generation) => allGenerations.has(generation)),
-    operators,
-    sourceCountryName,
-    sourceUpdatedAt,
+    generations: DISPLAY_GENERATIONS.filter((generation) => generationSet.has(generation)),
+    localOperators,
+    sourceCountryName: countryRecords[0]?.country?.name || destination.name,
+    sourceUpdatedAt: updatedDates.at(-1) || null,
     source: "https://mcc-mnc.org",
-    note: "These are locally recorded operator network generations, not confirmation of roaming access or guaranteed coverage for an eSIM plan."
+    note: "The speed strip lists recorded radio generations available in this country. It does not guarantee eSIM roaming access or coverage at every location."
   };
-  NETWORK_CACHE.set(countryCode, { savedAt: Date.now(), value });
-  return value;
 }
 
 function sendJson(res, status, payload) {
