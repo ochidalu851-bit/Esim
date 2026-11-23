@@ -51,8 +51,26 @@ button{color:inherit}
 .network-divider{width:1px;height:27px;background:#353843;flex:none}
 .plan-content{padding:0 16px;flex:1}
 .plan-section{margin:82px 0 13px;color:#8490aa;font-size:14px;line-height:18px;font-weight:700;letter-spacing:.035em}
-.no-plans{border:1px solid #20232b;background:#0d0f13;border-radius:20px;padding:22px 18px;color:#a2abc0;line-height:1.55;font-size:13px}
-.no-plans-title{color:#f2f3f7;font-size:16px;font-weight:650;margin-bottom:7px}
+.provider-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:15px 10px;padding:4px 0 18px}
+.provider-circle-item{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0;text-align:center}
+.provider-circle{width:62px;height:62px;border-radius:50%;border:1px solid #343946;background:radial-gradient(circle at 32% 26%,#2c303b,#15171c 68%);color:#f4f6fb;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:750;letter-spacing:-.04em;cursor:pointer;transition:border-color .16s ease,background .16s ease,transform .16s ease;box-shadow:inset 0 0 0 3px #101216}
+.provider-circle:active{transform:scale(.96)}
+.provider-circle.connected{border:2px solid #7cc7a4;background:radial-gradient(circle at 32% 26%,#28503f,#14221c 72%);box-shadow:0 0 0 3px rgba(124,199,164,.12),inset 0 0 0 3px #111713}
+.provider-circle:focus-visible{outline:2px solid #9db4ee;outline-offset:4px}
+.provider-circle-name{color:#eef0f6;font-size:12px;font-weight:650;max-width:90px;overflow-wrap:anywhere}
+.provider-circle-state{font-size:10px;color:#9ba5ba;min-height:13px}
+.provider-circle-state.connected{color:#8bd5ad}
+.provider-list-heading{margin:2px 0 14px;color:#9ba6bf;font-size:12px;letter-spacing:.07em;font-weight:750}
+.provider-selection-note{margin:0 0 17px;color:#8994aa;font-size:11px;line-height:1.45}
+.live-plan-list{display:grid;gap:10px;padding:0 0 100px}
+.live-plan-card{border:1px solid #2a2e39;background:#15171d;border-radius:16px;padding:14px;display:grid;gap:7px}
+.live-plan-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.live-plan-name{color:#f2f4f8;font-size:14px;font-weight:700}
+.live-plan-meta{color:#9ca7bb;font-size:12px;line-height:1.4}
+.live-plan-price{color:#c4d0ec;font-weight:750;font-size:15px;white-space:nowrap}
+.live-plan-operator{color:#9eabc4;font-size:11px}
+.live-plan-buy{border:1px solid #444c5d;border-radius:12px;background:#202530;color:#f4f5f8;padding:10px 13px;font-size:13px;font-weight:700}
+.live-plan-buy:disabled{opacity:.5}
 .plan-foot{position:fixed;bottom:0;left:0;right:0;padding:14px 16px max(18px,env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(9,10,13,0),#090a0d 22%);z-index:4;pointer-events:none}
 .plan-foot-inner{max-width:728px;margin:0 auto;border:1px solid #242730;background:#202127;border-radius:16px;padding:15px 16px;text-align:center;color:#9ba4b6;font-size:12px;pointer-events:auto}
 @media(min-width:650px){.country-head,.plan-head{padding-left:24px;padding-right:24px}.country-list{padding-left:24px;padding-right:24px}.country-title{font-size:26px}.plan-content{padding-left:24px;padding-right:24px}.plan-type{margin-left:24px;margin-right:24px}.plan-heading h1{font-size:40px}}
@@ -99,19 +117,22 @@ button{color:inherit}
   </div>
   <main class="plan-content">
     <div class="plan-section">DATA PLANS</div>
-    <div class="no-plans">
-      <div class="no-plans-title">Plans are not available yet</div>
-      <div>Data allowances, validity periods and prices will appear here when a live eSIM plan catalogue is connected. No sample prices or provider details are displayed.</div>
-    </div>
+    <div class="provider-list-heading">PROVIDERS</div>
+    <div class="provider-list" id="providerList" aria-label="eSIM provider connection controls"></div>
+    <p class="provider-selection-note">Connect or disconnect a provider here to choose it in Expert eSIM. This control does not switch or install an eSIM profile on your phone.</p>
+    <div class="live-plan-list" id="livePlanList" aria-live="polite"></div>
   </main>
   <footer class="plan-foot">
-    <div class="plan-foot-inner">No data plan selected</div>
+    <div class="plan-foot-inner" id="planFooterStatus">No provider connected</div>
   </footer>
 </section>
 </div>
 <script>
 let destinations=[];
 let selectedDestination=null;
+let selectedProviderNames = new Set();
+let loadedProviderRecords = [];
+let livePlanRecords = [];
 const countryList=document.getElementById('countryList');
 const searchInput=document.getElementById('countrySearch');
 const countryScreen=document.getElementById('countryScreen');
@@ -187,6 +208,12 @@ function openPlans(id){
  document.getElementById("selectedCountryFlag").textContent=flagFor(selectedDestination);
  countryScreen.classList.remove("active");
  plansScreen.classList.add("active");
+ selectedProviderNames = new Set();
+ loadedProviderRecords = [];
+ livePlanRecords = [];
+ document.getElementById("providerList").innerHTML="";
+ document.getElementById("livePlanList").innerHTML="";
+ document.getElementById("planFooterStatus").textContent="No provider connected";
  window.scrollTo(0,0);
  loadNetworkInfo(selectedDestination);
 }
@@ -200,11 +227,91 @@ async function loadNetworkInfo(destination){
   const response=await fetch("/api/network-info?destinationId="+encodeURIComponent(destination.id));
   const data=await response.json();
   if(!response.ok) throw new Error(data.message||"Country network information is unavailable.");
-  provider.textContent=data.provider||"No Apple-listed eSIM provider";
+  provider.textContent=data.provider||"No source-listed eSIM provider";
   speed.textContent=Array.isArray(data.generations)&&data.generations.length?data.generations.join(" / "):"No 3G/4G/5G record";
+  const carriers=Array.isArray(data.localEsimCarriers)?data.localEsimCarriers:[];
+  const travel=Array.isArray(data.travelEsimProviders)?data.travelEsimProviders:[];
+  const all=Array.isArray(data.esimCarriers)?data.esimCarriers:[];
+  const merged=[...carriers,...travel];
+  const source=merged.length?merged:all;
+  const unique=new Map();
+  source.forEach(item=>{
+   const name=String(item.name||"").trim();
+   if(name&&!unique.has(name.toLowerCase()))unique.set(name.toLowerCase(),item);
+  });
+  loadedProviderRecords=[...unique.values()].sort((a,b)=>a.name.localeCompare(b.name));
+  renderProviderCircles();
+  loadLivePlans(destination);
  }catch(error){
   provider.textContent="Source unavailable";
   speed.textContent="Source unavailable";
+ }
+}
+
+function providerInitials(name){
+ const parts=String(name||"").trim().split(/\\s+/).filter(Boolean);
+ if(!parts.length)return "?";
+ if(parts.length===1)return parts[0].slice(0,2).toUpperCase();
+ return (parts[0][0]+parts[parts.length-1][0]).toUpperCase();
+}
+
+function renderProviderCircles(){
+ const grid=document.getElementById("providerList");
+ if(!grid)return;
+ grid.innerHTML=loadedProviderRecords.map(item=>{
+  const name=String(item.name||"");
+  const key=name.toLowerCase();
+  const connected=selectedProviderNames.has(key);
+  const providerType=item.providerType==="global_travel_esim"?"Travel eSIM":"Local carrier";
+  return '<div class="provider-circle-item">'+
+   '<button class="provider-circle'+(connected?' connected':'')+'" type="button" data-provider="'+escapeHtml(key)+'" aria-pressed="'+(connected?'true':'false')+'" aria-label="'+(connected?'Disconnect ':'Connect ')+escapeHtml(name)+'" title="'+(connected?'Disconnect ':'Connect ')+escapeHtml(name)+'">'+
+    '<span>'+escapeHtml(providerInitials(name))+'</span></button>'+
+   '<div class="provider-circle-name">'+escapeHtml(name)+'</div>'+
+   '<div class="provider-circle-state'+(connected?' connected':'')+'">'+(connected?'Connected':'Disconnected')+'</div>'+
+   '<div class="provider-circle-state">'+providerType+'</div>'+
+  '</div>';
+ }).join("");
+ grid.querySelectorAll(".provider-circle").forEach(button=>{
+  button.addEventListener("click",()=>{
+   const key=button.dataset.provider;
+   if(selectedProviderNames.has(key))selectedProviderNames.delete(key);
+   else selectedProviderNames.add(key);
+   renderProviderCircles();
+   updatePlanFooter();
+  });
+ });
+ updatePlanFooter();
+}
+
+function updatePlanFooter(){
+ const footer=document.getElementById("planFooterStatus");
+ if(!footer)return;
+ const names=loadedProviderRecords.filter(item=>selectedProviderNames.has(String(item.name||"").toLowerCase())).map(item=>item.name);
+ footer.textContent=names.length?("Connected in Expert eSIM: "+names.join(", ")):"No provider connected";
+}
+
+async function loadLivePlans(destination){
+ const list=document.getElementById("livePlanList");
+ if(!list)return;
+ list.innerHTML="";
+ try{
+  const response=await fetch("/api/plans?destinationId="+encodeURIComponent(destination.id));
+  const payload=await response.json();
+  livePlanRecords=Array.isArray(payload.items)?payload.items:[];
+  if(!response.ok||!livePlanRecords.length)return;
+  list.innerHTML=livePlanRecords.map((plan,index)=>{
+   const price=plan.priceDisplay||"";
+   const meta=[plan.dataAllowance,plan.validity].filter(Boolean).join(" · ");
+   return '<article class="live-plan-card">'+
+    '<div class="live-plan-top"><div><div class="live-plan-name">'+escapeHtml(plan.name||plan.packageId||"eSIM plan")+'</div>'+
+    '<div class="live-plan-meta">'+escapeHtml(meta)+'</div></div>'+
+    '<div class="live-plan-price">'+escapeHtml(price)+'</div></div>'+
+    '<div class="live-plan-operator">'+escapeHtml([plan.provider,plan.operator].filter(Boolean).join(" · "))+'</div>'+
+    '<button type="button" class="live-plan-buy" disabled>Purchase integration pending</button>'+
+   '</article>';
+  }).join("");
+ }catch(error){
+  livePlanRecords=[];
  }
 }
 
