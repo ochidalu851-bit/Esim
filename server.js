@@ -372,6 +372,269 @@ async function buildNetworkAudit() {
   });
 }
 
+const PROVIDER_COVERAGE_TTL_MS = 15 * 60 * 1000;
+const PROVIDER_COVERAGE_CACHE = new Map();
+let AIRALO_ACCESS_TOKEN = null;
+let AIRALO_TOKEN_EXPIRES_AT = 0;
+let AIRALO_TOKEN_PROMISE = null;
+let AIRALO_CATALOGUE = null;
+let AIRALO_CATALOGUE_SAVED_AT = 0;
+let AIRALO_CATALOGUE_PROMISE = null;
+
+function normalizeProviderSpeeds(input) {
+  const found = new Set();
+  const values = Array.isArray(input) ? input : input == null ? [] : [input];
+  for (const raw of values) {
+    const value = String(raw).toUpperCase().trim();
+    if (/\b5G\b|\bNR\b/.test(value)) found.add("5G");
+    else if (/\b4G\b|\bLTE\b/.test(value)) found.add("4G");
+    else if (/\b3G\b|\bUMTS\b|\bWCDMA\b/.test(value)) found.add("3G");
+  }
+  return DISPLAY_GENERATIONS.filter((generation) => found.has(generation));
+}
+
+async function providerJson(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    signal: AbortSignal.timeout(20000),
+    headers: { accept: "application/json", ...(options.headers || {}) }
+  });
+  if (!response.ok) {
+    throw new Error("Provider returned HTTP " + response.status + ".");
+  }
+  return response.json();
+}
+
+async function getEsimGoCoverage(destination) {
+  const apiKey = process.env.ESIM_GO_API_KEY;
+  if (!apiKey) return null;
+
+  const url = new URL("https://api.esim-go.com/v2.4/networks");
+  url.searchParams.set("isos", destination.code);
+  const payload = await providerJson(url, {
+    headers: { "X-API-Key": apiKey }
+  });
+  const countryNetworks = Array.isArray(payload.countryNetworks)
+    ? payload.countryNetworks
+    : [];
+  const matching = countryNetworks.filter((country) =>
+    String(country.name || country.iso || "").toUpperCase() === destination.code
+  );
+  const networkRows = matching.flatMap((country) =>
+    Array.isArray(country.networks) ? country.networks : []
+  );
+
+  const operators = [...new Map(networkRows.map((network) => {
+    const name = String(network.brandName || network.name || "").trim();
+    const speeds = normalizeProviderSpeeds(network.speed || network.speeds || []);
+    return [name, { name, generations: speeds }];
+  }).filter(([name]) => name)).values()]
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    name: "eSIM Go",
+    operators,
+    generations: DISPLAY_GENERATIONS.filter((generation) =>
+      operators.some((operator) => operator.generations.includes(generation))
+    ),
+    networkCount: operators.length,
+    source: "eSIM Go partner network API"
+  };
+}
+
+function airaloPackageList(payload) {
+  const candidates = [
+    payload?.data,
+    payload?.data?.data,
+    payload?.data?.packages,
+    payload?.packages,
+    payload?.results
+  ];
+  return candidates.find(Array.isArray) || [];
+}
+
+async function getAiraloToken() {
+  const clientId = process.env.AIRALO_CLIENT_ID;
+  const clientSecret = process.env.AIRALO_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  if (AIRALO_ACCESS_TOKEN && Date.now() < AIRALO_TOKEN_EXPIRES_AT - 60000) {
+    return AIRALO_ACCESS_TOKEN;
+  }
+  if (!AIRALO_TOKEN_PROMISE) {
+    AIRALO_TOKEN_PROMISE = (async () => {
+      const body = new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: "client_credentials"
+      });
+      const payload = await providerJson("https://partners-api.airalo.com/v2/token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body
+      });
+      const data = payload.data || payload;
+      if (!data.access_token) throw new Error("Airalo did not return an access token.");
+      AIRALO_ACCESS_TOKEN = data.access_token;
+      const expiresIn = Number(data.expires_in || 86400);
+      AIRALO_TOKEN_EXPIRES_AT = Date.now() + Math.max(300, expiresIn - 300) * 1000;
+      return AIRALO_ACCESS_TOKEN;
+    })().finally(() => {
+      AIRALO_TOKEN_PROMISE = null;
+    });
+  }
+  return AIRALO_TOKEN_PROMISE;
+}
+
+async function getAiraloCatalogue() {
+  if (AIRALO_CATALOGUE && Date.now() - AIRALO_CATALOGUE_SAVED_AT < PROVIDER_COVERAGE_TTL_MS) {
+    return AIRALO_CATALOGUE;
+  }
+  if (!AIRALO_CATALOGUE_PROMISE) {
+    AIRALO_CATALOGUE_PROMISE = (async () => {
+      const token = await getAiraloToken();
+      if (!token) return [];
+      const payload = await providerJson("https://partners-api.airalo.com/v2/packages", {
+        headers: { authorization: "Bearer " + token, "accept-language": "en" }
+      });
+      const packages = airaloPackageList(payload);
+      AIRALO_CATALOGUE = packages;
+      AIRALO_CATALOGUE_SAVED_AT = Date.now();
+      console.log("Loaded " + packages.length + " Airalo partner packages for coverage lookup");
+      return packages;
+    })().finally(() => {
+      AIRALO_CATALOGUE_PROMISE = null;
+    });
+  }
+  return AIRALO_CATALOGUE_PROMISE;
+}
+
+function airaloCountryCoverage(packages, destination) {
+  const byOperator = new Map();
+  for (const item of packages) {
+    const coverages = Array.isArray(item.coverages) ? item.coverages : [];
+    const packageCountry = String(item.country_code || item.countryCode || "").toUpperCase();
+    let matchedCoverage = false;
+
+    for (const coverage of coverages) {
+      const iso = String(
+        coverage.country_code || coverage.iso || coverage.code || coverage.country?.code || ""
+      ).toUpperCase();
+      if (iso !== destination.code) continue;
+      matchedCoverage = true;
+      const networks = [
+        ...(Array.isArray(coverage.networks) ? coverage.networks : []),
+        ...(Array.isArray(coverage.operators) ? coverage.operators : [])
+      ];
+      for (const network of networks) {
+        const name = String(network.name || network.brandName || network.brand_name || "").trim();
+        if (!name) continue;
+        const generations = normalizeProviderSpeeds(
+          network.types || network.speeds || network.generations || network.network_types || []
+        );
+        const current = byOperator.get(name) || new Set();
+        generations.forEach((generation) => current.add(generation));
+        byOperator.set(name, current);
+      }
+    }
+
+    if (!matchedCoverage && packageCountry === destination.code) {
+      const networks = [
+        ...(Array.isArray(item.networks) ? item.networks : []),
+        ...(Array.isArray(item.operators) ? item.operators : [])
+      ];
+      for (const network of networks) {
+        const name = String(network.name || network.brandName || network.brand_name || "").trim();
+        if (!name) continue;
+        const generations = normalizeProviderSpeeds(
+          network.types || network.speeds || network.generations || []
+        );
+        const current = byOperator.get(name) || new Set();
+        generations.forEach((generation) => current.add(generation));
+        byOperator.set(name, current);
+      }
+    }
+  }
+
+  const operators = [...byOperator.entries()]
+    .map(([name, generations]) => ({
+      name,
+      generations: DISPLAY_GENERATIONS.filter((generation) => generations.has(generation))
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    name: "Airalo",
+    operators,
+    generations: DISPLAY_GENERATIONS.filter((generation) =>
+      operators.some((operator) => operator.generations.includes(generation))
+    ),
+    networkCount: operators.length,
+    source: "Airalo partner package coverage"
+  };
+}
+
+async function getAiraloCoverage(destination) {
+  if (!process.env.AIRALO_CLIENT_ID || !process.env.AIRALO_CLIENT_SECRET) return null;
+  const packages = await getAiraloCatalogue();
+  return airaloCountryCoverage(packages, destination);
+}
+
+async function getProviderCoverage(destination) {
+  const key = String(destination.code || "").toUpperCase();
+  const cached = PROVIDER_COVERAGE_CACHE.get(key);
+  if (cached && Date.now() - cached.savedAt < PROVIDER_COVERAGE_TTL_MS) {
+    return cached.value;
+  }
+
+  const tasks = [
+    ["eSIM Go", () => getEsimGoCoverage(destination)],
+    ["Airalo", () => getAiraloCoverage(destination)]
+  ];
+  const providers = [];
+  for (const [name, load] of tasks) {
+    try {
+      const result = await load();
+      if (result && (result.networkCount > 0 || result.generations.length > 0)) {
+        providers.push(result);
+      }
+    } catch (error) {
+      console.warn(name + " coverage lookup failed for " + key + ": " + error.message);
+    }
+  }
+
+  const value = {
+    providers,
+    providerNames: providers.map((provider) => provider.name),
+    operators: [...new Map(providers.flatMap((provider) =>
+      provider.operators.map((operator) => [operator.name, operator])
+    )).values()].sort((a, b) => a.name.localeCompare(b.name)),
+    generations: DISPLAY_GENERATIONS.filter((generation) =>
+      providers.some((provider) => provider.generations.includes(generation))
+    )
+  };
+  PROVIDER_COVERAGE_CACHE.set(key, { savedAt: Date.now(), value });
+  return value;
+}
+
+function providerConnectionStatus() {
+  return [
+    {
+      id: "esim-go",
+      name: "eSIM Go",
+      configured: Boolean(process.env.ESIM_GO_API_KEY),
+      credentialNames: ["ESIM_GO_API_KEY"],
+      activationRequires: "An eSIM Go partner account and API key"
+    },
+    {
+      id: "airalo",
+      name: "Airalo",
+      configured: Boolean(process.env.AIRALO_CLIENT_ID && process.env.AIRALO_CLIENT_SECRET),
+      credentialNames: ["AIRALO_CLIENT_ID", "AIRALO_CLIENT_SECRET"],
+      activationRequires: "An Airalo Partner account, client ID and client secret"
+    }
+  ];
+}
+
 async function getDestinationNetworkInfo(destination) {
   const countryCode = String(destination.code || "").toUpperCase();
   if (!/^[A-Z]{2}$/.test(countryCode)) {
@@ -379,34 +642,52 @@ async function getDestinationNetworkInfo(destination) {
       available: false,
       destination: { id: destination.id, name: destination.name, code: countryCode },
       provider: null,
+      providers: [],
       generations: [],
-      source: "https://mcc-mnc.org",
+      source: "provider APIs",
       message: "No verified country code is available for this destination."
     };
   }
 
+  const providerCoverage = await getProviderCoverage(destination);
   const allRecords = await getNetworkIndex();
   const countryRecords = allRecords.filter((record) => recordMatchesDestination(record, destination));
-  const generationSet = new Set();
+  const generationSet = new Set(providerCoverage.generations);
+  const operatorMap = new Map();
 
-  for (const record of countryRecords) {
-    for (const generation of generationsForRecord(record)) generationSet.add(generation);
+  for (const operator of providerCoverage.operators) {
+    const current = operatorMap.get(operator.name) || new Set();
+    operator.generations.forEach((generation) => current.add(generation));
+    operatorMap.set(operator.name, current);
   }
 
-  // Nigeria's regulator and public network measurements independently confirm
-  // 3G/4G service and active 5G use. This prevents an incomplete operator
-  // register from hiding verified Nigerian 5G activity.
-  if (countryCode === "NG") {
+  // Use the country register only when no partner supplies this country's
+  // actual eSIM roaming networks. Never merge unrelated national operators
+  // into the connected-provider result.
+  if (!providerCoverage.providers.length) {
+    for (const record of countryRecords) {
+      const name = String(record.brand || record.operator || "").trim();
+      if (!name) continue;
+      const current = operatorMap.get(name) || new Set();
+      generationsForRecord(record).forEach((generation) => current.add(generation));
+      operatorMap.set(name, current);
+    }
+    for (const record of countryRecords) {
+      for (const generation of generationsForRecord(record)) generationSet.add(generation);
+    }
+  }
+
+  // Nigerian regulator reporting independently confirms active 5G service,
+  // but no provider is marked connected unless its partner API confirms it.
+  if (countryCode === "NG" && !providerCoverage.providers.length) {
     ["3G", "4G", "5G"].forEach((generation) => generationSet.add(generation));
   }
 
-  const operators = [...new Map(countryRecords.map((record) => {
-    const name = String(record.brand || record.operator || "").trim();
-    return [name, {
+  const operators = [...operatorMap.entries()]
+    .map(([name, generations]) => ({
       name,
-      generations: DISPLAY_GENERATIONS.filter((generation) => generationsForRecord(record).has(generation))
-    }];
-  }).filter(([name]) => name)).values()]
+      generations: DISPLAY_GENERATIONS.filter((generation) => generations.has(generation))
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const updatedDates = countryRecords
@@ -415,17 +696,22 @@ async function getDestinationNetworkInfo(destination) {
     .sort();
 
   return {
-    available: generationSet.size > 0,
-    verified: generationSet.size > 0,
+    available: generationSet.size > 0 || providerCoverage.providers.length > 0,
+    verified: providerCoverage.providers.length > 0 || generationSet.size > 0,
     destination: { id: destination.id, name: destination.name, code: countryCode },
-    provider: null,
+    provider: providerCoverage.providerNames.length ? providerCoverage.providerNames.join(" · ") : null,
+    providers: providerCoverage.providers,
     generations: DISPLAY_GENERATIONS.filter((generation) => generationSet.has(generation)),
     localOperators: operators,
-    operatorCount: countryRecords.length,
+    operatorCount: operators.length,
     sourceCountryName: countryNameFromRecord(countryRecords[0]) || destination.name,
     sourceUpdatedAt: updatedDates.at(-1) || null,
-    source: "https://mcc-mnc.org",
-    note: "The speed strip shows recorded local radio generations. This does not guarantee eSIM roaming access or coverage at every location."
+    source: providerCoverage.providers.length
+      ? providerCoverage.providers.map((provider) => provider.source).join(" + ")
+      : "https://mcc-mnc.org",
+    note: providerCoverage.providers.length
+      ? "Networks and speeds are taken from connected eSIM partner coverage. Availability depends on the provider's live plans."
+      : "No eSIM partner API is connected for this destination. The displayed network generations are national network-register data, not confirmed eSIM roaming access."
   };
 }
 
@@ -477,6 +763,13 @@ const server = http.createServer((req, res) => {
     });
   }
 
+
+  if (req.method === "GET" && url.pathname === "/api/providers/status") {
+    return sendJson(res, 200, {
+      configuredCount: providerConnectionStatus().filter((provider) => provider.configured).length,
+      providers: providerConnectionStatus()
+    });
+  }
 
   if (req.method === "GET" && url.pathname === "/api/network-audit") {
     return buildNetworkAudit()
