@@ -328,8 +328,7 @@ class MainActivity : Activity() {
                 baseManager
             }
 
-            val lte = TelephonyManager.NETWORK_TYPE_BITMASK_LTE or
-                TelephonyManager.NETWORK_TYPE_BITMASK_LTE_CA
+            val lte = TelephonyManager.NETWORK_TYPE_BITMASK_LTE
             val allowed = when (mode) {
                 "4g" -> lte
                 "5g" -> lte or TelephonyManager.NETWORK_TYPE_BITMASK_NR
@@ -385,7 +384,6 @@ class MainActivity : Activity() {
             val label = when (type) {
                 TelephonyManager.NETWORK_TYPE_NR -> "5G"
                 TelephonyManager.NETWORK_TYPE_LTE -> "4G LTE"
-                TelephonyManager.NETWORK_TYPE_LTE_CA -> "4G LTE-A"
                 TelephonyManager.NETWORK_TYPE_HSPA,
                 TelephonyManager.NETWORK_TYPE_HSPAP,
                 TelephonyManager.NETWORK_TYPE_HSDPA,
