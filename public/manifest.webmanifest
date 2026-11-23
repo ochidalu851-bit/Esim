@@ -10,9 +10,9 @@
   "theme_color": "#0b121c",
   "icons": [
     {
-      "src": "/expert-esim-icon.webp",
-      "sizes": "256x256",
-      "type": "image/webp",
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ]
