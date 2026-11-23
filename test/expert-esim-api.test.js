@@ -264,8 +264,84 @@ test('admin endpoints show global profile readiness and reject retired package s
   assert.equal(privacyStatus.status, 200);
 });
 
+test('Expert eSIM rewards, wallet, coupons, referrals, airtime requests, inbox and Railway speed tests work', async () => {
+  const summary = await request('/api/v1/app/summary', { headers: authHeaders() });
+  assert.equal(summary.status, 200);
+  assert.equal(summary.body.summary.devices, 2);
+  assert.equal(summary.body.summary.dailyCheckinAvailable, true);
+  assert.ok(summary.body.summary.referralCode);
+  const checkin = await request('/api/v1/app/check-in', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(checkin.status, 201);
+  assert.equal(checkin.body.pointsBalance, 10);
+  const checkinAgain = await request('/api/v1/app/check-in', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(checkinAgain.status, 409);
+  const spin = await request('/api/v1/app/spin', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(spin.status, 201);
+  assert.ok([5,10,15,20,30].includes(spin.body.claim.points));
+  const spinAgain = await request('/api/v1/app/spin', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(spinAgain.status, 409);
+  const deviceTask = await request('/api/v1/app/tasks/register_device/claim', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(deviceTask.status, 201);
+  const deviceTaskAgain = await request('/api/v1/app/tasks/register_device/claim', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(deviceTaskAgain.status, 409);
+  const speedPing = await fetch(base + '/api/v1/tools/speedtest/ping');
+  assert.equal(speedPing.status, 204);
+  const speedDownload = await fetch(base + '/api/v1/tools/speedtest/download?bytes=512');
+  assert.equal(speedDownload.status, 200);
+  assert.equal((await speedDownload.arrayBuffer()).byteLength, 512);
+  const speedUpload = await fetch(base + '/api/v1/tools/speedtest/upload', { method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: new Uint8Array(2048) });
+  assert.equal(speedUpload.status, 200);
+  assert.equal((await speedUpload.json()).receivedBytes, 2048);
+  const recordedTest = await request('/api/v1/app/speed-test', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ downloadMbps: 22.4, uploadMbps: 8.3, pingMs: 42, jitterMs: 2.5 }) });
+  assert.equal(recordedTest.status, 201);
+  const speedTask = await request('/api/v1/app/tasks/speed_test/claim', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(speedTask.status, 201);
+  const coupon = await request('/api/v1/admin/coupons', { method: 'POST', headers: { 'x-expert-admin-key': adminKey }, body: JSON.stringify({ title: 'Test points coupon', type: 'points', points: 5, description: 'Test coupon' }) });
+  assert.equal(coupon.status, 201);
+  const coupons = await request('/api/v1/app/coupons', { headers: authHeaders() });
+  assert.equal(coupons.status, 200);
+  const couponClaim = await request('/api/v1/app/coupons/' + coupon.body.coupon.id + '/claim', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(couponClaim.status, 201);
+  const couponAgain = await request('/api/v1/app/coupons/' + coupon.body.coupon.id + '/claim', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(couponAgain.status, 409);
+  const code = await request('/api/v1/admin/rewards/codes', { method: 'POST', headers: { 'x-expert-admin-key': adminKey }, body: JSON.stringify({ code: 'EXPERT-TEST-REWARD-2026', type: 'points', points: 10, maxRedemptions: 1 }) });
+  assert.equal(code.status, 201);
+  const redeemed = await request('/api/v1/app/redeem-code', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ code: 'EXPERT-TEST-REWARD-2026' }) });
+  assert.equal(redeemed.status, 201);
+  const redeemedAgain = await request('/api/v1/app/redeem-code', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ code: 'EXPERT-TEST-REWARD-2026' }) });
+  assert.equal(redeemedAgain.status, 409);
+  const storeItem = await request('/api/v1/admin/rewards/items', { method: 'POST', headers: { 'x-expert-admin-key': adminKey }, body: JSON.stringify({ title: 'Test reward item', type: 'digital', pointsCost: 10, description: 'Fulfilment test' }) });
+  assert.equal(storeItem.status, 201);
+  const storeOrder = await request('/api/v1/app/store/' + storeItem.body.item.id + '/redeem', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(storeOrder.status, 201);
+  assert.equal(storeOrder.body.order.status, 'awaiting_sponsor_fulfilment');
+  const referralData = await request('/api/v1/app/referrals', { headers: authHeaders() });
+  assert.equal(referralData.status, 200);
+  const second = await request('/api/v1/auth/register', { method: 'POST', body: JSON.stringify({ fullName: 'Referred Subscriber', email: 'referred@example.com', password: 'another-strong-password', acceptedTerms: true, acceptedPrivacy: true, referralCode: summary.body.summary.referralCode }) });
+  assert.equal(second.status, 201);
+  const transfer = await request('/api/v1/app/wallet/transfer', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ recipientCode: second.body.user.referralCode, points: 5 }) });
+  assert.equal(transfer.status, 201);
+  const recipientWallet = await request('/api/v1/app/wallet', { headers: { cookie: cookieFrom(second) } });
+  assert.equal(recipientWallet.status, 200);
+  assert.equal(recipientWallet.body.wallet.pointsBalance, 5);
+  const airtime = await request('/api/v1/app/airtime', { method: 'POST', headers: authHeaders(), body: JSON.stringify({ countryCode: 'US', phone: '+12025550123', amount: 5, currency: 'USD' }) });
+  assert.equal(airtime.status, 202);
+  assert.equal(airtime.body.request.status, 'awaiting_airtime_partner');
+  const announcement = await request('/api/v1/admin/messages', { method: 'POST', headers: { 'x-expert-admin-key': adminKey }, body: JSON.stringify({ title: 'Test notice', message: 'A test announcement for the inbox.' }) });
+  assert.equal(announcement.status, 201);
+  const inbox = await request('/api/v1/app/messages', { headers: authHeaders() });
+  assert.ok(inbox.body.messages.some(x => x.id === announcement.body.message.id));
+  const read = await request('/api/v1/app/messages/' + announcement.body.message.id + '/read', { method: 'POST', headers: authHeaders(), body: JSON.stringify({}) });
+  assert.equal(read.status, 200);
+  const wallet = await request('/api/v1/app/wallet', { headers: authHeaders() });
+  assert.ok(wallet.body.wallet.pointsBalance > 0);
+  const adminFeatures = await request('/api/v1/admin/features', { headers: { 'x-expert-admin-key': adminKey } });
+  assert.equal(adminFeatures.status, 200);
+  assert.ok(adminFeatures.body.engagement.totalPointsIssued > 0);
+});
+
 test('unsigned or unconfigured provider callbacks cannot create live service', async () => {
-  const esim = await request('/api/v1/provider/webhook', {
+  const esim = await request('/api/v1/global-esim/webhook', {
     method: 'POST',
     headers: { 'x-expert-signature': 'deadbeef' },
     body: JSON.stringify({ type: 'esim.profile.issued', reference: 'not-a-real-order', data: { activationCode: 'LPA:1$example' } })
@@ -288,6 +364,11 @@ test('unsigned or unconfigured provider callbacks cannot create live service', a
 
 test('the subscriber UI hides authentication when a session exists and keeps it available for signed-out users', () => {
   const accountJs = fs.readFileSync(path.join(root, 'public/account.js'), 'utf8');
+  const featureJs = fs.readFileSync(path.join(root, 'public/expert-features.js'), 'utf8');
+  assert.doesNotThrow(() => new Function(featureJs));
+  assert.match(mainHtml, /expert-features\\.js/);
+  assert.doesNotMatch(mainHtml, /speed\\.cloudflare\\.com/);
+  assert.match(mainHtml, /api\\/v1\\/tools\\/speedtest/);
   assert.match(accountJs, /getDeviceInfo/);
   assert.doesNotMatch(accountJs, /portalDeviceName|portalDevicePlatform|portalDeviceModel/);
   assert.match(accountJs, /#activateView \[hidden\]\{display:none!important\}/);
