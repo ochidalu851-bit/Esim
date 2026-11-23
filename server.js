@@ -760,6 +760,7 @@ async function dashboard() {
       privacyRequests: store.privacyRequests.filter(x => x.status === 'received' || x.status === 'in_review').length
     },
     plans: store.plans.map(x => ({ id: x.id, name: x.name, dataMb: x.dataMb, validityDays: x.validityDays, priceMinor: x.priceMinor, currency: x.currency, status: x.status, networkModes: x.networkModes })),
+    recentSubscribers: store.users.slice(-100).reverse().map(userView),
     recentOrders: store.orders.slice(-30).reverse().map(orderView),
     recentTickets: store.supportTickets.slice(-30).reverse().map(({message, ...ticket}) => ticket),
     recentPrivacyRequests: store.privacyRequests.slice(-30).reverse()
@@ -869,6 +870,18 @@ async function route(req, res, url) {
   if (p === '/api/v1/privacy/requests' && m === 'GET') {
     const user = await signedIn(req), store = await loadStore();
     return send(res, 200, { ok: true, requests: store.privacyRequests.filter(x => x.userId === user.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)) });
+  }
+  if (p === '/api/v1/privacy/export' && m === 'GET') {
+    const user = await signedIn(req), store = await loadStore();
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      account: userView(user),
+      orders: store.orders.filter(x => x.userId === user.id).map(orderView),
+      consents: store.consents.filter(x => x.userId === user.id),
+      supportTickets: store.supportTickets.filter(x => x.userId === user.id),
+      privacyRequests: store.privacyRequests.filter(x => x.userId === user.id)
+    };
+    return send(res, 200, exportData, { 'content-disposition': 'attachment; filename="expert-esim-personal-data.json"' });
   }
   if (p === '/api/v1/privacy/requests' && m === 'POST') {
     const user = await signedIn(req);
