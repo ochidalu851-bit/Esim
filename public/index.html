@@ -198,6 +198,7 @@ main{flex:1;display:flex;flex-direction:column}
   $("currentNetworkValue").textContent=result.label||"Unavailable";
   $("networkCapability").textContent=result.supports5g?"5G capable":(result.hasRadio?"4G / LTE radio":"Radio information unavailable");
   if(result.message)$("networkModeStatus").textContent=result.message;
+  if(window.ExpertFeatures && typeof window.ExpertFeatures.onNetworkInfo==="function") window.ExpertFeatures.onNetworkInfo(result);
  };
  function refreshNetworkInfo(){
   const native=window.ExpertESimNative;
