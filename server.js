@@ -701,6 +701,9 @@ async function route(req, res, url) {
     if (!adminOk(req)) return send(res, 401, { ok: false, error: 'Admin authentication is required.' });
     if (p === '/api/v1/admin/dashboard' && m === 'GET') return send(res, 200, { ok: true, dashboard: await dashboard() });
     if (p === '/api/v1/admin/features' && m === 'GET') return send(res, 200, { ok: true, engagement: await expertFeatures.adminSummary(), records: await expertFeatures.adminListOrders() });
+    if (p === '/api/v1/admin/features/fulfilment' && m === 'POST') {
+      return send(res, 200, { ok: true, record: await expertFeatures.adminUpdateFulfilment(await body(req)) });
+    }
     if (p === '/api/v1/admin/coupons' && m === 'POST') return send(res, 201, { ok: true, coupon: await expertFeatures.adminCreateCoupon(await body(req)) });
     if (p === '/api/v1/admin/rewards/items' && m === 'POST') return send(res, 201, { ok: true, item: await expertFeatures.adminCreateStoreItem(await body(req)) });
     if (p === '/api/v1/admin/rewards/codes' && m === 'POST') return send(res, 201, { ok: true, code: await expertFeatures.adminCreateCode(await body(req)) });
