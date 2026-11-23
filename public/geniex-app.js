@@ -57,6 +57,7 @@ function render(){
  else if(S.page==="account")html=accountPage();
  else if(S.page==="my-account")html=myAccountPage();
  else if(S.page==="network-settings")html=networkSettingsPage();
+ else if(S.page==="diagnostics")html=diagnosticsPage();
  else if(S.page==="battery")html=batteryPage();
  else if(S.page==="rewards")html=rewardsPage();
  else if(S.page==="vouchers")html=vouchersPage();
@@ -119,6 +120,7 @@ function networkSettingsPage(){
  const modes=[["auto","Automatic","Use all supported network technologies"],["4g","4G LTE","Prefer LTE mobile data"],["5g","5G","Prefer 5G NR with LTE fallback"]];
  return header("Preferred Network")+'<div class="panel"><div class="eyebrow">MOBILE NETWORK MODE</div><p class="tiny muted">Select the preferred radio mode for the enabled eSIM line. The phone or carrier may restrict direct switching.</p><div class="menu-list">'+modes.map(x=>'<button class="menu-action" data-action="set-network" data-mode="'+x[0]+'"><span class="menu-symbol">'+(mode===x[0]?"●":"○")+'</span><span>'+x[1]+'<small>'+x[2]+'</small></span><em>'+(mode===x[0]?"SELECTED":"›")+'</em></button>').join("")+'</div><p class="tiny muted" id="networkModeMessage">Current preference: '+esc(mode.toUpperCase())+'</p><button class="secondary-button" data-action="open-network-settings">Open Android SIM settings</button></div><p class="footer-note">Network mode changes are device-controlled. This app does not guarantee 4G/5G availability where the carrier has no coverage.</p>';
 }
+function diagnosticsPage(){return header("Network Diagnostic")+'<div class="panel"><div class="eyebrow">CONNECTION DIAGNOSTIC</div><p class="tiny muted">Run a local connectivity check against the Expert Railway service and inspect the detected mobile radio.</p><div id="diagnosticMessage" class="status-banner">Ready to test the connection.</div><button class="primary-button" data-action="diagnostics">RUN DIAGNOSTIC</button></div>'+(S.network?'<div class="panel"><h3>Mobile network</h3><b>'+esc(S.network.networkType||"Unknown")+'</b><p class="tiny muted">'+esc(S.network.message||"")+"</p></div>":"");}
 function batteryPage(){return header("Battery & Device Info")+'<div id="deviceHealth" class="panel"><div class="tiny muted">Reading device diagnostics…</div></div><button class="secondary-button" data-action="open-battery-settings">Open Battery Settings</button>';}
 async function loadPreferredNetwork(){
  const n=window.ExpertESimNative;
@@ -229,8 +231,8 @@ async function runSpeed(){
 async function connectNetwork(){
  if(S.connecting)return;S.connecting=true;render();
  const n=window.ExpertESimNative;
- if(n&&typeof n.connect==="function"){try{n.connect();}catch(e){S.connecting=false;render();notify(e.message);}return;}
- try{await api("/geniex/connect",{method:"POST",body:"{}"});}catch(e){notify(e.message);}
+ if(n&&(typeof n.connect==="function"||typeof n.disconnect==="function")){try{if(S.connected&&typeof n.disconnect==="function")n.disconnect();else if(typeof n.connect==="function")n.connect();else throw new Error("No native connection action is available.");}catch(e){S.connecting=false;render();notify(e.message);}return;}
+ try{await api(S.connected?"/geniex/disconnect":"/geniex/connect",{method:"POST",body:"{}"});}catch(e){notify(e.message);}
  S.connecting=false;render();
 }
 async function requestUnavailable(route,label){
@@ -241,7 +243,7 @@ window.onExpertEsimNativeResult=function(result){
  S.connecting=false;S.connected=!!(result&&result.connected);render();notify(result&&result.message?result.message:(S.connected?"Connected":"Unable to connect"));
 };
 window.onExpertNetworkInfoResult=function(result){
- S.network={networkType:result&&result.networkType||result&&result.status||"Not available",available:!!(result&&result.available),message:result&&result.message||"",transport:"Mobile network",signal:result&&result.signal||"Not exposed"};
+ S.network={networkType:result&&result.label||result&&result.networkType||result&&result.status||"Not available",available:!!(result&&result.hasRadio&&result.label!=="Network type unavailable"),message:result&&result.message||"",transport:"Mobile data SIM",signal:result&&result.supports5g?"5G capable":"Signal strength not exposed"};
  if(S.page==="network")render();
 };
 window.onExpertNetworkModeResult=function(result){notify(result&&result.message||"Network preference updated.");};
