@@ -1,5 +1,7 @@
 name: Sync country eSIM carriers and network generations
 
+# Triggered by updates to the country dataset builder.
+
 on:
   push:
     branches: [main]
