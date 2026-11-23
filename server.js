@@ -930,7 +930,11 @@ async function route(req, res, url) {
       account: userView(user),
       orders: store.orders.filter(x => x.userId === user.id).map(orderView),
       devices: store.devices.filter(x => x.userId === user.id).map(device => ({
-        id: device.id, deviceName: device.deviceName, platform: device.platform, model: device.model || null,
+        id: device.id, deviceName: device.deviceName, manufacturer: device.manufacturer || null,
+        platform: device.platform, model: device.model || null, osVersion: device.osVersion || null,
+        eSimSupportKnown: device.eSimSupportKnown === true,
+        hasEuiccHardware: typeof device.hasEuiccHardware === 'boolean' ? device.hasEuiccHardware : null,
+        euiccEnabled: typeof device.euiccEnabled === 'boolean' ? device.euiccEnabled : null,
         status: device.status, createdAt: device.createdAt
       })),
       profiles: store.profiles.filter(x => x.userId === user.id).map(profile => ({
