@@ -609,6 +609,13 @@ async function route(req, res, url) {
   if (p === '/api/v1/app/summary' && m === 'GET') {
     return send(res, 200, { ok: true, summary: await expertFeatures.summary(await signedIn(req)) });
   }
+  if (p === '/api/v1/app/preferences' && m === 'GET') {
+    return send(res, 200, { ok: true, preferences: await expertFeatures.getPreferences(await signedIn(req)) });
+  }
+  if (p === '/api/v1/app/preferences' && m === 'PATCH') {
+    const result = await expertFeatures.updatePreferences(await signedIn(req), await body(req));
+    return send(res, 200, { ok: true, preferences: result });
+  }
   if (p === '/api/v1/app/check-in' && m === 'POST') {
     return send(res, 201, { ok: true, ...(await expertFeatures.checkIn(await signedIn(req))) });
   }
