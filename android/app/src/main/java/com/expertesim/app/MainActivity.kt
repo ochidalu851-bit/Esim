@@ -312,6 +312,9 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var userEmail by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var emailVerified by remember { mutableStateOf(false) }
+    var verificationBusy by remember { mutableStateOf(false) }
+    var verificationMessage by remember { mutableStateOf("") }
     var kycStatus by remember { mutableStateOf("not_started") }
     var kycBusy by remember { mutableStateOf(false) }
     var kycMessage by remember { mutableStateOf("") }
@@ -363,6 +366,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                 userEmail = user.optString("email").takeIf { it != "null" }.orEmpty()
                 fullName = user.optString("fullName").takeIf { it != "null" }.orEmpty()
                 phone = user.optString("phone").takeIf { it != "null" }.orEmpty()
+                emailVerified = user.optBoolean("emailVerified", false)
                 kycStatus = user.optString("kycStatus", "not_started")
                 if (userEmail.isNotBlank()) {
                     val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
@@ -853,6 +857,38 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                 Text(userEmail, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
                                 if (phone.isNotBlank()) Text(phone, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
                                 Spacer(Modifier.height(14.dp))
+                                Text("Email verification", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text(if (emailVerified) "Email address verified" else "Email address not yet verified", color = if (emailVerified) Color(0xFF8BCB9C) else Muted, fontFamily = Poppins, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                                if (!emailVerified) {
+                                    OutlinedButton(
+                                        enabled = !verificationBusy,
+                                        onClick = {
+                                            verificationBusy = true
+                                            verificationMessage = ""
+                                            scope.launch {
+                                                try {
+                                                    val response = activity.api("/auth/verification/send", "POST", JSONObject())
+                                                    emailVerified = response.optBoolean("verified", emailVerified)
+                                                    verificationMessage = if (response.optBoolean("sent", false)) {
+                                                        "A verification email has been sent to $userEmail."
+                                                    } else if (emailVerified) {
+                                                        "This email address is already verified."
+                                                    } else {
+                                                        "Email delivery is not configured for this account yet."
+                                                    }
+                                                    toast(verificationMessage)
+                                                } catch (e: Exception) {
+                                                    verificationMessage = e.message ?: "Verification email could not be sent."
+                                                    toast(verificationMessage)
+                                                } finally { verificationBusy = false }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(38.dp),
+                                        border = BorderStroke(1.dp, Stroke)
+                                    ) { Text(if (verificationBusy) "Sending…" else "Send Verification Email", color = MainText, fontFamily = Poppins, fontSize = 10.sp) }
+                                }
+                                if (verificationMessage.isNotBlank()) Text(verificationMessage, color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                                Spacer(Modifier.height(14.dp))
                                 Text("Account security", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                 OutlinedTextField(
                                     value = currentPassword,
@@ -929,6 +965,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                         runCatching { activity.api("/auth/logout", "POST", JSONObject()) }
                                         userEmail = ""
                                         kycStatus = "not_started"
+                                        emailVerified = false
                                         registeredDevice = null
                                         activity.runOnUiThread { activity.getSharedPreferences("geniex_native", 0).edit().remove("session_cookie").apply() }
                                         toast("Signed out.")
@@ -986,6 +1023,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                                 userEmail = u.optString("email").takeIf { it.isNotBlank() && it != "null" } ?: loginEmail
                                                 fullName = u.optString("fullName").takeIf { it.isNotBlank() && it != "null" } ?: fullName
                                                 phone = u.optString("phone").takeIf { it.isNotBlank() && it != "null" } ?: phone
+                                                emailVerified = u.optBoolean("emailVerified", emailVerified)
                                                 kycStatus = u.optString("kycStatus", kycStatus)
                                                 runCatching {
                                                     registeredDevice = activity.registerCurrentDevice()
