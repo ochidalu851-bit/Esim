@@ -839,7 +839,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     onClick = { open("balance") },
                     icon = { Glyph(0xE61C, 19) },
                     label = { Text("Balance", fontFamily = Poppins, fontSize = 9.sp) },
-                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedIconColor = Muted, unselectedTextColor = Muted)
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
                 )
                 NavigationBarItem(
                     selected = page in listOf("device", "network", "sim", "speed", "battery", "boost", "settings"),
