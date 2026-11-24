@@ -306,6 +306,8 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var profileMessage by remember { mutableStateOf("") }
     var appMessages by remember { mutableStateOf(emptyList<JSONObject>()) }
     var couponItems by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var appPreferences by remember { mutableStateOf<JSONObject?>(null) }
+    var preferencesBusy by remember { mutableStateOf(false) }
     var rewardSummary by remember { mutableStateOf<JSONObject?>(null) }
     var rewardBusy by remember { mutableStateOf(false) }
     var transferRecipient by remember { mutableStateOf("") }
@@ -387,6 +389,14 @@ private fun GeniexNativeApp(activity: MainActivity) {
                 }.onFailure { toast(it.message ?: "Vouchers could not be loaded.") }
             }
         }
+        if (target == "settings") {
+            scope.launch {
+                runCatching {
+                    val response = activity.api("/app/preferences")
+                    appPreferences = response.optJSONObject("preferences") ?: JSONObject()
+                }.onFailure { toast(it.message ?: "Settings could not be loaded.") }
+            }
+        }
         if (target == "messages") {
             scope.launch {
                 runCatching {
@@ -452,6 +462,19 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     dataMessage = r.optString("message", "App bundle availability is controlled by the connected provider.")
                 }.onFailure { dataMessage = it.message ?: "App bundles could not be loaded." }
             }
+        }
+    }
+
+    fun savePreference(key: String, enabled: Boolean) {
+        preferencesBusy = true
+        scope.launch {
+            try {
+                val patch = JSONObject().put(key, enabled)
+                val response = activity.api("/app/preferences", "PATCH", patch)
+                appPreferences = response.optJSONObject("preferences") ?: (appPreferences ?: JSONObject()).put(key, enabled)
+            } catch (e: Exception) {
+                toast(e.message ?: "Setting could not be saved.")
+            } finally { preferencesBusy = false }
         }
     }
 
@@ -1253,8 +1276,40 @@ private fun GeniexNativeApp(activity: MainActivity) {
                         }
                     }
                     "settings" -> {
-                        Column(Modifier.weight(1f).padding(23.dp)) {
+                        val prefs = appPreferences ?: JSONObject()
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            Text("Account", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             SimpleActionRow("Account security", "Manage your account and password", 0xE635) { open("account") }
+                            Spacer(Modifier.height(14.dp))
+                            Text("Appearance", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            PreferenceToggle(
+                                "Dark appearance", "Use the dark interface",
+                                prefs.optBoolean("darkMode", true), !preferencesBusy
+                            ) { enabled -> savePreference("darkMode", enabled) }
+                            PreferenceToggle(
+                                "Reduce motion", "Reduce moving interface effects",
+                                prefs.optBoolean("reduceMotion", false), !preferencesBusy
+                            ) { enabled -> savePreference("reduceMotion", enabled) }
+                            Spacer(Modifier.height(12.dp))
+                            Text("Notifications", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            PreferenceToggle(
+                                "In-app notifications", "Show announcements and account messages",
+                                prefs.optBoolean("inAppNotifications", true), !preferencesBusy
+                            ) { enabled -> savePreference("inAppNotifications", enabled) }
+                            PreferenceToggle(
+                                "Email notifications", "Receive supported account emails",
+                                prefs.optBoolean("emailNotifications", false), !preferencesBusy
+                            ) { enabled -> savePreference("emailNotifications", enabled) }
+                            PreferenceToggle(
+                                "Usage alerts", "Show carrier usage alerts when available",
+                                prefs.optBoolean("usageAlerts", true), !preferencesBusy
+                            ) { enabled -> savePreference("usageAlerts", enabled) }
+                            PreferenceToggle(
+                                "Sponsor offer updates", "Receive supported sponsor offer notices",
+                                prefs.optBoolean("sponsorOfferUpdates", false), !preferencesBusy
+                            ) { enabled -> savePreference("sponsorOfferUpdates", enabled) }
+                            Spacer(Modifier.height(14.dp))
+                            Text("Device", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                             SimpleActionRow("Battery", "Open Android battery controls", 0xE627) { activity.openBatterySettings() }
                             SimpleActionRow("SIM settings", "Manage SIM and mobile-data preferences", 0xE627) { activity.openSimSettings() }
                             SimpleActionRow("About us", "Application information", 0xE628) { open("about") }
@@ -1478,6 +1533,27 @@ private fun HomeDashboard(
             color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 15.sp
         )
         Spacer(Modifier.height(10.dp))
+    }
+}
+
+
+@Composable
+private fun PreferenceToggle(
+    title: String,
+    description: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, color = MainText, fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Text(description, color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 13.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, enabled = enabled)
     }
 }
 
