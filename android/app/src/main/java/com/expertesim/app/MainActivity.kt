@@ -161,6 +161,16 @@ class MainActivity : ComponentActivity() {
         startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
     }
 
+    internal fun openExternalHttps(url: String) {
+        val uri = Uri.parse(url)
+        if (uri.scheme != "https" || uri.host.isNullOrBlank()) {
+            notifyUser("The verification provider returned an invalid secure link.")
+            return
+        }
+        runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+            .onFailure { notifyUser("The secure verification page could not be opened.") }
+    }
+
     @SuppressLint("MissingPermission")
     internal fun currentNetworkLabel(): String {
         if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
@@ -302,6 +312,9 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var userEmail by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var kycStatus by remember { mutableStateOf("not_started") }
+    var kycBusy by remember { mutableStateOf(false) }
+    var kycMessage by remember { mutableStateOf("") }
     var loginEmail by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var acceptedTerms by remember { mutableStateOf(false) }
@@ -346,6 +359,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                 userEmail = user.optString("email").takeIf { it != "null" }.orEmpty()
                 fullName = user.optString("fullName").takeIf { it != "null" }.orEmpty()
                 phone = user.optString("phone").takeIf { it != "null" }.orEmpty()
+                kycStatus = user.optString("kycStatus", "not_started")
                 if (userEmail.isNotBlank()) {
                     val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
                     points = wallet.optString("pointsBalance", points)
@@ -834,11 +848,39 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                 Text(fullName.ifBlank { userEmail }, color = MainText, fontFamily = Poppins, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                                 Text(userEmail, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
                                 if (phone.isNotBlank()) Text(phone, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+                                Spacer(Modifier.height(14.dp))
+                                Text("Identity verification", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                Text("Status: ${kycStatus.replace('_', ' ')}", color = Muted, fontFamily = Poppins, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+                                Button(
+                                    enabled = !kycBusy && kycStatus != "verified",
+                                    onClick = {
+                                        kycBusy = true
+                                        kycMessage = ""
+                                        scope.launch {
+                                            try {
+                                                val result = activity.api("/kyc/start", "POST", JSONObject())
+                                                kycStatus = result.optString("status", kycStatus)
+                                                kycMessage = result.optString("message", "Identity verification request received.")
+                                                val verificationUrl = result.optString("verificationUrl")
+                                                if (verificationUrl.startsWith("https://")) activity.openExternalHttps(verificationUrl)
+                                                toast(kycMessage)
+                                            } catch (e: Exception) {
+                                                kycMessage = e.message ?: "Identity verification is not available."
+                                                toast(kycMessage)
+                                            } finally { kycBusy = false }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                                ) { Text(if (kycStatus == "verified") "Identity Verified" else if (kycBusy) "Connecting…" else "Continue Identity Verification", fontFamily = Poppins, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
+                                if (kycMessage.isNotBlank()) Text(kycMessage, color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp, modifier = Modifier.padding(top = 6.dp))
                                 Spacer(Modifier.height(16.dp))
                                 SimpleActionRow("Sign out", "End this account session", 0xE635) {
                                     scope.launch {
                                         runCatching { activity.api("/auth/logout", "POST", JSONObject()) }
                                         userEmail = ""
+                                        kycStatus = "not_started"
+                                        registeredDevice = null
                                         activity.runOnUiThread { activity.getSharedPreferences("geniex_native", 0).edit().remove("session_cookie").apply() }
                                         toast("Signed out.")
                                     }
@@ -895,6 +937,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                                 userEmail = u.optString("email").takeIf { it.isNotBlank() && it != "null" } ?: loginEmail
                                                 fullName = u.optString("fullName").takeIf { it.isNotBlank() && it != "null" } ?: fullName
                                                 phone = u.optString("phone").takeIf { it.isNotBlank() && it != "null" } ?: phone
+                                                kycStatus = u.optString("kycStatus", kycStatus)
                                                 runCatching {
                                                     registeredDevice = activity.registerCurrentDevice()
                                                     deviceSyncMessage = "This Android device is registered to your account."
