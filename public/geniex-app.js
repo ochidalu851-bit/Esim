@@ -41,7 +41,7 @@ function row(symbol,title,desc,tail,action){return '<button class="menu-action" 
 function setPage(page){
  if(page==="shop"||page==="data")page="countries";
  if(page==="mine")page="more";
- if(page==="device")page="diagnostics";
+
  S.page=page;render();
  if(page==="home"){loadStatus();loadUsage();readNetwork();}
  if(page==="country-plans")loadCountryCatalog();
@@ -54,7 +54,7 @@ function setPage(page){
  if(page==="network")refreshNetwork();
  if(page==="settings")loadSettings();
  if(page==="network-settings")loadPreferredNetwork();
- if(page==="battery")loadDeviceHealth();
+ if(page==="battery"||page==="device")loadDeviceHealth();
  if(page==="messages")loadMessages();
  if(page==="usage")loadUsage();
  if(page==="orders")loadOrders();
@@ -67,7 +67,7 @@ function render(){
  else if(S.page==="countries"||S.page==="data"||S.page==="shop")html=countriesPage();
  else if(S.page==="country-plans")html=countryPlansPage();
  else if(S.page==="more"||S.page==="mine")html=morePage();
- else if(S.page==="device")html=diagnosticsPage();
+ else if(S.page==="device")html=devicePage();
  else if(S.page==="apps")html=appsPage();
  else if(S.page==="balance")html=balancePage();
  else if(S.page==="sponsors")html=sponsorsPage();
@@ -293,6 +293,28 @@ function networkSettingsPage(){
  const modes=[["auto","Automatic","Use all supported network technologies"],["4g","4G LTE","Prefer LTE mobile data"],["5g","5G","Prefer 5G NR with LTE fallback"]];
  return header("Preferred Network")+'<div class="panel"><div class="eyebrow">MOBILE NETWORK MODE</div><p class="tiny muted">Select the preferred radio mode for the enabled eSIM line. The phone or carrier may restrict direct switching.</p><div class="menu-list">'+modes.map(x=>'<button class="menu-action" data-action="set-network" data-mode="'+x[0]+'"><span class="menu-symbol">'+(mode===x[0]?"●":"○")+'</span><span>'+x[1]+'<small>'+x[2]+'</small></span><em>'+(mode===x[0]?"SELECTED":"›")+'</em></button>').join("")+'</div><p class="tiny muted" id="networkModeMessage">Current preference: '+esc(mode.toUpperCase())+'</p><button class="secondary-button" data-action="open-network-settings">Open Network Settings</button> <button class="secondary-button" data-action="open-sim-settings">Calls & SMS SIM</button><div class="status-banner">RSIM mode is not enabled. It requires an authorised virtual-network provider. Calls and SMS settings remain under Android SIM controls.</div></div><p class="footer-note">Network mode changes are device-controlled. This app does not guarantee 4G/5G availability where the carrier has no coverage.</p>';
 }
+function devicePage(){
+ const d=S.device||{};
+ const detailRows=[
+  ["Manufacturer",d.manufacturer||"—"],
+  ["Model",d.model||"—"],
+  ["Android version",d.osVersion||"—"],
+  ["eSIM hardware",d.hasEuiccHardware===true?"Detected":d.hasEuiccHardware===false?"Not detected":"Not reported"]
+ ];
+ return header("Device")+
+ '<div class="panel device-summary"><div class="eyebrow">THIS DEVICE · AUTO DETECTED</div><h2>'+esc(d.deviceName||[d.manufacturer,d.model].filter(Boolean).join(" ")||"Device details unavailable")+'</h2><p class="tiny muted">Device information is read from Android. No manual device identifiers are requested.</p>'+
+ detailRows.map(x=>'<div class="device-detail-row"><span>'+esc(x[0])+'</span><b>'+esc(x[1])+'</b></div>').join("")+
+ '<div id="deviceHealth" class="device-health-details"><div class="tiny muted">Reading battery, storage and memory diagnostics…</div></div></div>'+
+ '<div class="home-section-heading"><h2>Device tools</h2></div>'+
+ '<div class="home-service-list">'+
+ '<button type="button" data-page="network"><span>'+icons.signal+'</span><b>Network Detection</b><i>›</i></button>'+
+ '<button type="button" data-page="network-settings"><span>'+icons.wifi+'</span><b>Preferred Network</b><i>›</i></button>'+
+ '<button type="button" data-page="sim"><span>▣</span><b>SIM Management</b><i>›</i></button>'+
+ '<button type="button" data-page="speed"><span>'+icons.speed+'</span><b>NetSpeed</b><i>›</i></button>'+
+ '<button type="button" data-page="battery"><span>ϟ</span><b>Battery</b><i>›</i></button>'+
+ '<button type="button" data-page="diagnostics"><span>'+icons.help+'</span><b>Diagnostics</b><i>›</i></button>'+
+ '</div>';
+}
 function diagnosticsPage(){return header("Network Diagnostic")+'<div class="panel"><div class="eyebrow">CONNECTION DIAGNOSTIC</div><p class="tiny muted">Run a local connectivity check against the Expert Railway service and inspect the detected mobile radio.</p><div id="diagnosticMessage" class="status-banner">Ready to test the connection.</div><button class="primary-button" data-action="diagnostics">RUN DIAGNOSTIC</button></div>'+(S.network?'<div class="panel"><h3>Mobile network</h3><b>'+esc(S.network.networkType||"Unknown")+'</b><p class="tiny muted">'+esc(S.network.message||"")+"</p></div>":"");}
 function batteryPage(){return header("Battery & Device Info")+'<div id="deviceHealth" class="panel"><div class="tiny muted">Reading device diagnostics…</div></div><button class="secondary-button" data-action="open-battery-settings">Open Battery Settings</button>';}
 async function loadPreferredNetwork(){
@@ -410,8 +432,9 @@ function readNetwork(){
  const n=window.ExpertMobileNative;
  if(n&&typeof n.getCurrentNetworkInfo==="function"){try{n.getCurrentNetworkInfo();S.network=S.network||{networkType:"Reading…",available:false,message:"Waiting for Android network information."};}catch(e){S.network={networkType:"Unavailable",available:false,message:e.message};}}
  else{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;S.network={networkType:c&&c.effectiveType?c.effectiveType.toUpperCase():"Browser network",transport:c&&c.type?c.type:"Internet connection",available:true,message:"Browser mode cannot verify SIM slot or carrier radio technology."};render();}
+ if(S.page==="home"||S.page==="device")render();
 }
-function refreshNetwork(){readNetwork();if(S.page==="network")render();}
+function refreshNetwork(){readNetwork();if(S.page==="network"||S.page==="device")render();}
 function loadStatus(){
  api("/geniex/status").then(r=>{S.status=r;const h=$("headerStatus");if(h){h.classList.toggle("online",!!r.networkProviderConfigured);h.innerHTML='<i></i>'+(r.networkProviderConfigured?"Provider ready":"Provider pending");}if(S.page==="home")render();}).catch(()=>{});
 }
