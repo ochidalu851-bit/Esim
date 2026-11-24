@@ -2,7 +2,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const screen=$("screen"),toast=$("toast");
-const S={page:"countries",user:null,status:null,summary:null,wallet:null,catalog:{plans:[],bundles:[],countryPlans:[]},usage:null,network:null,authMode:"login",speed:{download:null,upload:null,ping:null,jitter:null},connecting:false,connected:false,preferences:null,device:null,sponsorOffers:[],selectedCountry:null,planType:"data",selectedPlanId:null,countryQuery:"",countryCatalogLoading:false,countryCatalogMessage:"",countryProvider:null,countrySpeed:null};
+const S={page:"home",user:null,status:null,summary:null,wallet:null,catalog:{plans:[],bundles:[],countryPlans:[]},usage:null,network:null,authMode:"login",speed:{download:null,upload:null,ping:null,jitter:null},connecting:false,connected:false,preferences:null,device:null,sponsorOffers:[],selectedCountry:null,planType:"data",selectedPlanId:null,countryQuery:"",countryCatalogLoading:false,countryCatalogMessage:"",countryProvider:null,countrySpeed:null};
 const GENIEX_ORIGINAL_ASSETS={
  brand:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADwAAAA8CAMAAAANIilAAAAASFBMVEUAAABqNf9qNf9rNf9qNP9rNf9oOP9oMP9wMP9wQP9qNP9lM/9sNP9pNP9qNf9oNf9pNP9qMv9rNf9qNP9rNP9qNP9qNf9qNf/UM3egAAAAF3RSTlMA33+f788gIBAQvzBAP2Bfb2CPUI+vkCAt/dAAAAGoSURBVEjH7dVZbsMwDARQa43lJYudRve/aYNCLKMZ24j616Lz1YZ5kEyJcfcHk6Yp/VBak58xNjbT6PJ3XBtPQtt5sj5jbGygFHN5w56NgkY+DTUAvh7QsaZm7vubf69z6QHrnLpnTvAY935zx4btljYj22tmC1pyRbvmOkF3x3oCbNhq+gC76o8WdtL+iTUv7dDKp3f5k+qa6oBtObrh9YuL1hd6ZLZlq0N5QKt1iCcbAzYvoJXQIUbz0twoIw4W8QWs6BSkvos92MUVPdU2bmA/luP1skVpE9QN4G0rGuuAdRTOXlunWuurz4jVyglVxwh1wFKzcAnTUNtrZhzAyt1KQazUGYf6Dnq5W7HYqo64rlkZIuPxfgPmwbR7I/jIhNnKIjzejGEEy/+WxlutYVtyV03jjXeAx+hD2gPjrRnIakKUl57n8eYfoilnGGAN2zzDLyBqtvzI/FZgPXp+Ex1rPx5Z0i7XuVTjDWdBucHi9svCstCrfe7WW70db9loTjZzlMKOmbs966RR7XwYu/cyG6LzIcDOMW3jStszu+B9WObuP78/nxHqbvoPxgDqAAAAAElFTkSuQmCC",
  card:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAB4CAMAAAAOusbgAAAAZlBMVEUAAAB6Qvp7Qvp6Qvl7Q/p7RPd7Qvl4QP97Q/p7Qvx7Q/p6Qvd7Q/p7Q/t6Q/l6Qvp6Q/Z7Q/r///+LWvve0P7v6P/OuP29of338/+1lf2sifyccvuDTvvFrf2kfvyUZvvm3P7WxP6v5X/rAAAAEXRSTlMA3+9AvyBwEK9fn2DPj1CAMIjz4XYAAAQsSURBVGje1ZvbduogEEADiSTGWDuQC7kZ+/8/eVbbLInrmBlChOPZD32o2t0ZYICA0WbS+HTOE8Y4fMOKJLuIOI38EouMwVNYJuLID6lIOKDw7HjwYAUrkpe644yDPXn8Km0CGymOL9B+MHCAHUNHa9R7En5IYAe5czcTHHbBL4HDNbBD2HANXGwtGGd4Eed0U5oLMARM9ycD+BfmDw4vhX/YeY/wco5+vbSZ9oY3f4AniHb+5OAJ/omOX2Qc+RxVKQOPFOs17AxeOa95BXhGrDQwB8/w583MwDvJM+8FAiCCJZpOdg4IHpMdQyBih56lbBi2hXyipH1dSUvKcSJmC/uAGy03UV6Rmm0f8HSTm6kHq1YuMG+npQOVwluZ7tJXXOBgjq3GsNLSkRuskN2LFiBU0plmrXylFl2rk+5oRVTsxEPAaMgJnele7kGvjamUzHQtd9Gjuc4Q8W2fuEVzzRGx3Ee91q9N9fAjLrEaIrDqsego69OT/qrrutRbxMI0MSHWaqXBddPfZ057cWaamBCXK128GZZvr0mxmRtTRFtXhLia4JFrZSeGFOlbqpISF1cK+RAujpG+NcoVMTrxTdpKfETW8SUl7uYge1jSWonPSKeuCXE9N+tvgWrkl/mHaXGOTE09IVb3qqrVT6mZzOdIcYIttxpUXJqJ8zvYxZSgLcQMXdiqFhF3v2+5zdPQYk4YrcQAjgVkWq5QKvj9Obc6Lebu4sfR89Ms49+fWmWf2FQMPSffv1jP7/gePPMOp2rDRGzauGvmlp7TbyXmrmJlBm03VHLRxr2VmGHiKzacTBt3cF38Bpq94/iqkQJyr5A/YigXBeRmIS6iBMszJtbDvTRfAZQRK7uSmTtPEs3clcrxJz1laz5Hi7Po7D4tKmS3RYkv0WnHQmCg1y1rCGzpowmxLMF96YMt9qaKEMubQrzEYg8dyD0hllUHS1ptv7yNMkB4GDzl013KXT205aYFvcDE2mS1Xduy6nJsu3Ystf2mDQS1aSv9bFMhprapzT7xhG1To8Tbo4gKf+AkvOW6ww/8UvAQMv5s70A/boIvDwEnNudNQ+XqHcmj1RRf/jiaa1jlgDxEpc3u3tz2JGQYN2t1a3cekgCOqrdpmwHWKTYd/qiuvi1HyiMPM/fYD4BxRA5DyFrSYi/hMORqAD2iW/QlOmCkldHDiUphL6EwhyO+vplp//rj08pLSJc2IQchf59j3EhAAC7GFzTZ7L0uJ/hPtni3CyhRWoBH2BteMvJ6rerwnhfJkAM/AnpOCm423vDm43tfCH31qGKfiMqjuTj8D9ecPVzsDpvu5BC5cOGBwzVB54HDNcTMWRtH+zg5qZnR7lAXgaM1xFvamudGu5/DKbEMViAFw9WdcSJWD1bzZToe+Mt0hjQWlywp2G+QjCX5+RRvj/QPmpz/dH834xcAAAAASUVORK5CYII="
@@ -39,8 +39,11 @@ function header(title,extra){
 function empty(title,copy,button){return '<div class="empty-state"><div class="empty-icon">◌</div><b>'+esc(title)+'</b><p>'+esc(copy)+'</p>'+(button||"")+'</div>';}
 function row(symbol,title,desc,tail,action){return '<button class="menu-action" '+(action?'data-page="'+esc(action)+'"':'data-action="noop"')+'><span class="menu-symbol">'+symbol+'</span><span>'+esc(title)+'<small class="muted">'+esc(desc||"")+'</small></span><em>'+esc(tail||"›")+'</em></button>';}
 function setPage(page){
- if(page==="home"||page==="data")page="countries";
+ if(page==="shop"||page==="data")page="countries";
+ if(page==="mine")page="more";
+ if(page==="device")page="diagnostics";
  S.page=page;render();
+ if(page==="home"){loadStatus();loadUsage();readNetwork();}
  if(page==="country-plans")loadCountryCatalog();
  if(page==="apps")loadCatalog();
  if(page==="balance")loadBalance();
@@ -60,9 +63,11 @@ function setPage(page){
 function render(){
  updateTopBar();
  let html="";
- if(S.page==="countries"||S.page==="home"||S.page==="data")html=countriesPage();
+ if(S.page==="home")html=homePage();
+ else if(S.page==="countries"||S.page==="data"||S.page==="shop")html=countriesPage();
  else if(S.page==="country-plans")html=countryPlansPage();
- else if(S.page==="more")html=morePage();
+ else if(S.page==="more"||S.page==="mine")html=morePage();
+ else if(S.page==="device")html=diagnosticsPage();
  else if(S.page==="apps")html=appsPage();
  else if(S.page==="balance")html=balancePage();
  else if(S.page==="sponsors")html=sponsorsPage();
@@ -82,17 +87,32 @@ function render(){
  else if(S.page==="help")html=helpPage();
  else if(S.page==="messages")html=messagesPage();
  else if(S.page==="history")html=historyPage();
- else html=countriesPage();
- screen.innerHTML='<section class="page active">'+html+'</section>';
+ else html=homePage();
+ const navPage=S.page==="countries"||S.page==="country-plans"||S.page==="data"||S.page==="shop"?"shop":
+   S.page==="balance"?"balance":
+   ["device","diagnostics","network","network-settings","battery","speed","sim","boost"].includes(S.page)?"device":
+   ["more","mine","account","my-account","settings","help","messages","rewards","vouchers","airtime","orders","history","sponsors"].includes(S.page)?"mine":"home";
+ const nav=[
+   ["home","Home",'<svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1Z"/></svg>'],
+   ["shop","Shop",'<svg viewBox="0 0 24 24"><path d="M3 9h18l-1.5 12h-15L3 9Z"/><path d="M7 9 9 3h6l2 6M9 13v4m6-4v4"/></svg>'],
+   ["balance","Balance",'<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M16 14h2"/></svg>'],
+   ["device","Device",'<svg viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 5h4M11 18h2"/></svg>'],
+   ["mine","Mine",'<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M4 21c.7-4 3.3-6 8-6s7.3 2 8 6"/></svg>']
+ ];
+ const navHtml='<nav class="bottom-nav" aria-label="Main navigation">'+nav.map(x=>'<button type="button" class="nav-item '+(navPage===x[0]?'active':'')+'" data-page="'+x[0]+'" aria-current="'+(navPage===x[0]?'page':'false')+'">'+x[2]+'<span>'+x[1]+'</span></button>').join('')+'</nav>';
+ screen.innerHTML='<section class="page active">'+html+'</section>'+navHtml;
 }
 
 const ISO_COUNTRY_CODES=("AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW XK").split(" ");
 const COUNTRY_NAME_OVERRIDES={XK:"Kosovo"};
 function updateTopBar(){
  const bar=$("appHeader");if(!bar)return;
- const points=S.wallet?Number(S.wallet.pointsBalance||0).toLocaleString():"0";
- const onCountries=S.page==="countries"||S.page==="home"||S.page==="data";
- if(onCountries){bar.innerHTML="";bar.classList.add("app-header-empty");return;}
+ const points=S.wallet?Number(S.wallet.pointsBalance||0).toLocaleString():Number(S.summary&&S.summary.pointsBalance||0).toLocaleString();
+ if(S.page==="home"){
+  bar.classList.remove("app-header-empty");
+  bar.innerHTML='<div class="expert-brand"><img src="'+GENIEX_ORIGINAL_ASSETS.brand+'" alt=""><span><b>Expert eSIM</b><small>Mobile services</small></span></div><div class="header-actions"><button class="points-pill" data-page="balance" aria-label="Points balance"><span class="points-gem">◆</span><b>'+points+'</b><span>PTS</span></button><button class="topbar-more" data-page="mine" aria-label="Open Mine"><span></span><span></span><span></span></button></div>';
+  return;
+ }
  bar.classList.remove("app-header-empty");
  const right='<button class="points-pill" data-page="balance" aria-label="Points balance"><span class="points-gem">◆</span><b>'+points+'</b><span>PTS</span></button>';
  bar.innerHTML='<button class="topbar-back" data-action="go-back" aria-label="Back">'+icons.back+'</button>'+right;
@@ -160,7 +180,7 @@ function countryPlansPage(){
  return '<div class="plan-title"><div><h1>Available plans</h1><p>'+esc(country.name)+'</p></div><span class="plan-country-flag">'+country.flag+'</span></div><div class="plan-meta"><span><i class="meta-globe">◎</i><b>Provider:</b> '+esc(provider)+'</span><i class="meta-separator"></i><span><i class="meta-bolt">ϟ</i><b>Speed</b> '+esc(speed)+'</span></div><div class="plan-tabs"><button class="'+(S.planType==="data"?"active":"")+'" data-action="plan-type" data-type="data">Data</button><button class="'+(S.planType==="combo"?"active":"")+'" data-action="plan-type" data-type="combo">Data + Calls + Text</button></div><div class="plan-list">'+list+'</div><div class="purchase-dock"><button class="buy-esim-button" '+(S.selectedPlanId?"":"disabled")+' data-action="buy-data" data-id="'+esc(S.selectedPlanId||"")+'">Buy eSIM</button></div>';
 }
 function morePage(){
- return header("More")+
+ return header("Mine")+
  '<div class="geniex-profile-banner"><img src="'+GENIEX_ORIGINAL_ASSETS.brand+'" alt=""><div><b>Expert eSIM</b><small>Mobile services</small></div></div>'+
  '<section class="geniex-menu-section"><h2>Connectivity</h2><div class="menu-list">'+
  row(icons.wifi,"Data Plan","Browse country coverage","›","countries")+
@@ -188,7 +208,50 @@ function morePage(){
  row(icons.help,"Help & Support","FAQs and support","›","help")+
  '</div></section><p class="footer-note">Provider-dependent services show live status only when an authorised provider is connected.</p>';
 }
-function homePage(){return countriesPage();}
+function homePage(){
+ const summary=S.summary||{};
+ const usage=S.usage||{};
+ const device=S.device||{};
+ const network=S.network||{};
+ const points=Number(S.wallet&&S.wallet.pointsBalance!=null?S.wallet.pointsBalance:summary.pointsBalance||0);
+ const dataRemaining=usage.available&&usage.remainingMb!=null?Number(usage.remainingMb).toLocaleString():"—";
+ const dataNote=usage.available?(usage.message||"Carrier usage feed reported"):"Usage is not supplied by the active carrier";
+ const networkName=network.networkType||network.label||"Not detected yet";
+ const networkNote=network.message||"Read from Android when the required permission is available";
+ const userName=S.user&&S.user.fullName?S.user.fullName.split(/\s+/)[0]:"there";
+ const providerReady=!!(S.status&&S.status.networkProviderConfigured);
+ const dailyAvailable=!!(summary.dailyCheckinAvailable||summary.dailySpinAvailable);
+ const activeProfiles=Number(summary.activeProfiles||0);
+ const deviceName=device.deviceName||device.model||"This device";
+ const profileStatus=activeProfiles>0?activeProfiles+" active profile"+(activeProfiles===1?"":"s"):"No active eSIM profile";
+ return '<div class="home-dashboard">'+
+  '<section class="home-welcome"><div class="home-welcome-copy"><div class="eyebrow">EXPERT eSIM</div><h1>Welcome '+esc(userName)+'</h1><p>Your mobile services and device tools, together in one place.</p></div><div class="home-avatar">'+(S.user?esc((S.user.fullName||S.user.email||"E").slice(0,1).toUpperCase()):'<span>⌁</span>')+'</div></section>'+
+  '<section class="home-network-card"><div class="home-network-head"><span class="home-live-dot '+(providerReady?"ready":"")+'"></span><span>'+(providerReady?"Provider ready":"Provider not connected")+'</span><button type="button" data-page="network">Details</button></div><div class="home-network-body"><div><div class="eyebrow">CURRENT NETWORK</div><strong>'+esc(networkName)+'</strong><small>'+esc(networkNote)+'</small></div><div class="home-signal-icon">'+icons.signal+'</div></div><div class="home-device-line"><span>'+esc(deviceName)+'</span><span>'+esc(profileStatus)+'</span></div><div class="home-network-actions"><button type="button" data-page="network">Network Detection</button><button type="button" data-action="open-sim-settings">SIM Settings</button></div></section>'+
+  '<div class="home-stat-grid">'+
+   '<button class="home-stat-card" type="button" data-page="usage"><span>DATA REMAINING</span><strong>'+esc(dataRemaining)+' <small>MB</small></strong><em>'+esc(dataNote)+'</em></button>'+
+   '<button class="home-stat-card" type="button" data-page="balance"><span>REWARD COINS</span><strong>'+points.toLocaleString()+'</strong><em>Expert eSIM points balance</em></button>'+
+   '<button class="home-stat-card" type="button" data-page="device"><span>REGISTERED DEVICES</span><strong>'+Number(summary.devices||0)+'</strong><em>Detected on your account</em></button>'+
+   '<button class="home-stat-card" type="button" data-page="device"><span>eSIM PROFILES</span><strong>'+activeProfiles+'</strong><em>'+esc(profileStatus)+'</em></button>'+
+  '</div>'+
+  '<div class="home-section-heading"><h2>Quick access</h2><button type="button" data-page="mine">More</button></div>'+
+  '<div class="home-shortcuts">'+
+   '<button type="button" data-page="shop"><span class="shortcut-symbol">'+icons.wifi+'</span><b>Data Plan</b></button>'+
+   '<button type="button" data-page="apps"><span class="shortcut-symbol">▦</span><b>App Bundle</b></button>'+
+   '<button type="button" data-page="speed"><span class="shortcut-symbol">'+icons.speed+'</span><b>NetSpeed</b></button>'+
+   '<button type="button" data-page="rewards"><span class="shortcut-symbol">'+icons.gift+'</span><b>Rewards</b></button>'+
+   '<button type="button" data-page="airtime"><span class="shortcut-symbol">↗</span><b>Airtime</b></button>'+
+   '<button type="button" data-page="device"><span class="shortcut-symbol">'+icons.signal+'</span><b>Device Tools</b></button>'+
+  '</div>'+
+  '<section class="home-reward-card"><div class="home-reward-icon">'+icons.gift+'</div><div class="home-reward-copy"><b>Daily rewards</b><small>'+(S.user?(dailyAvailable?"Your daily check-in and rewards are available to view.":"Check your completed rewards and tasks."):"Sign in to access check-ins, tasks and rewards.")+'</small></div><button type="button" data-page="rewards">Open</button></section>'+
+  '<div class="home-section-heading"><h2>My services</h2><button type="button" data-page="mine">View all</button></div>'+
+  '<div class="home-service-list">'+
+   '<button type="button" data-page="balance"><span>'+icons.wallet+'</span><b>Balance & transactions</b><i>›</i></button>'+
+   '<button type="button" data-page="messages"><span>'+icons.help+'</span><b>Messages & notices</b><i>›</i></button>'+
+   '<button type="button" data-page="settings"><span>⚙</span><b>Settings</b><i>›</i></button>'+
+  '</div>'+
+  '<p class="home-footnote">Network, data usage, eSIM profile and payment information is shown only when the phone or an authorised service provides it.</p>'+
+ '</div>';
+}
 function dataPage(){
  const items=S.catalog.plans||[];
  return header("Data Bundles",'<button class="sub-end" data-page="history">History</button>')+'<div class="data-tabs"><button class="active" data-page="data">Data Plan</button><button data-page="apps">APP Bundles</button></div><div class="usage-total"><div><div class="eyebrow">DATA AVAILABLE</div><strong>'+(S.usage&&S.usage.available?esc(S.usage.remainingMb||0):"—")+' <small>MB</small></strong></div><button class="link-button" data-page="usage">Usage Details</button></div>'+(items.length?'<div class="row-list">'+items.map(x=>'<div class="panel"><b>'+esc(x.name)+'</b><p class="tiny muted">'+esc(x.description||"")+'</p><div class="row-list"><span class="pill">'+esc(x.dataLabel||"Data bundle")+'</span><span class="pill">'+esc(x.validityLabel||"Validity not stated")+'</span></div><button class="primary-button" data-action="buy-data" data-id="'+esc(x.id)+'">Buy Data</button></div>').join("")+'</div>':empty("Data catalogue is not connected","The GENIEX APK lists data plans and plan history. No authorised data supplier has published live plans to this Railway app yet.",'<button class="secondary-button" data-action="catalog-status">Check provider status</button>'))+'<div style="margin-top:14px"><button class="primary-button" data-action="add-data">ADD DATA</button></div><p class="footer-note">Only carrier-confirmed balances and purchases will be shown here. No sample data or invented plan prices are displayed.</p>';
@@ -350,7 +413,7 @@ function readNetwork(){
 }
 function refreshNetwork(){readNetwork();if(S.page==="network")render();}
 function loadStatus(){
- api("/geniex/status").then(r=>{S.status=r;const h=$("headerStatus");if(h){h.classList.toggle("online",!!r.networkProviderConfigured);h.innerHTML='<i></i>'+(r.networkProviderConfigured?"Provider ready":"Provider pending");}}).catch(()=>{});
+ api("/geniex/status").then(r=>{S.status=r;const h=$("headerStatus");if(h){h.classList.toggle("online",!!r.networkProviderConfigured);h.innerHTML='<i></i>'+(r.networkProviderConfigured?"Provider ready":"Provider pending");}if(S.page==="home")render();}).catch(()=>{});
 }
 async function runSpeed(){
  const msg=$("speedMessage");const btn=document.querySelector('[data-action="run-speed"]');if(btn)btn.disabled=true;if(msg)msg.textContent="Testing ping, download and upload on the Railway connection…";
@@ -383,7 +446,7 @@ async function requestUnavailable(route,label){
 }
 window.onExpertNetworkInfoResult=function(result){
  S.network={networkType:result&&result.label||result&&result.networkType||result&&result.status||"Not available",available:!!(result&&result.hasRadio&&result.label!=="Network type unavailable"),message:result&&result.message||"",transport:"Mobile data SIM",signal:result&&result.supports5g?"5G capable":"Signal strength not exposed"};
- if(S.page==="network")render();
+ if(S.page==="network"||S.page==="home")render();
 };
 window.onExpertNetworkModeResult=function(result){notify(result&&result.message||"Network preference updated.");};
 function saveSettings(){
@@ -420,9 +483,7 @@ async function handleClick(e){
  }
  if(countryAction&&countryAction.dataset.action==="go-back"){
   if(S.page==="country-plans"){S.page="countries";S.countryQuery="";render();}
-  else if(S.page==="countries"){S.page="more";render();}
-  else if(S.page==="more"){S.page="countries";render();}
-  else{S.page="more";render();}
+  else{S.page="home";render();}
   return;
  }
  if(countryAction&&countryAction.dataset.action==="plan-type"){
@@ -461,7 +522,7 @@ async function handleClick(e){
  }
  if(a==="logout"){
   try{await api("/auth/logout",{method:"POST",body:"{}"});}catch(e){}
-  S.user=null;S.summary=null;S.wallet=null;S.page="countries";notify("Signed out.");render();return;
+  S.user=null;S.summary=null;S.wallet=null;S.page="home";notify("Signed out.");render();return;
  }
  if(a==="share-referral"){await shareReferral();return;}
  if(a==="run-speed"){await runSpeed();return;}
@@ -530,6 +591,7 @@ async function init(){
  render();loadStatus();loadCatalog();loadUsage();
  const n=window.ExpertMobileNative;
  if(n&&typeof n.getDeviceInfo==="function"){try{S.device=JSON.parse(n.getDeviceInfo());document.documentElement.dataset.device=S.device.deviceName||S.device.model||"android";}catch(e){}}
+ readNetwork();
  try{const m=await api("/me");S.user=m.user;await registerDetectedDevice();await refreshAccount();}catch(e){S.user=null;}
  if(S.user){try{const [sum,wal]=await Promise.all([api("/app/summary"),api("/app/wallet")]);S.summary=sum.summary;S.wallet=wal.wallet;}catch(e){}}
  render();
