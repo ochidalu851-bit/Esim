@@ -71,7 +71,7 @@ private fun icon(code: Int) = String(Character.toChars(code))
 
 private data class Country(val code: String, val name: String, val flag: String)
 private data class Plan(val id: String, val name: String, val detail: String, val price: String, val points: String)
-private data class SpeedResult(val download: Double, val upload: Double, val ping: Double, val jitter: Double)
+internal data class SpeedResult(val download: Double, val upload: Double, val ping: Double, val jitter: Double)
 private data class MenuItem(val title: String, val subtitle: String, val glyph: Int, val page: String)
 
 class MainActivity : ComponentActivity() {
@@ -615,7 +615,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                     scope.launch {
                                         runCatching { activity.api("/auth/logout", "POST", JSONObject()) }
                                         userEmail = ""
-                                        activity.runOnUiThread { activity.getSharedPreferences("geniex_native", MODE_PRIVATE).edit().remove("session_cookie").apply() }
+                                        activity.runOnUiThread { activity.getSharedPreferences("geniex_native", 0).edit().remove("session_cookie").apply() }
                                         toast("Signed out.")
                                     }
                                 }
