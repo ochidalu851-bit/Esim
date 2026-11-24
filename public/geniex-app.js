@@ -637,7 +637,7 @@ async function init(){
  try{const m=await api("/me");S.user=m.user;await registerDetectedDevice();await refreshAccount();}catch(e){S.user=null;}
  if(S.user){try{const [sum,wal]=await Promise.all([api("/app/summary"),api("/app/wallet")]);S.summary=sum.summary;S.wallet=wal.wallet;}catch(e){}}
  render();
- const ref=new URLSearchParams(location.search).get("ref");if(ref&&!S.user){S.referralCodeFromLink=ref.trim().toUpperCase();S.authMode="register";}
+ const ref=new URLSearchParams(location.search).get("ref");if(ref&&!S.user){S.referralCodeFromLink=ref.trim().toUpperCase();S.authMode="register";S.page="account";render();}
  if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js").catch(()=>{});}
 }
 init();
