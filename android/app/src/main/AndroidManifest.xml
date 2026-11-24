@@ -1,18 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-
-    <uses-feature
-        android:name="android.hardware.telephony.euicc"
-        android:required="false" />
-
+    <uses-feature android:name="android.hardware.telephony.euicc" android:required="false" />
     <application
         android:allowBackup="false"
         android:label="Expert eSIM"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@drawable/geniex_app_icon"
+        android:roundIcon="@drawable/geniex_app_icon"
         android:usesCleartextTraffic="false"
-        android:theme="@style/AppTheme">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize"

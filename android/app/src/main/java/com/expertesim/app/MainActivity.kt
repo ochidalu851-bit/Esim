@@ -1,13 +1,9 @@
 package com.expertesim.app
 
 import android.Manifest
-import android.app.Activity
-import android.app.ActivityManager
-import android.content.Context
+import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
@@ -16,274 +12,153 @@ import android.os.Environment
 import android.os.PowerManager
 import android.os.StatFs
 import android.provider.Settings
-import android.telephony.SubscriptionManager
 import android.telephony.TelephonyManager
-import android.webkit.JavascriptInterface
-import android.webkit.WebChromeClient
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.Image
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.Locale
+import kotlin.math.sqrt
 
-class MainActivity : Activity() {
-    private lateinit var webView: WebView
-    private val mobilePrefs by lazy { getSharedPreferences("expert_esim", MODE_PRIVATE) }
-    private var pendingPermissionAction = ""
+private val Ink = Color(0xFF08080B)
+private val Panel = Color(0xFF111116)
+private val Panel2 = Color(0xFF17171D)
+private val Stroke = Color(0xFF292930)
+private val MainText = Color(0xFFF4F4F6)
+private val Muted = Color(0xFF92929C)
+private val Purple = Color(0xFF8054F6)
+private val Poppins = FontFamily(
+    Font(R.font.poppins_regular, FontWeight.Normal),
+    Font(R.font.poppins_semibold, FontWeight.SemiBold)
+)
+private val GeniexIcons = FontFamily(Font(R.font.geniex_icons))
+
+private fun icon(code: Int) = String(Character.toChars(code))
+
+private data class Country(val code: String, val name: String, val flag: String)
+private data class Plan(val id: String, val name: String, val detail: String, val price: String, val points: String)
+private data class SpeedResult(val download: Double, val upload: Double, val ping: Double, val jitter: Double)
+private data class MenuItem(val title: String, val subtitle: String, val glyph: Int, val page: String)
+
+class MainActivity : ComponentActivity() {
+    private val preferences by lazy { getSharedPreferences("geniex_native", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(11, 12, 14)
-        window.navigationBarColor = Color.rgb(11, 12, 14)
-
-        webView = WebView(this)
-        webView.setBackgroundColor(Color.rgb(11, 12, 14))
-        webView.settings.javaScriptEnabled = true
-        webView.settings.domStorageEnabled = true
-        webView.settings.allowFileAccess = false
-        webView.settings.allowContentAccess = false
-        webView.webChromeClient = WebChromeClient()
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                if (url.isNullOrBlank()) return false
-                val uri = Uri.parse(url)
-                val isOurSite = uri.scheme == "https" &&
-                    uri.host == "expert-esim-web-production.up.railway.app"
-                if (isOurSite) return false
-                if (uri.scheme == "https" || uri.scheme == "http") {
-                    startActivity(Intent(Intent.ACTION_VIEW, uri))
-                    return true
-                }
-                return true
-            }
-        }
-        webView.addJavascriptInterface(ExpertMobileBridge(), "ExpertMobileNative")
-        setContentView(webView)
-        webView.loadUrl("https://expert-esim-web-production.up.railway.app/")
+        window.statusBarColor = android.graphics.Color.rgb(8, 8, 11)
+        window.navigationBarColor = android.graphics.Color.rgb(8, 8, 11)
+        setContent { GeniexNativeApp(this) }
     }
 
-    override fun onDestroy() {
-        webView.removeJavascriptInterface("ExpertMobileNative")
-        webView.destroy()
-        super.onDestroy()
+    internal fun notifyUser(message: String) {
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
-    private inner class ExpertMobileBridge {
-        @JavascriptInterface
-        fun getDeviceInfo(): String {
-            val hasEuicc = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)
-            val euiccEnabled = runCatching {
-                getSystemService(android.telephony.euicc.EuiccManager::class.java)?.isEnabled == true
-            }.getOrDefault(false)
-            val installationId = mobilePrefs.getString("device_installation_id", null)
-                ?: java.util.UUID.randomUUID().toString().replace("-", "").also {
-                    mobilePrefs.edit().putString("device_installation_id", it).apply()
-                }
-            val manufacturer = Build.MANUFACTURER?.trim().orEmpty()
-            val model = Build.MODEL?.trim().orEmpty()
-            val deviceName = listOf(manufacturer, model).filter { it.isNotBlank() }.distinct().joinToString(" ")
-            return JSONObject()
-                .put("clientDeviceId", "android_" + installationId)
-                .put("deviceName", deviceName.ifBlank { "Android device" })
-                .put("manufacturer", manufacturer)
-                .put("model", model)
-                .put("platform", "android")
-                .put("osVersion", Build.VERSION.RELEASE ?: "unknown")
-                .put("sdkInt", Build.VERSION.SDK_INT)
-                .put("eSimSupportKnown", true)
-                .put("hasEuiccHardware", hasEuicc)
-                .put("euiccEnabled", euiccEnabled)
-                .toString()
-        }
+    internal fun sessionCookie(): String = preferences.getString("session_cookie", "") ?: ""
 
-        @JavascriptInterface
-        fun getDeviceHealth(): String {
-            val batteryIntent = registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-            val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-            val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-            val batteryPercent = if (level >= 0 && scale > 0) (level * 100 / scale) else -1
-            val batteryStatus = batteryIntent?.getIntExtra(BatteryManager.EXTRA_STATUS, -1) ?: -1
-            val charging = batteryStatus == BatteryManager.BATTERY_STATUS_CHARGING ||
-                batteryStatus == BatteryManager.BATTERY_STATUS_FULL
-            val activityManager = getSystemService(ActivityManager::class.java)
-            val memory = ActivityManager.MemoryInfo()
-            activityManager?.getMemoryInfo(memory)
-            val totalMemoryMb = if (memory.totalMem > 0) memory.totalMem / (1024L * 1024L) else 0L
-            val availableMemoryMb = memory.availMem / (1024L * 1024L)
-            val stats = StatFs(Environment.getDataDirectory().path)
-            val totalStorageMb = stats.totalBytes / (1024L * 1024L)
-            val availableStorageMb = stats.availableBytes / (1024L * 1024L)
-            val thermalStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val power = getSystemService(PowerManager::class.java)
-                when (power?.currentThermalStatus) {
-                    PowerManager.THERMAL_STATUS_NONE -> "Normal"
-                    PowerManager.THERMAL_STATUS_LIGHT -> "Light"
-                    PowerManager.THERMAL_STATUS_MODERATE -> "Moderate"
-                    PowerManager.THERMAL_STATUS_SEVERE -> "Severe"
-                    PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
-                    PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
-                    PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
-                    else -> "Unavailable"
+    internal suspend fun api(path: String, method: String = "GET", body: JSONObject? = null): JSONObject =
+        withContext(Dispatchers.IO) {
+            val connection = (URL("https://expert-esim-web-production.up.railway.app/api/v1$path")
+                .openConnection() as HttpURLConnection)
+            try {
+                connection.requestMethod = method
+                connection.connectTimeout = 15000
+                connection.readTimeout = 25000
+                connection.setRequestProperty("Accept", "application/json")
+                connection.setRequestProperty("Cache-Control", "no-store")
+                sessionCookie().takeIf { it.isNotBlank() }?.let {
+                    connection.setRequestProperty("Cookie", it)
                 }
-            } else "Unavailable on this Android version"
-            return JSONObject()
-                .put("batteryPercent", batteryPercent.takeIf { it >= 0 } ?: JSONObject.NULL)
-                .put("charging", charging)
-                .put("memoryTotalMb", totalMemoryMb)
-                .put("memoryAvailableMb", availableMemoryMb)
-                .put("storageTotalMb", totalStorageMb)
-                .put("storageAvailableMb", availableStorageMb)
-                .put("thermalStatus", thermalStatus)
-                .put("androidVersion", Build.VERSION.RELEASE ?: "unknown")
-                .toString()
-        }
-
-        @JavascriptInterface
-        fun getCurrentNetworkInfo() {
-            runOnUiThread {
-                pendingPermissionAction = "networkInfo"
-                if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(arrayOf(Manifest.permission.READ_PHONE_STATE), REQUEST_PHONE_STATE)
-                } else {
-                    sendCurrentNetworkInfo()
+                if (body != null) {
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
                 }
+                connection.getHeaderField("Set-Cookie")?.substringBefore(";")?.takeIf { it.contains("=") }?.let {
+                    preferences.edit().putString("session_cookie", it).apply()
+                }
+                val status = connection.responseCode
+                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+                val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val result = if (raw.isBlank()) JSONObject() else JSONObject(raw)
+                if (status !in 200..299) {
+                    throw IllegalStateException(
+                        result.optString("error").ifBlank {
+                            result.optString("message").ifBlank { "Request failed ($status)." }
+                        }
+                    )
+                }
+                result
+            } finally {
+                connection.disconnect()
             }
         }
 
-        @JavascriptInterface
-        fun getPreferredNetwork(): String {
-            return JSONObject().put("mode", preferredNetworkMode()).toString()
-        }
-
-        @JavascriptInterface
-        fun setPreferredNetwork(mode: String) {
-            runOnUiThread { applyPreferredNetwork(mode.lowercase()) }
-        }
-
-        @JavascriptInterface
-        fun openNetworkSettings() {
-            runOnUiThread { openAndroidNetworkSettings() }
-        }
-
-        @JavascriptInterface
-        fun openSimSettings() {
-            runOnUiThread { openAndroidSimSettings() }
-        }
-
-        @JavascriptInterface
-        fun openBatterySettings() {
-            runOnUiThread {
-                try {
-                    startActivity(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS))
-                } catch (error: Exception) {
-                    startActivity(Intent(Settings.ACTION_SETTINGS))
-                }
-            }
-        }
+    internal fun openSimSettings() {
+        val intents = listOf(
+            Intent(Settings.ACTION_WIRELESS_SETTINGS),
+            Intent(Settings.ACTION_NETWORK_OPERATOR_SETTINGS),
+            Intent(Settings.ACTION_SETTINGS)
+        )
+        val target = intents.firstOrNull { it.resolveActivity(packageManager) != null }
+        if (target != null) startActivity(target) else notifyUser("SIM settings are not available on this device.")
     }
 
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_PHONE_STATE || pendingPermissionAction != "networkInfo") return
-        pendingPermissionAction = ""
-        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            sendCurrentNetworkInfo()
-        } else {
-            reportNetworkInfo(
-                "Permission required",
-                message = "Android did not grant phone-state access, so the current radio technology cannot be read."
-            )
-        }
+    internal fun openBatterySettings() {
+        runCatching { startActivity(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS)) }
+            .onFailure { startActivity(Intent(Settings.ACTION_SETTINGS)) }
     }
 
-    private fun preferredNetworkMode(): String {
-        return mobilePrefs.getString("preferred_network", "auto") ?: "auto"
+    internal fun openAppSettings() {
+        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
     }
 
-    private fun applyPreferredNetwork(mode: String) {
-        if (mode !in listOf("auto", "4g", "5g")) {
-            reportNetworkMode(false, mode, "Unknown network selection.")
-            return
+    @SuppressLint("MissingPermission")
+    internal fun currentNetworkLabel(): String {
+        if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            return "Permission required"
         }
-        mobilePrefs.edit().putString("preferred_network", mode).apply()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            reportNetworkMode(
-                false, mode,
-                "This Android version does not let this app apply a direct radio-mode change. Your preference is saved; use Android SIM settings."
-            )
-            return
-        }
-        try {
-            val baseManager = getSystemService(TelephonyManager::class.java)
-                ?: throw IllegalStateException("Android telephony service is unavailable.")
-            val defaultDataId = SubscriptionManager.getDefaultDataSubscriptionId()
-            val manager = if (defaultDataId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                baseManager.createForSubscriptionId(defaultDataId)
-            } else {
-                baseManager
-            }
-            val lte = TelephonyManager.NETWORK_TYPE_BITMASK_LTE
-            val allowed = when (mode) {
-                "4g" -> lte
-                "5g" -> lte or TelephonyManager.NETWORK_TYPE_BITMASK_NR
-                else -> {
-                    TelephonyManager.NETWORK_TYPE_BITMASK_GSM or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_GPRS or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_EDGE or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_UMTS or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_HSDPA or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_HSUPA or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_HSPA or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_HSPAP or
-                        lte or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_NR or
-                        TelephonyManager.NETWORK_TYPE_BITMASK_IWLAN
-                }
-            }
-            manager.setAllowedNetworkTypesForReason(TelephonyManager.ALLOWED_NETWORK_TYPES_REASON_USER, allowed)
-            val message = when (mode) {
-                "4g" -> "Android accepted a 4G LTE preference for the currently selected mobile-data SIM."
-                "5g" -> "Android accepted a 5G preference with LTE fallback for the currently selected mobile-data SIM. Actual 5G still depends on carrier coverage and plan."
-                else -> "Android reset the currently selected mobile-data SIM to automatic network selection."
-            }
-            reportNetworkMode(true, mode, message)
-        } catch (security: SecurityException) {
-            reportNetworkMode(
-                false, mode,
-                "Android or the carrier denied direct radio-mode control. Your selection is saved but the network was not changed."
-            )
-        } catch (unsupported: UnsupportedOperationException) {
-            reportNetworkMode(
-                false, mode,
-                "This phone or carrier does not expose direct network-mode control. Your selection is saved but was not applied."
-            )
-        } catch (error: Exception) {
-            reportNetworkMode(false, mode, error.message ?: "Android could not apply the requested network mode.")
-        }
-    }
-
-    private fun sendCurrentNetworkInfo() {
-        try {
-            val baseManager = getSystemService(TelephonyManager::class.java)
-            if (baseManager == null) {
-                reportNetworkInfo("Unavailable", message = "Android telephony service is unavailable.")
-                return
-            }
-            val defaultDataSubscription = SubscriptionManager.getDefaultDataSubscriptionId()
-            val manager = if (defaultDataSubscription != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                baseManager.createForSubscriptionId(defaultDataSubscription)
-            } else {
-                baseManager
-            }
-            val type = manager.dataNetworkType
-            val label = when (type) {
+        return runCatching {
+            val tm = getSystemService(TelephonyManager::class.java) ?: return "Not available"
+            when (tm.dataNetworkType) {
                 TelephonyManager.NETWORK_TYPE_NR -> "5G"
                 TelephonyManager.NETWORK_TYPE_LTE -> "4G LTE"
-                TelephonyManager.NETWORK_TYPE_HSPA,
                 TelephonyManager.NETWORK_TYPE_HSPAP,
+                TelephonyManager.NETWORK_TYPE_HSPA,
                 TelephonyManager.NETWORK_TYPE_HSDPA,
                 TelephonyManager.NETWORK_TYPE_HSUPA -> "3G HSPA"
                 TelephonyManager.NETWORK_TYPE_UMTS -> "3G UMTS"
@@ -292,78 +167,820 @@ class MainActivity : Activity() {
                 TelephonyManager.NETWORK_TYPE_GSM -> "2G GSM"
                 else -> "Network type unavailable"
             }
-            reportNetworkInfo(
-                label,
-                hasRadio = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS),
-                supports5g = type == TelephonyManager.NETWORK_TYPE_NR,
-                message = "Network technology is read from the phone's current default mobile-data SIM."
-            )
-        } catch (security: SecurityException) {
-            reportNetworkInfo(
-                "Permission required",
-                message = "Android denied access to current mobile network information."
-            )
-        } catch (error: Exception) {
-            reportNetworkInfo(
-                "Network type unavailable",
-                message = error.message ?: "Could not read the active mobile network."
-            )
+        }.getOrElse { "Network type unavailable" }
+    }
+
+    internal fun hasEuicc(): Boolean =
+        packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)
+
+    internal fun deviceSummary(): List<Pair<String, String>> {
+        val batteryIntent = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        val battery = if (level >= 0 && scale > 0) "${level * 100 / scale}%" else "Unavailable"
+        val am = getSystemService(android.app.ActivityManager::class.java)
+        val memory = android.app.ActivityManager.MemoryInfo()
+        am?.getMemoryInfo(memory)
+        val storage = StatFs(Environment.getDataDirectory().path)
+        val thermal = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val pm = getSystemService(PowerManager::class.java)
+            when (pm?.currentThermalStatus) {
+                PowerManager.THERMAL_STATUS_NONE -> "Normal"
+                PowerManager.THERMAL_STATUS_LIGHT -> "Light"
+                PowerManager.THERMAL_STATUS_MODERATE -> "Moderate"
+                PowerManager.THERMAL_STATUS_SEVERE -> "Severe"
+                PowerManager.THERMAL_STATUS_CRITICAL -> "Critical"
+                PowerManager.THERMAL_STATUS_EMERGENCY -> "Emergency"
+                PowerManager.THERMAL_STATUS_SHUTDOWN -> "Shutdown"
+                else -> "Unavailable"
+            }
+        } else "Unavailable"
+        val model = listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.distinct().joinToString(" ")
+        return listOf(
+            "Device" to model,
+            "Android version" to (Build.VERSION.RELEASE ?: "Unknown"),
+            "eSIM hardware" to if (hasEuicc()) "Detected" else "Not detected",
+            "Battery" to battery,
+            "Memory available" to "${memory.availMem / (1024L * 1024L)} MB",
+            "Storage available" to "${storage.availableBytes / (1024L * 1024L)} MB",
+            "Thermal status" to thermal
+        )
+    }
+
+    internal suspend fun runSpeedTest(): SpeedResult = withContext(Dispatchers.IO) {
+        fun request(path: String, method: String = "GET", bytes: ByteArray? = null): ByteArray {
+            val c = (URL("https://expert-esim-web-production.up.railway.app/api/v1/tools/speedtest/$path")
+                .openConnection() as HttpURLConnection)
+            try {
+                c.requestMethod = method
+                c.connectTimeout = 15000
+                c.readTimeout = 30000
+                c.setRequestProperty("Cache-Control", "no-store")
+                if (bytes != null) {
+                    c.doOutput = true
+                    c.setRequestProperty("Content-Type", "application/octet-stream")
+                    c.outputStream.use { it.write(bytes) }
+                }
+                if (c.responseCode !in 200..299) throw IllegalStateException("Speed test endpoint returned ${c.responseCode}.")
+                val output = ByteArrayOutputStream()
+                c.inputStream.use { it.copyTo(output) }
+                return output.toByteArray()
+            } finally {
+                c.disconnect()
+            }
+        }
+        val samples = mutableListOf<Double>()
+        repeat(4) { i ->
+            val start = System.nanoTime()
+            request("ping?ts=${System.currentTimeMillis()}$i")
+            samples += (System.nanoTime() - start) / 1_000_000.0
+        }
+        val average = samples.average()
+        val jitter = sqrt(samples.map { (it - average) * (it - average) }.average())
+        val downStart = System.nanoTime()
+        val downloaded = request("download?bytes=1200000&ts=${System.currentTimeMillis()}").size
+        val downSeconds = ((System.nanoTime() - downStart) / 1_000_000_000.0).coerceAtLeast(0.001)
+        val down = downloaded * 8.0 / downSeconds / 1_000_000.0
+        val uploadBytes = ByteArray(350000)
+        val upStart = System.nanoTime()
+        request("upload", "POST", uploadBytes)
+        val upSeconds = ((System.nanoTime() - upStart) / 1_000_000_000.0).coerceAtLeast(0.001)
+        val up = uploadBytes.size * 8.0 / upSeconds / 1_000_000.0
+        SpeedResult(down, up, average, jitter)
+    }
+}
+
+@Composable
+private fun GeniexNativeApp(activity: MainActivity) {
+    var page by remember { mutableStateOf("countries") }
+    var selectedCountry by remember { mutableStateOf<Country?>(null) }
+    var countryQuery by remember { mutableStateOf("") }
+    var planType by remember { mutableStateOf("data") }
+    var plans by remember { mutableStateOf(emptyList<Plan>()) }
+    var selectedPlan by remember { mutableStateOf("") }
+    var provider by remember { mutableStateOf("Not connected") }
+    var speed by remember { mutableStateOf("Not verified") }
+    var loading by remember { mutableStateOf(false) }
+    var dataMessage by remember { mutableStateOf("") }
+    var points by remember { mutableStateOf("0") }
+    var userEmail by remember { mutableStateOf("") }
+    var loginEmail by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var loginMode by remember { mutableStateOf(true) }
+    var loginBusy by remember { mutableStateOf(false) }
+    var speedResult by remember { mutableStateOf<SpeedResult?>(null) }
+    var speedBusy by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
+    var detailsTitle by remember { mutableStateOf("Details") }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    val countries = remember {
+        Locale.getISOCountries().map { code ->
+            val name = if (code == "XK") "Kosovo" else Locale("", code).getDisplayCountry(Locale.ENGLISH)
+            Country(code, name.ifBlank { code }, countryFlag(code))
+        }.filter { it.name.isNotBlank() }.sortedBy { it.name.lowercase(Locale.ENGLISH) }
+    }
+    val filteredCountries = remember(countryQuery, countries) {
+        countries.filter { it.name.contains(countryQuery, true) || it.code.contains(countryQuery, true) }
+    }
+
+    fun toast(message: String) = activity.notifyUser(message)
+    fun open(target: String) {
+        page = target
+        if (target == "balance") {
+            scope.launch {
+                runCatching {
+                    val r = activity.api("/app/wallet")
+                    val w = r.optJSONObject("wallet") ?: r
+                    points = w.optString("pointsBalance", points)
+                }.onFailure { toast(it.message ?: "Balance could not be loaded.") }
+            }
+        }
+        if (target == "rewards") {
+            scope.launch {
+                runCatching {
+                    val r = activity.api("/app/summary")
+                    details = summaryRows(r)
+                    detailsTitle = "My Rewards"
+                }.onFailure { toast(it.message ?: "Rewards could not be loaded.") }
+            }
+        }
+        if (target == "vouchers") {
+            scope.launch {
+                runCatching {
+                    val r = activity.api("/app/coupons")
+                    val coupons = r.optJSONObject("coupons")?.optJSONArray("available") ?: JSONArray()
+                    details = (0 until coupons.length()).map { i ->
+                        val item = coupons.optJSONObject(i) ?: JSONObject()
+                        item.optString("title", "Voucher") to item.optString("description", item.optString("type", ""))
+                    }
+                    detailsTitle = "My Vouchers"
+                }.onFailure { toast(it.message ?: "Vouchers could not be loaded.") }
+            }
+        }
+        if (target == "apps") {
+            scope.launch {
+                runCatching {
+                    val r = activity.api("/geniex/catalog")
+                    val bundles = r.optJSONArray("bundles") ?: JSONArray()
+                    details = (0 until bundles.length()).map { i ->
+                        val item = bundles.optJSONObject(i) ?: JSONObject()
+                        item.optString("name", "App bundle") to item.optString("description", "Provider catalogue item")
+                    }
+                    dataMessage = r.optString("message", "App bundle availability is controlled by the connected provider.")
+                }.onFailure { dataMessage = it.message ?: "App bundles could not be loaded." }
+            }
         }
     }
 
-    private fun reportNetworkMode(applied: Boolean, mode: String, message: String) {
-        val payload = JSONObject()
-            .put("ok", applied)
-            .put("applied", applied)
-            .put("pending", false)
-            .put("mode", mode)
-            .put("message", message)
-            .toString()
-        evaluateWebCallback("window.onExpertNetworkModeResult && window.onExpertNetworkModeResult($payload);")
+    fun loadPlans(country: Country, type: String) {
+        selectedCountry = country
+        planType = type
+        selectedPlan = ""
+        page = "plans"
+        loading = true
+        plans = emptyList()
+        provider = "Not connected"
+        speed = "Not verified"
+        dataMessage = ""
+        scope.launch {
+            try {
+                val r = activity.api(
+                    "/geniex/catalog?countryCode=${country.code}&category=$type"
+                )
+                provider = r.optString("providerName").takeIf { it.isNotBlank() }
+                    ?: r.optJSONObject("provider")?.optString("name")?.takeIf { it.isNotBlank() }
+                    ?: "Not connected"
+                speed = r.optString("speedLabel").takeIf { it.isNotBlank() }
+                    ?: r.optString("speed").takeIf { it.isNotBlank() }
+                    ?: "Not verified"
+                val array = r.optJSONArray("plans") ?: JSONArray()
+                plans = (0 until array.length()).mapNotNull { i ->
+                    val item = array.optJSONObject(i) ?: return@mapNotNull null
+                    val id = item.optString("id").takeIf { it != "null" }.orEmpty()
+                        .ifBlank { item.optString("planId").takeIf { it != "null" }.orEmpty() }
+                    val name = item.optString("name").takeIf { it.isNotBlank() && it != "null" }
+                        ?: item.optString("dataLabel").takeIf { it.isNotBlank() && it != "null" }
+                        ?: item.optString("allowance").takeIf { it.isNotBlank() && it != "null" }
+                        ?: "eSIM plan"
+                    val detail = item.optString("description").takeIf { it.isNotBlank() && it != "null" }
+                        ?: item.optString("validityLabel").takeIf { it.isNotBlank() && it != "null" }.orEmpty()
+                    val price = item.optString("priceFormatted").takeIf { it.isNotBlank() && it != "null" }
+                        ?: item.optString("priceLabel").takeIf { it.isNotBlank() && it != "null" }
+                        ?: if (item.has("price") && item.has("currency")) "${item.optString("currency")} ${item.optString("price")}" else ""
+                    val pointsCost = if (item.has("pointsCost")) "${item.optString("pointsCost")} PTS" else ""
+                    Plan(id, name, detail, price, pointsCost)
+                }
+                dataMessage = r.optString("message")
+            } catch (e: Exception) {
+                dataMessage = e.message ?: "Availability could not be checked."
+            } finally {
+                loading = false
+            }
+        }
     }
 
-    private fun reportNetworkInfo(
-        label: String,
-        hasRadio: Boolean = packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_RADIO_ACCESS),
-        supports5g: Boolean = false,
-        message: String = ""
+    BackHandler(enabled = page != "countries") {
+        page = when (page) {
+            "plans" -> "countries"
+            "account", "balance", "apps", "rewards", "vouchers", "messages", "settings",
+            "network", "sim", "speed", "device", "battery", "boost", "about", "history" -> "more"
+            else -> "countries"
+        }
+    }
+
+    MaterialTheme(colorScheme = darkColorScheme(
+        primary = Purple, background = Ink, surface = Panel,
+        onPrimary = Color.White, onBackground = MainText, onSurface = MainText
+    )) {
+        Column(Modifier.fillMaxSize().background(Ink)) {
+            if (page == "countries") {
+                Row(
+                    Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 17.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Glyph(0xE608, 22, Modifier.clickable { toast("Country selection") })
+                    Glyph(0xE604, 21, Modifier.clickable { open("more") })
+                }
+                Text(
+                    "Select country",
+                    modifier = Modifier.padding(start = 23.dp, top = 9.dp, bottom = 16.dp),
+                    color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 18.sp
+                )
+                OutlinedTextField(
+                    value = countryQuery,
+                    onValueChange = { countryQuery = it },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 23.dp),
+                    placeholder = { Text("Where do you need an eSIM?", color = Muted, fontSize = 12.sp, fontFamily = Poppins) },
+                    leadingIcon = { Glyph(0xE619, 16) },
+                    trailingIcon = {
+                        if (countryQuery.isNotEmpty()) Glyph(0xE607, 16, Modifier.clickable { countryQuery = "" })
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(7.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = Poppins, fontSize = 12.sp, color = MainText),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Stroke, unfocusedBorderColor = Stroke,
+                        focusedContainerColor = Panel, unfocusedContainerColor = Panel,
+                        cursorColor = Purple, focusedTextColor = MainText, unfocusedTextColor = MainText
+                    )
+                )
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 23.dp, vertical = 8.dp)
+                ) {
+                    items(filteredCountries, key = { it.code }) { country ->
+                        Row(
+                            Modifier.fillMaxWidth().height(43.dp).clickable { loadPlans(country, "data") },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                Modifier.size(24.dp).clip(CircleShape).background(Panel2),
+                                contentAlignment = Alignment.Center
+                            ) { Text(country.flag, fontSize = 18.sp) }
+                            Text(
+                                country.name, modifier = Modifier.weight(1f).padding(start = 12.dp),
+                                color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.Medium
+                            )
+                            Glyph(0xE60A, 15, color = Muted)
+                        }
+                    }
+                }
+            } else {
+                HeaderBar(
+                    title = when (page) {
+                        "plans" -> "Available plans"
+                        "more" -> "More"
+                        "apps" -> "App Bundle"
+                        "balance" -> "My Balance"
+                        "account" -> "My Account"
+                        "rewards" -> "My Rewards"
+                        "vouchers" -> "My Vouchers"
+                        "messages" -> "Message"
+                        "settings" -> "Settings"
+                        "network" -> "Network Detection"
+                        "sim" -> "SIM Management"
+                        "speed" -> "NetSpeed"
+                        "device" -> "Device Information"
+                        "battery" -> "Battery"
+                        "boost" -> "Device Boosting"
+                        "about" -> "About us"
+                        "history" -> "Transaction History"
+                        else -> "More"
+                    },
+                    back = { page = if (page == "plans") "countries" else "more" },
+                    trailing = if (page == "plans" || page == "balance") "${points} PTS" else ""
+                )
+                when (page) {
+                    "plans" -> {
+                        val country = selectedCountry
+                        if (country != null) {
+                            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 23.dp)) {
+                                Spacer(Modifier.height(8.dp))
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(country.name, color = Muted, fontFamily = Poppins, fontSize = 14.sp)
+                                    }
+                                    Text(country.flag, fontSize = 37.sp)
+                                }
+                                Spacer(Modifier.height(19.dp))
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Panel).padding(horizontal = 12.dp, vertical = 13.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Glyph(0xE614, 18)
+                                    Spacer(Modifier.width(7.dp))
+                                    Text("Provider:", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 11.sp)
+                                    Text(provider, color = Muted, fontFamily = Poppins, fontSize = 11.sp, modifier = Modifier.weight(1f).padding(start = 4.dp))
+                                    Box(Modifier.width(1.dp).height(19.dp).background(Stroke))
+                                    Spacer(Modifier.width(11.dp))
+                                    Glyph(0xE62F, 17)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Speed", color = MainText, fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(speed, color = Muted, fontFamily = Poppins, fontSize = 10.sp, modifier = Modifier.padding(start = 4.dp))
+                                }
+                                Spacer(Modifier.height(14.dp))
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Panel2).padding(4.dp)) {
+                                    PlanTab("Data", planType == "data", Modifier.weight(1f)) { loadPlans(country, "data") }
+                                    PlanTab("Data + Calls + Text", planType == "combo", Modifier.weight(1f)) { loadPlans(country, "combo") }
+                                }
+                                Spacer(Modifier.height(14.dp))
+                                when {
+                                    loading -> Box(Modifier.fillMaxWidth().height(220.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(color = Purple, strokeWidth = 2.dp)
+                                    }
+                                    plans.isEmpty() -> Column(
+                                        Modifier.fillMaxWidth().padding(top = 40.dp, bottom = 40.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Glyph(0xE614, 34, color = Muted)
+                                        Spacer(Modifier.height(12.dp))
+                                        Text("No verified plans available", color = MainText, fontFamily = Poppins, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                        Spacer(Modifier.height(7.dp))
+                                        Text(
+                                            dataMessage.ifBlank {
+                                                "Provider: $provider. Speed: $speed. A live plan list will appear here when a connectivity provider supplies verified availability and pricing."
+                                            },
+                                            color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp
+                                        )
+                                        Spacer(Modifier.height(12.dp))
+                                        OutlineAction("Refresh availability") { loadPlans(country, planType) }
+                                    }
+                                    else -> {
+                                        val grouped = plans.groupBy { p ->
+                                            val match = Regex("(\\d+)\\s*[- ]?\\s*day", RegexOption.IGNORE_CASE).find(p.detail + " " + p.name)
+                                            match?.groupValues?.get(1)?.plus("-DAY PLAN") ?: "AVAILABLE PLANS"
+                                        }
+                                        grouped.forEach { (group, items) ->
+                                            Text(group, color = Muted, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 11.sp, modifier = Modifier.padding(top = 12.dp, bottom = 8.dp))
+                                            items.forEach { plan ->
+                                                Row(
+                                                    Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(8.dp))
+                                                        .background(if (selectedPlan == plan.id) Panel2 else Panel)
+                                                        .clickable { selectedPlan = plan.id }
+                                                        .padding(horizontal = 11.dp, vertical = 13.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    RadioButton(
+                                                        selected = selectedPlan == plan.id, onClick = { selectedPlan = plan.id },
+                                                        colors = RadioButtonDefaults.colors(selectedColor = Purple, unselectedColor = Muted)
+                                                    )
+                                                    Column(Modifier.weight(1f).padding(start = 5.dp)) {
+                                                        Text(plan.name, color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                                        if (plan.detail.isNotBlank()) Text(plan.detail, color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                                                    }
+                                                    Column(horizontalAlignment = Alignment.End) {
+                                                        Text(plan.price, color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                                        if (plan.points.isNotBlank()) Text(plan.points, color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Box(Modifier.fillMaxWidth().background(Ink).padding(horizontal = 23.dp, vertical = 12.dp)) {
+                                Button(
+                                    onClick = {
+                                        if (selectedPlan.isNotBlank()) scope.launch {
+                                            runCatching {
+                                                activity.api(
+                                                    "/geniex/data/order", "POST",
+                                                    JSONObject().put("itemId", selectedPlan).put("countryCode", country.code).put("planType", planType)
+                                                )
+                                                toast("Order request submitted.")
+                                            }.onFailure { toast(it.message ?: "Provider ordering is unavailable.") }
+                                        }
+                                    },
+                                    enabled = selectedPlan.isNotBlank() && !loading,
+                                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                                    shape = RoundedCornerShape(7.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Purple, disabledContainerColor = Color(0xFF26232F))
+                                ) { Text("Buy eSIM", fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 13.sp) }
+                            }
+                        }
+                    }
+                    "more" -> MorePage(
+                        onOpen = { target ->
+                            when (target) {
+                                "countries" -> page = "countries"
+                                "sim" -> { page = "sim" }
+                                else -> open(target)
+                            }
+                        }
+                    )
+                    "apps" -> DetailListPage(detailsTitle = "Application data bundles", details = details, message = dataMessage)
+                    "balance" -> {
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(10.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                                    Text("Points balance", color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+                                    Text(points, color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 29.sp)
+                                    Text("PTS", color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            SimpleActionRow("Transaction History", "Balance and points activity", 0xE61B) { open("history") }
+                            SimpleActionRow("Recharge", "Recharge options", 0xE614) { toast("Recharge requires an authorised payment partner.") }
+                            SimpleActionRow("Transfer", "Member-to-member transfer", 0xE654) { toast("Transfer requires an active account and supported balance.") }
+                        }
+                    }
+                    "account" -> {
+                        if (userEmail.isNotBlank()) {
+                            Column(Modifier.weight(1f).padding(23.dp)) {
+                                Text(userEmail, color = MainText, fontFamily = Poppins, fontSize = 15.sp)
+                                Spacer(Modifier.height(16.dp))
+                                SimpleActionRow("Sign out", "End this account session", 0xE635) {
+                                    scope.launch {
+                                        runCatching { activity.api("/auth/logout", "POST", JSONObject()) }
+                                        userEmail = ""
+                                        activity.runOnUiThread { activity.getSharedPreferences("geniex_native", MODE_PRIVATE).edit().remove("session_cookie").apply() }
+                                        toast("Signed out.")
+                                    }
+                                }
+                            }
+                        } else {
+                            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(9.dp)).background(Panel2).padding(4.dp)) {
+                                    PlanTab("Sign in", loginMode, Modifier.weight(1f)) { loginMode = true }
+                                    PlanTab("Create account", !loginMode, Modifier.weight(1f)) { loginMode = false }
+                                }
+                                Spacer(Modifier.height(20.dp))
+                                FormField("Email address", loginEmail, { loginEmail = it }, "name@example.com")
+                                Spacer(Modifier.height(12.dp))
+                                OutlinedTextField(
+                                    value = password, onValueChange = { password = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text("Password", fontFamily = Poppins, fontSize = 12.sp) },
+                                    singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Purple, unfocusedBorderColor = Stroke,
+                                        focusedContainerColor = Panel, unfocusedContainerColor = Panel,
+                                        focusedTextColor = MainText, unfocusedTextColor = MainText
+                                    )
+                                )
+                                Spacer(Modifier.height(16.dp))
+                                Button(
+                                    enabled = loginEmail.contains("@") && password.isNotBlank() && !loginBusy,
+                                    onClick = {
+                                        loginBusy = true
+                                        scope.launch {
+                                            try {
+                                                val body = JSONObject().put("email", loginEmail).put("password", password)
+                                                val r = activity.api(if (loginMode) "/auth/login" else "/auth/register", "POST", body)
+                                                val u = r.optJSONObject("user") ?: r.optJSONObject("account") ?: JSONObject()
+                                                userEmail = u.optString("email").takeIf { it.isNotBlank() && it != "null" } ?: loginEmail
+                                                toast(r.optString("message").ifBlank { "Account request completed." })
+                                            } catch (e: Exception) {
+                                                toast(e.message ?: "Account request failed.")
+                                            } finally { loginBusy = false }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                                ) {
+                                    Text(if (loginBusy) "Please wait…" else if (loginMode) "Sign in" else "Create account", fontFamily = Poppins, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                    "rewards", "vouchers", "messages", "history" -> {
+                        val title = when (page) { "rewards" -> "Reward Center"; "vouchers" -> "My Vouchers"; "messages" -> "Messages"; else -> "Transaction History" }
+                        DetailListPage(title, details, if (details.isEmpty()) "Sign in to load your account information. Items will appear here when returned by the account service." else "")
+                    }
+                    "network" -> {
+                        Column(Modifier.weight(1f).padding(23.dp)) {
+                            val network = remember { mutableStateOf(activity.currentNetworkLabel()) }
+                            Text("Current mobile network", color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+                            Text(network.value, color = MainText, fontFamily = Poppins, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(8.dp))
+                            Text("Read from the handset's active mobile-data subscription. Network reporting depends on Android permissions and the carrier.", color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp)
+                            Spacer(Modifier.height(18.dp))
+                            PrimaryAction("Refresh network", 0xE619) { network.value = activity.currentNetworkLabel() }
+                            PrimaryAction("Open network settings", 0xE627) { activity.openSimSettings() }
+                        }
+                    }
+                    "sim" -> {
+                        Column(Modifier.weight(1f).padding(23.dp)) {
+                            val simSupported = activity.hasEuicc()
+                            Text(if (simSupported) "eSIM hardware detected" else "eSIM hardware not detected", color = MainText, fontFamily = Poppins, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(8.dp))
+                            Text("An eSIM profile can only be installed after an authorised operator or SM-DP+ partner supplies a valid profile and activation details. This APK does not include transferable carrier credentials or a SIM profile.", color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp)
+                            Spacer(Modifier.height(18.dp))
+                            PrimaryAction("Open Android SIM settings", 0xE627) { activity.openSimSettings() }
+                        }
+                    }
+                    "speed" -> {
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Spacer(Modifier.height(20.dp))
+                            Box(Modifier.size(174.dp).clip(CircleShape).background(Panel2), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Glyph(0xE61B, 42, color = Purple)
+                                    Text(speedResult?.download?.let { "%.1f".format(it) } ?: "—", color = MainText, fontSize = 28.sp, fontFamily = Poppins, fontWeight = FontWeight.SemiBold)
+                                    Text("Mbps download", color = Muted, fontSize = 10.sp, fontFamily = Poppins)
+                                }
+                            }
+                            Spacer(Modifier.height(23.dp))
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Metric("Upload", speedResult?.let { "%.1f Mbps".format(it.upload) } ?: "—")
+                                Metric("Ping", speedResult?.let { "%.0f ms".format(it.ping) } ?: "—")
+                                Metric("Jitter", speedResult?.let { "%.1f ms".format(it.jitter) } ?: "—")
+                            }
+                            Spacer(Modifier.height(28.dp))
+                            Button(
+                                onClick = {
+                                    speedBusy = true
+                                    scope.launch {
+                                        runCatching { activity.runSpeedTest() }
+                                            .onSuccess { speedResult = it; toast("Speed test complete.") }
+                                            .onFailure { toast(it.message ?: "Speed test failed.") }
+                                        speedBusy = false
+                                    }
+                                },
+                                enabled = !speedBusy,
+                                modifier = Modifier.fillMaxWidth().height(47.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                            ) { Text(if (speedBusy) "Testing…" else "Start test", fontFamily = Poppins, fontWeight = FontWeight.SemiBold) }
+                            Spacer(Modifier.height(10.dp))
+                            Text("Measures the active internet connection to the Expert eSIM service. Results depend on your current Wi-Fi or mobile-data route.", color = Muted, fontFamily = Poppins, fontSize = 10.sp, lineHeight = 16.sp)
+                        }
+                    }
+                    "device", "battery", "boost" -> {
+                        val rows = remember(page) { activity.deviceSummary() }
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            rows.forEach { (label, value) -> DetailRow(label, value) }
+                            Spacer(Modifier.height(14.dp))
+                            PrimaryAction(if (page == "battery") "Open battery settings" else if (page == "boost") "Open app settings" else "Open device settings", 0xE627) {
+                                if (page == "battery") activity.openBatterySettings() else activity.openAppSettings()
+                            }
+                        }
+                    }
+                    "settings" -> {
+                        Column(Modifier.weight(1f).padding(23.dp)) {
+                            SimpleActionRow("Account security", "Manage your account and password", 0xE635) { open("account") }
+                            SimpleActionRow("Battery", "Open Android battery controls", 0xE627) { activity.openBatterySettings() }
+                            SimpleActionRow("SIM settings", "Manage SIM and mobile-data preferences", 0xE627) { activity.openSimSettings() }
+                            SimpleActionRow("About us", "Application information", 0xE628) { open("about") }
+                        }
+                    }
+                    "about" -> {
+                        Column(Modifier.weight(1f).padding(23.dp)) {
+                            Image(painterResource(R.drawable.geniex_wordmark), contentDescription = "GENIEX", modifier = Modifier.width(158.dp).height(36.dp), contentScale = ContentScale.Fit)
+                            Spacer(Modifier.height(18.dp))
+                            Text("GENIEX mobile app", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                            Text("Original visual assets and font resources extracted from the supplied application package. The Expert eSIM service layer remains hosted on Railway.", color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp)
+                        }
+                    }
+                    else -> DetailListPage("More", emptyList(), "")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeaderBar(title: String, back: () -> Unit, trailing: String = "") {
+    Row(
+        Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val payload = JSONObject()
-            .put("label", label)
-            .put("hasRadio", hasRadio)
-            .put("supports5g", supports5g)
-            .put("message", message)
-            .toString()
-        evaluateWebCallback("window.onExpertNetworkInfoResult && window.onExpertNetworkInfoResult($payload);")
+        Glyph(0xE608, 22, Modifier.clickable { back() })
+        Text(title, modifier = Modifier.weight(1f).padding(start = 12.dp), color = MainText, fontFamily = Poppins, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        if (trailing.isNotBlank()) {
+            Box(Modifier.clip(RoundedCornerShape(18.dp)).background(Panel2).padding(horizontal = 13.dp, vertical = 7.dp)) {
+                Text(trailing, color = MainText, fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
     }
+}
 
-    private fun evaluateWebCallback(script: String) {
-        if (!::webView.isInitialized) return
-        webView.post { webView.evaluateJavascript(script, null) }
-    }
-
-    private fun openAndroidNetworkSettings() {
-        val intents = listOf(
-            Intent(Settings.ACTION_NETWORK_OPERATOR_SETTINGS),
-            Intent(Settings.ACTION_WIRELESS_SETTINGS),
-            Intent(Settings.ACTION_SETTINGS)
+@Composable
+private fun MorePage(onOpen: (String) -> Unit) {
+    val groups = listOf(
+        "Connectivity" to listOf(
+            MenuItem("Data Plan", "Browse country coverage", 0xE622, "countries"),
+            MenuItem("App Bundle", "Application data bundles", 0xE614, "apps"),
+            MenuItem("My Balance", "Balance and points", 0xE614, "balance"),
+            MenuItem("Network Detection", "Read the active mobile network", 0xE61B, "network"),
+            MenuItem("SIM Management", "Android SIM settings", 0xE627, "sim"),
+            MenuItem("NetSpeed", "Measure connection speed", 0xE612, "speed")
+        ),
+        "Account & rewards" to listOf(
+            MenuItem("My Account", "Account access and profile", 0xE61F, "account"),
+            MenuItem("Free Data", "Reward and task centre", 0xE618, "rewards"),
+            MenuItem("My Rewards", "Rewards and points", 0xE625, "rewards"),
+            MenuItem("My Vouchers", "Coupons and redemption", 0xE65B, "vouchers"),
+            MenuItem("Message", "Notifications and announcements", 0xE637, "messages"),
+            MenuItem("Transaction History", "Account activity", 0xE61B, "history")
+        ),
+        "Device tools & settings" to listOf(
+            MenuItem("Battery", "Battery condition and settings", 0xE627, "battery"),
+            MenuItem("Device Boosting", "Device information and controls", 0xE612, "boost"),
+            MenuItem("Device Information", "Hardware and system details", 0xE628, "device"),
+            MenuItem("Settings", "Application settings", 0xE627, "settings"),
+            MenuItem("About us", "App information", 0xE628, "about")
         )
-        val target = intents.firstOrNull { it.resolveActivity(packageManager) != null }
-        if (target != null) startActivity(target)
-        else Toast.makeText(this, "Open Android Settings to manage mobile network mode.", Toast.LENGTH_LONG).show()
+    )
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 19.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(top = 7.dp, bottom = 15.dp),
+                colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(9.dp)
+            ) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Image(painterResource(R.drawable.geniex_app_icon), contentDescription = null, modifier = Modifier.size(40.dp), contentScale = ContentScale.Fit)
+                    Spacer(Modifier.width(11.dp))
+                    Column {
+                        Text("GENIEX", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Mobile services", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                    }
+                }
+            }
+            groups.forEach { (heading, items) ->
+                Text(heading, color = Muted, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp, top = 10.dp, bottom = 8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Panel),
+                    border = BorderStroke(1.dp, Stroke), shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        items.forEachIndexed { index, item ->
+                            MenuRow(item) { onOpen(item.page) }
+                            if (index != items.lastIndex) HorizontalDivider(color = Stroke, thickness = 0.6.dp)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+        }
     }
+}
 
-    private fun openAndroidSimSettings() {
-        val intents = listOf(
-            Intent(Settings.ACTION_WIRELESS_SETTINGS),
-            Intent(Settings.ACTION_SETTINGS)
+@Composable
+private fun MenuRow(item: MenuItem, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().height(57.dp).clickable { onClick() }.padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(31.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF211B30)), contentAlignment = Alignment.Center) {
+            Glyph(item.glyph, 18, color = Color(0xFFAE99FF))
+        }
+        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+            Text(item.title, color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+            Text(item.subtitle, color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+        }
+        Glyph(0xE60A, 15, color = Muted)
+    }
+}
+
+@Composable
+private fun PlanTab(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.clip(RoundedCornerShape(8.dp))
+            .background(if (selected) Ink else Color.Transparent)
+            .clickable { onClick() }.padding(horizontal = 6.dp, vertical = 11.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, color = if (selected) MainText else Muted, fontFamily = Poppins, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun Glyph(code: Int, size: Int, modifier: Modifier = Modifier, color: Color = MainText) {
+    Text(icon(code), modifier = modifier, color = color, fontFamily = GeniexIcons, fontSize = size.sp, lineHeight = (size + 2).sp)
+}
+
+@Composable
+private fun OutlineAction(label: String, onClick: () -> Unit) {
+    OutlinedButton(onClick = onClick, border = BorderStroke(1.dp, Stroke), shape = RoundedCornerShape(20.dp)) {
+        Text(label, color = MainText, fontFamily = Poppins, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun PrimaryAction(label: String, glyph: Int, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).clip(RoundedCornerShape(8.dp))
+            .background(Panel).clickable { onClick() }.padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Glyph(glyph, 18, color = Color(0xFFAE99FF))
+        Text(label, Modifier.weight(1f).padding(start = 11.dp), color = MainText, fontFamily = Poppins, fontSize = 12.sp)
+        Glyph(0xE60A, 15, color = Muted)
+    }
+}
+
+@Composable
+private fun SimpleActionRow(title: String, subtitle: String, glyph: Int, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 5.dp).clip(RoundedCornerShape(8.dp))
+            .background(Panel).clickable { onClick() }.padding(13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Glyph(glyph, 19, color = Color(0xFFAE99FF))
+        Column(Modifier.weight(1f).padding(start = 11.dp)) {
+            Text(title, color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+        }
+        Glyph(0xE60A, 15, color = Muted)
+    }
+}
+
+@Composable
+private fun DetailListPage(detailsTitle: String, details: List<Pair<String, String>>, message: String) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 12.dp)) {
+        if (message.isNotBlank()) {
+            Text(message, color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp)
+            Spacer(Modifier.height(10.dp))
+        }
+        if (details.isEmpty()) {
+            Box(Modifier.fillMaxWidth().height(230.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Glyph(0xE618, 32, color = Muted)
+                    Spacer(Modifier.height(12.dp))
+                    Text("No items available", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("The service has not returned any records.", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                }
+            }
+        } else {
+            details.forEach { (title, subtitle) ->
+                Column(Modifier.fillMaxWidth().padding(vertical = 9.dp)) {
+                    Text(title, color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                    HorizontalDivider(color = Stroke, modifier = Modifier.padding(top = 10.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 11.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+        Text(value, color = MainText, fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+    }
+    HorizontalDivider(color = Stroke, thickness = 0.6.dp)
+}
+
+@Composable
+private fun Metric(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun FormField(label: String, value: String, onValue: (String) -> Unit, placeholder: String) {
+    OutlinedTextField(
+        value = value, onValueChange = onValue, modifier = Modifier.fillMaxWidth(),
+        label = { Text(label, fontFamily = Poppins, fontSize = 12.sp) },
+        placeholder = { Text(placeholder, fontFamily = Poppins, fontSize = 11.sp, color = Muted) },
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Purple, unfocusedBorderColor = Stroke,
+            focusedContainerColor = Panel, unfocusedContainerColor = Panel,
+            focusedTextColor = MainText, unfocusedTextColor = MainText
         )
-        val target = intents.firstOrNull { it.resolveActivity(packageManager) != null }
-        if (target != null) startActivity(target)
-        else Toast.makeText(this, "Open Android Settings to manage SIM cards.", Toast.LENGTH_LONG).show()
-    }
+    )
+}
 
-    companion object {
-        private const val REQUEST_PHONE_STATE = 401
-    }
+private fun summaryRows(r: JSONObject): List<Pair<String, String>> {
+    val s = r.optJSONObject("summary") ?: r
+    return listOf(
+        "Check-in status" to s.optString("checkInStatus", "Available after sign in"),
+        "Points balance" to s.optString("pointsBalance", "—"),
+        "Tasks" to s.optString("tasksCount", "—"),
+        "Referral rewards" to s.optString("referralRewards", "—")
+    ).filter { it.second != "null" && it.second.isNotBlank() }
+}
+
+private fun countryFlag(countryCode: String): String {
+    val code = countryCode.uppercase(Locale.ROOT)
+    if (code.length != 2) return "🌐"
+    val first = Character.toChars(0x1F1E6 + (code[0] - 'A'))
+    val second = Character.toChars(0x1F1E6 + (code[1] - 'A'))
+    return String(first) + String(second)
 }
