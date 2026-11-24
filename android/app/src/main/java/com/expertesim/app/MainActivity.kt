@@ -409,7 +409,8 @@ private fun GeniexNativeApp(activity: MainActivity) {
     BackHandler(enabled = page != "home") {
         page = when (page) {
             "plans" -> "countries"
-            "countries" -> "home"
+            "countries" -> "shop"
+            "shop" -> "home"
             else -> "home"
         }
     }
@@ -428,13 +429,15 @@ private fun GeniexNativeApp(activity: MainActivity) {
                         networkLabel = networkLabel,
                         onOpen = { target -> open(target) }
                     )
+                } else if (page == "shop") {
+                    ShopDashboard(onOpen = { target -> open(target) })
                 } else if (page == "countries") {
                 Row(
                     Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 17.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Glyph(0xE608, 22, Modifier.clickable { page = "home" })
+                    Glyph(0xE608, 22, Modifier.clickable { page = "shop" })
                     Glyph(0xE604, 21, Modifier.clickable { open("more") })
                 }
                 Text(
@@ -828,8 +831,8 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
                 )
                 NavigationBarItem(
-                    selected = page == "countries" || page == "plans",
-                    onClick = { open("countries") },
+                    selected = page == "shop" || page == "countries" || page == "plans",
+                    onClick = { open("shop") },
                     icon = { Glyph(0xE622, 19) },
                     label = { Text("Shop", fontFamily = Poppins, fontSize = 9.sp) },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
@@ -860,6 +863,64 @@ private fun GeniexNativeApp(activity: MainActivity) {
     }
 }
 
+
+
+@Composable
+private fun ShopDashboard(onOpen: (String) -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 12.dp)
+    ) {
+        Text("Shop", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 23.sp)
+        Text("Choose a service to continue", color = Muted, fontFamily = Poppins, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp, bottom = 16.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onOpen("countries") },
+            colors = CardDefaults.cardColors(containerColor = Panel),
+            border = BorderStroke(1.dp, Stroke),
+            shape = RoundedCornerShape(15.dp)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Panel2), contentAlignment = Alignment.Center) {
+                    Glyph(0xE622, 25, color = Color(0xFFAE99FF))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Data Plan", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Browse country availability and verified plans", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                }
+                Glyph(0xE60A, 17, color = Muted)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth().clickable { onOpen("apps") },
+            colors = CardDefaults.cardColors(containerColor = Panel),
+            border = BorderStroke(1.dp, Stroke),
+            shape = RoundedCornerShape(15.dp)
+        ) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Panel2), contentAlignment = Alignment.Center) {
+                    Glyph(0xE614, 25, color = Color(0xFFAE99FF))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("App Bundle", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Browse application data bundles from providers", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                }
+                Glyph(0xE60A, 17, color = Muted)
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Text("Other services", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Spacer(Modifier.height(7.dp))
+        SimpleActionRow("Airtime Recharge", "Submit a recharge request where a supplier is connected", 0xE614) { onOpen("airtime") }
+        SimpleActionRow("Orders & History", "View your previous order requests", 0xE61B) { onOpen("history") }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Plan and bundle lists are shown only when an authorised provider supplies live inventory. No prices or provider speeds are invented.",
+            color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 15.sp
+        )
+    }
+}
 
 @Composable
 private fun HomeDashboard(
@@ -952,7 +1013,7 @@ private fun HomeDashboard(
         Spacer(Modifier.height(17.dp))
         Text("Quick access", color = MainText, fontFamily = Poppins, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(7.dp))
-        SimpleActionRow("Data Plan", "Browse available countries and plans", 0xE622) { onOpen("countries") }
+        SimpleActionRow("Shop", "Data plans, app bundles and services", 0xE622) { onOpen("shop") }
         SimpleActionRow("App Bundle", "Browse application bundles", 0xE614) { onOpen("apps") }
         SimpleActionRow("My Balance", "Balance and transaction controls", 0xE614) { onOpen("balance") }
         SimpleActionRow("Reward Center", "Daily rewards and tasks", 0xE618) { onOpen("rewards") }
