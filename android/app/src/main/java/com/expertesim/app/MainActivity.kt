@@ -254,7 +254,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun GeniexNativeApp(activity: MainActivity) {
-    var page by remember { mutableStateOf("countries") }
+    var page by remember { mutableStateOf("home") }
     var selectedCountry by remember { mutableStateOf<Country?>(null) }
     var countryQuery by remember { mutableStateOf("") }
     var planType by remember { mutableStateOf("data") }
@@ -406,12 +406,11 @@ private fun GeniexNativeApp(activity: MainActivity) {
         }
     }
 
-    BackHandler(enabled = page != "countries") {
+    BackHandler(enabled = page != "home") {
         page = when (page) {
             "plans" -> "countries"
-            "account", "balance", "apps", "rewards", "vouchers", "messages", "settings",
-            "network", "sim", "speed", "device", "battery", "boost", "about", "history" -> "more"
-            else -> "countries"
+            "countries" -> "home"
+            else -> "home"
         }
     }
 
@@ -420,13 +419,22 @@ private fun GeniexNativeApp(activity: MainActivity) {
         onPrimary = Color.White, onBackground = MainText, onSurface = MainText
     )) {
         Column(Modifier.fillMaxSize().background(Ink)) {
-            if (page == "countries") {
+            Column(Modifier.weight(1f).fillMaxWidth()) {
+                if (page == "home") {
+                    HomeDashboard(
+                        fullName = fullName,
+                        userEmail = userEmail,
+                        points = points,
+                        networkLabel = networkLabel,
+                        onOpen = { target -> open(target) }
+                    )
+                } else if (page == "countries") {
                 Row(
                     Modifier.fillMaxWidth().height(40.dp).padding(horizontal = 17.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Glyph(0xE608, 22, Modifier.clickable { toast("Country selection") })
+                    Glyph(0xE608, 22, Modifier.clickable { page = "home" })
                     Glyph(0xE604, 21, Modifier.clickable { open("more") })
                 }
                 Text(
@@ -476,7 +484,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                 HeaderBar(
                     title = when (page) {
                         "plans" -> "Available plans"
-                        "more" -> "More"
+                        "more" -> "Mine"
                         "apps" -> "App Bundle"
                         "balance" -> "My Balance"
                         "account" -> "My Account"
@@ -494,7 +502,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                         "history" -> "Transaction History"
                         else -> "More"
                     },
-                    back = { page = if (page == "plans") "countries" else "more" },
+                    back = { page = if (page == "plans") "countries" else "home" },
                     trailing = if (page == "plans" || page == "balance") "${points} PTS" else ""
                 )
                 when (page) {
@@ -798,16 +806,164 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     }
                     "about" -> {
                         Column(Modifier.weight(1f).padding(23.dp)) {
-                            Image(painterResource(R.drawable.geniex_wordmark), contentDescription = "GENIEX", modifier = Modifier.width(158.dp).height(36.dp), contentScale = ContentScale.Fit)
+                            Image(painterResource(R.drawable.geniex_wordmark), contentDescription = "Expert eSIM", modifier = Modifier.width(158.dp).height(36.dp), contentScale = ContentScale.Fit)
                             Spacer(Modifier.height(18.dp))
-                            Text("GENIEX mobile app", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                            Text("Original visual assets and font resources extracted from the supplied application package. The Expert eSIM service layer remains hosted on Railway.", color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp)
+                            Text("Expert eSIM", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                            Text("Mobile services and device tools.", color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp)
                         }
                     }
                     else -> DetailListPage("More", emptyList(), "")
                 }
             }
+            }
+            NavigationBar(
+                containerColor = Panel,
+                contentColor = MainText
+            ) {
+                NavigationBarItem(
+                    selected = page == "home",
+                    onClick = { open("home") },
+                    icon = { Glyph(0xE614, 19) },
+                    label = { Text("Home", fontFamily = Poppins, fontSize = 9.sp) },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
+                )
+                NavigationBarItem(
+                    selected = page == "countries" || page == "plans",
+                    onClick = { open("countries") },
+                    icon = { Glyph(0xE622, 19) },
+                    label = { Text("Shop", fontFamily = Poppins, fontSize = 9.sp) },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
+                )
+                NavigationBarItem(
+                    selected = page == "balance",
+                    onClick = { open("balance") },
+                    icon = { Glyph(0xE61C, 19) },
+                    label = { Text("Balance", fontFamily = Poppins, fontSize = 9.sp) },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedIconColor = Muted, unselectedTextColor = Muted)
+                )
+                NavigationBarItem(
+                    selected = page in listOf("device", "network", "sim", "speed", "battery", "boost", "settings"),
+                    onClick = { open("device") },
+                    icon = { Glyph(0xE628, 19) },
+                    label = { Text("Device", fontFamily = Poppins, fontSize = 9.sp) },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
+                )
+                NavigationBarItem(
+                    selected = page in listOf("more", "account", "rewards", "vouchers", "messages", "history", "about"),
+                    onClick = { open("more") },
+                    icon = { Glyph(0xE61F, 19) },
+                    label = { Text("Mine", fontFamily = Poppins, fontSize = 9.sp) },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
+                )
+            }
         }
+    }
+}
+
+
+@Composable
+private fun HomeDashboard(
+    fullName: String,
+    userEmail: String,
+    points: String,
+    networkLabel: String,
+    onOpen: (String) -> Unit
+) {
+    val greeting = fullName.trim().substringBefore(" ").ifBlank { "there" }
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 10.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painterResource(R.drawable.geniex_app_icon),
+                contentDescription = null,
+                modifier = Modifier.size(38.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Expert eSIM", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Text("Mobile services", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+            }
+            Glyph(0xE61F, 22, Modifier.clickable { onOpen("more") }, color = Color(0xFFAE99FF))
+        }
+        Spacer(Modifier.height(16.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Panel),
+            border = BorderStroke(1.dp, Stroke),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                Text("WELCOME BACK", color = Muted, fontFamily = Poppins, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                Text("Hello, $greeting", color = MainText, fontFamily = Poppins, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (userEmail.isNotBlank()) userEmail else "Sign in to access your account and rewards",
+                    color = Muted, fontFamily = Poppins, fontSize = 10.sp
+                )
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("CURRENT NETWORK", color = Muted, fontFamily = Poppins, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                        Text(networkLabel, color = MainText, fontFamily = Poppins, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Detected from this Android device", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+                    }
+                    Box(
+                        Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(Panel2),
+                        contentAlignment = Alignment.Center
+                    ) { Glyph(0xE61B, 25, color = Color(0xFFAE99FF)) }
+                }
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { onOpen("network") },
+                    border = BorderStroke(1.dp, Stroke),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Network Detection", color = MainText, fontFamily = Poppins, fontSize = 11.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(
+                modifier = Modifier.weight(1f).clickable { onOpen("balance") },
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(13.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(13.dp)) {
+                    Text("REWARD COINS", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+                    Text(points, color = MainText, fontFamily = Poppins, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Points balance", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+                }
+            }
+            Card(
+                modifier = Modifier.weight(1f).clickable { onOpen("device") },
+                colors = CardDefaults.cardColors(containerColor = Panel),
+                shape = RoundedCornerShape(13.dp)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(13.dp)) {
+                    Text("DEVICE STATUS", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+                    Text(if (networkLabel == "Permission required") "Check device" else "Detected", color = MainText, fontFamily = Poppins, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Network and hardware", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(17.dp))
+        Text("Quick access", color = MainText, fontFamily = Poppins, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(7.dp))
+        SimpleActionRow("Data Plan", "Browse available countries and plans", 0xE622) { onOpen("countries") }
+        SimpleActionRow("App Bundle", "Browse application bundles", 0xE614) { onOpen("apps") }
+        SimpleActionRow("My Balance", "Balance and transaction controls", 0xE614) { onOpen("balance") }
+        SimpleActionRow("Reward Center", "Daily rewards and tasks", 0xE618) { onOpen("rewards") }
+        SimpleActionRow("NetSpeed", "Measure the current Internet connection", 0xE612) { onOpen("speed") }
+        SimpleActionRow("Device Information", "Battery, memory, storage and eSIM support", 0xE628) { onOpen("device") }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Carrier data, plan availability and eSIM activation are displayed only when confirmed by an authorised service.",
+            color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 15.sp
+        )
+        Spacer(Modifier.height(10.dp))
     }
 }
 
@@ -864,7 +1020,7 @@ private fun MorePage(onOpen: (String) -> Unit) {
                     Image(painterResource(R.drawable.geniex_app_icon), contentDescription = null, modifier = Modifier.size(40.dp), contentScale = ContentScale.Fit)
                     Spacer(Modifier.width(11.dp))
                     Column {
-                        Text("GENIEX", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Expert eSIM", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         Text("Mobile services", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
                     }
                 }
