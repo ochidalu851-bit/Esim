@@ -471,7 +471,7 @@ test('customer UI follows the migrated APK country and plan flow while retaining
   assert.match(appJs, /setPreferredNetwork/);
   assert.match(appJs, /Battery & Device Info/);
   const androidSource = fs.readFileSync(path.join(root, 'android/app/src/main/java/com/expertesim/app/MainActivity.kt'), 'utf8');
-  assert.match(androidSource, /ExpertMobileBridge/);
+  assert.match(androidSource, /setContent\s*\{\s*GeniexNativeApp\(this\)\s*\}/);
   assert.doesNotMatch(androidSource, /downloadProfile|switchToSubscription|downloadSubscription/);
   const androidManifest = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
   assert.match(androidManifest, /android:label="Expert eSIM"/);
