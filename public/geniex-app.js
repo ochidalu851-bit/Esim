@@ -68,6 +68,7 @@ function render(){
  else if(S.page==="country-plans")html=countryPlansPage();
  else if(S.page==="more"||S.page==="mine")html=morePage();
  else if(S.page==="device")html=devicePage();
+ else if(S.page==="sim")html=simPage();
  else if(S.page==="apps")html=appsPage();
  else if(S.page==="balance")html=balancePage();
  else if(S.page==="sponsors")html=sponsorsPage();
@@ -314,6 +315,12 @@ function devicePage(){
  '<button type="button" data-page="battery"><span>ϟ</span><b>Battery</b><i>›</i></button>'+
  '<button type="button" data-page="diagnostics"><span>'+icons.help+'</span><b>Diagnostics</b><i>›</i></button>'+
  '</div>';
+}
+function simPage(){
+ const n=S.network||{};
+ return header("SIM Management")+
+ '<div class="panel"><div class="eyebrow">ANDROID SIM CONTROLS</div><h3>Manage SIM cards</h3><p class="tiny muted">SIM activation, default mobile data, calls and SMS are controlled by Android and the carrier. This app will open the phone’s own SIM settings rather than pretending it can switch a SIM silently.</p><div class="device-detail-row"><span>Detected network</span><b>'+esc(n.networkType||"Not reported")+'</b></div><div class="device-detail-row"><span>eSIM device</span><b>'+esc(S.device&&S.device.hasEuiccHardware===true?"Supported":S.device&&S.device.hasEuiccHardware===false?"Not detected":"Not reported")+'</b></div><button type="button" class="primary-button" data-action="open-sim-settings">OPEN SIM SETTINGS</button></div>'+
+ '<div class="home-service-list"><button type="button" data-page="network"><span>'+icons.signal+'</span><b>Network Detection</b><i>›</i></button><button type="button" data-page="network-settings"><span>'+icons.wifi+'</span><b>Preferred Network</b><i>›</i></button></div>';
 }
 function diagnosticsPage(){return header("Network Diagnostic")+'<div class="panel"><div class="eyebrow">CONNECTION DIAGNOSTIC</div><p class="tiny muted">Run a local connectivity check against the Expert Railway service and inspect the detected mobile radio.</p><div id="diagnosticMessage" class="status-banner">Ready to test the connection.</div><button class="primary-button" data-action="diagnostics">RUN DIAGNOSTIC</button></div>'+(S.network?'<div class="panel"><h3>Mobile network</h3><b>'+esc(S.network.networkType||"Unknown")+'</b><p class="tiny muted">'+esc(S.network.message||"")+"</p></div>":"");}
 function batteryPage(){return header("Battery & Device Info")+'<div id="deviceHealth" class="panel"><div class="tiny muted">Reading device diagnostics…</div></div><button class="secondary-button" data-action="open-battery-settings">Open Battery Settings</button>';}
