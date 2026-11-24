@@ -1242,7 +1242,22 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                     speedBusy = true
                                     scope.launch {
                                         runCatching { activity.runSpeedTest() }
-                                            .onSuccess { speedResult = it; toast("Speed test complete.") }
+                                            .onSuccess {
+                                                speedResult = it
+                                                if (userEmail.isNotBlank()) {
+                                                    runCatching {
+                                                        activity.api(
+                                                            "/app/speed-test", "POST",
+                                                            JSONObject()
+                                                                .put("downloadMbps", it.download)
+                                                                .put("uploadMbps", it.upload)
+                                                                .put("pingMs", it.ping)
+                                                                .put("jitterMs", it.jitter)
+                                                        )
+                                                    }.onFailure { recordError -> toast(recordError.message ?: "The speed test completed but could not be recorded for rewards.") }
+                                                }
+                                                toast("Speed test complete.")
+                                            }
                                             .onFailure { toast(it.message ?: "Speed test failed.") }
                                         speedBusy = false
                                     }
