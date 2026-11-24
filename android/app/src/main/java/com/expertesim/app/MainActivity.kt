@@ -453,17 +453,27 @@ private fun GeniexNativeApp(activity: MainActivity) {
         if (target == "history") {
             scope.launch {
                 runCatching {
+                    val account = activity.api("/me")
+                    val orderItems = account.optJSONArray("orders") ?: JSONArray()
+                    val orderRows = (0 until orderItems.length()).map { i ->
+                        val item = orderItems.optJSONObject(i) ?: JSONObject()
+                        val reference = item.optString("reference", "Order")
+                        val plan = item.optString("planName", "Service request")
+                        val state = item.optString("status", "pending")
+                        reference to (plan + " · " + state.replace('_', ' ') + " · " + item.optString("createdAt", ""))
+                    }
                     val r = activity.api("/app/wallet")
                     val wallet = r.optJSONObject("wallet") ?: JSONObject()
                     points = wallet.optString("pointsBalance", points)
                     val entries = wallet.optJSONArray("transactions") ?: JSONArray()
-                    details = (0 until entries.length()).map { i ->
+                    val pointRows = (0 until entries.length()).map { i ->
                         val item = entries.optJSONObject(i) ?: JSONObject()
                         val delta = item.optInt("delta")
                         val sign = if (delta > 0) "+" else ""
-                        (item.optString("reason", "Points activity") + " ($sign$delta)") to item.optString("createdAt", "")
+                        (item.optString("reason", "Points activity") + " ($sign$delta PTS)") to item.optString("createdAt", "")
                     }
-                    detailsTitle = "Transaction History"
+                    details = orderRows + pointRows
+                    detailsTitle = "Orders & Transaction History"
                 }.onFailure { toast(it.message ?: "History could not be loaded.") }
             }
         }
@@ -662,7 +672,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                         "battery" -> "Battery"
                         "boost" -> "Device Boosting"
                         "about" -> "About us"
-                        "history" -> "Transaction History"
+                        "history" -> "Orders & History"
                         else -> "More"
                     },
                     back = { page = if (page == "plans") "countries" else "home" },
