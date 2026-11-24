@@ -850,5 +850,37 @@ const server = http.createServer(async (req, res) => {
     await route(req, res, url);
   } catch (error) { fail(res, error); }
 });
-server.listen(PORT, '0.0.0.0', () => console.log('Expert eSIM API listening on port ' + PORT));
+async function initializePersistentStore() {
+  // Explicit, guarded, one-time data erasure. The marker lives in the persistent
+  // volume so later restarts cannot repeat the wipe after new subscribers join.
+  if (process.env.EXPERT_ESIM_WIPE_ALL_DATA_ONCE !== 'CONFIRMED_20261124') return;
+  await fsp.mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+  const marker = path.join(DATA_DIR, '.expert-esim-data-wiped-v1');
+  try {
+    await fsp.access(marker);
+    console.log('One-time persistent data wipe already completed; existing data preserved.');
+    return;
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  const entries = await fsp.readdir(DATA_DIR);
+  for (const name of entries) {
+    await fsp.rm(path.join(DATA_DIR, name), { recursive: true, force: true });
+  }
+  await fsp.writeFile(STORE_FILE, JSON.stringify(emptyStore()), { mode: 0o600, flag: 'wx' });
+  await fsp.writeFile(marker, JSON.stringify({
+    version: 1,
+    completedAt: new Date().toISOString(),
+    removedPersistentEntries: entries.length
+  }), { mode: 0o600, flag: 'wx' });
+  console.log('ONE_TIME_DATA_WIPE_COMPLETED: cleared ' + entries.length + ' persistent storage entries; empty subscriber store initialized.');
+}
+initializePersistentStore()
+  .then(() => {
+    server.listen(PORT, '0.0.0.0', () => console.log('Expert eSIM API listening on port ' + PORT));
+  })
+  .catch(error => {
+    console.error('Expert eSIM persistent-store initialization failed:', error.message);
+    process.exitCode = 1;
+  });
 server.on('error', error => { console.error('Expert eSIM server error:', error.message); process.exitCode = 1; });
