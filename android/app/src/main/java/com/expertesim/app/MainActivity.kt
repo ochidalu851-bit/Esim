@@ -315,6 +315,10 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var kycStatus by remember { mutableStateOf("not_started") }
     var kycBusy by remember { mutableStateOf(false) }
     var kycMessage by remember { mutableStateOf("") }
+    var currentPassword by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var passwordBusy by remember { mutableStateOf(false) }
+    var passwordMessage by remember { mutableStateOf("") }
     var loginEmail by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var acceptedTerms by remember { mutableStateOf(false) }
@@ -849,6 +853,51 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                 Text(userEmail, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
                                 if (phone.isNotBlank()) Text(phone, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
                                 Spacer(Modifier.height(14.dp))
+                                Text("Account security", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                OutlinedTextField(
+                                    value = currentPassword,
+                                    onValueChange = { currentPassword = it },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                    label = { Text("Current password", fontFamily = Poppins, fontSize = 10.sp) },
+                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Purple, unfocusedBorderColor = Stroke, focusedContainerColor = Panel, unfocusedContainerColor = Panel, focusedTextColor = MainText, unfocusedTextColor = MainText)
+                                )
+                                OutlinedTextField(
+                                    value = newPassword,
+                                    onValueChange = { newPassword = it },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                    label = { Text("New password (at least 10 characters)", fontFamily = Poppins, fontSize = 10.sp) },
+                                    singleLine = true,
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Purple, unfocusedBorderColor = Stroke, focusedContainerColor = Panel, unfocusedContainerColor = Panel, focusedTextColor = MainText, unfocusedTextColor = MainText)
+                                )
+                                Button(
+                                    enabled = !passwordBusy && currentPassword.isNotBlank() && newPassword.length >= 10 && currentPassword != newPassword,
+                                    onClick = {
+                                        passwordBusy = true
+                                        passwordMessage = ""
+                                        scope.launch {
+                                            try {
+                                                val result = activity.api(
+                                                    "/auth/change-password", "POST",
+                                                    JSONObject().put("currentPassword", currentPassword).put("newPassword", newPassword)
+                                                )
+                                                passwordMessage = result.optString("message", "Password changed.")
+                                                currentPassword = ""
+                                                newPassword = ""
+                                                toast(passwordMessage)
+                                            } catch (e: Exception) {
+                                                passwordMessage = e.message ?: "Password could not be changed."
+                                                toast(passwordMessage)
+                                            } finally { passwordBusy = false }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(40.dp).padding(top = 3.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                                ) { Text(if (passwordBusy) "Updating…" else "Change Password", fontFamily = Poppins, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
+                                if (passwordMessage.isNotBlank()) Text(passwordMessage, color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp, modifier = Modifier.padding(top = 4.dp))
+                                Spacer(Modifier.height(12.dp))
                                 Text("Identity verification", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                 Text("Status: ${kycStatus.replace('_', ' ')}", color = Muted, fontFamily = Poppins, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
                                 Button(
