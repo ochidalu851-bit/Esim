@@ -39,7 +39,7 @@ function header(title,extra){
 function empty(title,copy,button){return '<div class="empty-state"><div class="empty-icon">◌</div><b>'+esc(title)+'</b><p>'+esc(copy)+'</p>'+(button||"")+'</div>';}
 function row(symbol,title,desc,tail,action){return '<button class="menu-action" '+(action?'data-page="'+esc(action)+'"':'data-action="noop"')+'><span class="menu-symbol">'+symbol+'</span><span>'+esc(title)+'<small class="muted">'+esc(desc||"")+'</small></span><em>'+esc(tail||"›")+'</em></button>';}
 function setPage(page){
- if(page==="shop"||page==="data")page="countries";
+ if(page==="data")page="countries";
  if(page==="mine")page="more";
 
  S.page=page;render();
@@ -64,7 +64,8 @@ function render(){
  updateTopBar();
  let html="";
  if(S.page==="home")html=homePage();
- else if(S.page==="countries"||S.page==="data"||S.page==="shop")html=countriesPage();
+ else if(S.page==="shop")html=shopPage();
+ else if(S.page==="countries"||S.page==="data")html=countriesPage();
  else if(S.page==="country-plans")html=countryPlansPage();
  else if(S.page==="more"||S.page==="mine")html=morePage();
  else if(S.page==="device")html=devicePage();
@@ -89,7 +90,7 @@ function render(){
  else if(S.page==="messages")html=messagesPage();
  else if(S.page==="history")html=historyPage();
  else html=homePage();
- const navPage=S.page==="countries"||S.page==="country-plans"||S.page==="data"||S.page==="shop"?"shop":
+ const navPage=["shop","countries","country-plans","data","apps","airtime","orders"].includes(S.page)?"shop":
    S.page==="balance"?"balance":
    ["device","diagnostics","network","network-settings","battery","speed","sim","boost"].includes(S.page)?"device":
    ["more","mine","account","my-account","settings","help","messages","rewards","vouchers","airtime","orders","history","sponsors"].includes(S.page)?"mine":"home";
@@ -208,6 +209,17 @@ function morePage(){
  row(icons.help,"Settings","App preferences and theme","›","settings")+
  row(icons.help,"Help & Support","FAQs and support","›","help")+
  '</div></section><p class="footer-note">Provider-dependent services show live status only when an authorised provider is connected.</p>';
+}
+function shopPage(){
+ return header("Shop")+
+ '<section class="shop-intro"><div class="eyebrow">GENIEX SERVICE CATEGORIES</div><h2>Choose what you need</h2><p>Browse the available products and service requests.</p></section>'+
+ '<div class="shop-service-grid">'+
+  '<button type="button" class="shop-service-card" data-page="countries"><span class="shop-service-icon">'+icons.wifi+'</span><b>Data Plan</b><small>Country availability and data plan catalogue</small><em>Open <span>›</span></em></button>'+
+  '<button type="button" class="shop-service-card" data-page="apps"><span class="shop-service-icon">▦</span><b>App Bundle</b><small>Application-specific data bundles</small><em>Open <span>›</span></em></button>'+
+  '<button type="button" class="shop-service-card" data-page="airtime"><span class="shop-service-icon">↗</span><b>Airtime Recharge</b><small>Submit and track airtime requests</small><em>Open <span>›</span></em></button>'+
+  '<button type="button" class="shop-service-card" data-page="orders"><span class="shop-service-icon">'+icons.wallet+'</span><b>Orders & History</b><small>Review previous requests and transactions</small><em>Open <span>›</span></em></button>'+
+ '</div>'+
+ '<p class="shop-footnote">Only confirmed supplier inventory and fulfilment is displayed. An airtime request is not marked delivered until a supplier confirms it.</p>';
 }
 function homePage(){
  const summary=S.summary||{};
