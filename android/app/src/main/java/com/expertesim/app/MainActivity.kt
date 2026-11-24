@@ -175,6 +175,28 @@ class MainActivity : ComponentActivity() {
     internal fun hasEuicc(): Boolean =
         packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_EUICC)
 
+    internal suspend fun registerCurrentDevice(): JSONObject {
+        val clientId = preferences.getString("client_device_id", null) ?: java.util.UUID.randomUUID()
+            .toString().replace("-", "").also {
+                preferences.edit().putString("client_device_id", it).apply()
+            }
+        val euicc = getSystemService(android.telephony.euicc.EuiccManager::class.java)
+        val euiccEnabled = runCatching { euicc?.isEnabled == true }.getOrDefault(false)
+        val name = listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.distinct().joinToString(" ")
+        val payload = JSONObject()
+            .put("clientDeviceId", clientId)
+            .put("platform", "android")
+            .put("manufacturer", Build.MANUFACTURER.orEmpty())
+            .put("model", Build.MODEL.orEmpty())
+            .put("deviceName", name.ifBlank { "Android device" })
+            .put("osVersion", Build.VERSION.RELEASE.orEmpty())
+            .put("eSimSupportKnown", true)
+            .put("hasEuiccHardware", hasEuicc())
+            .put("euiccEnabled", euiccEnabled)
+        val response = api("/devices", "POST", payload)
+        return response.optJSONObject("device") ?: response
+    }
+
     internal fun deviceSummary(): List<Pair<String, String>> {
         val batteryIntent = registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val level = batteryIntent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
@@ -278,6 +300,12 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var speedBusy by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
     var detailsTitle by remember { mutableStateOf("Details") }
+    var registeredDevice by remember { mutableStateOf<JSONObject?>(null) }
+    var deviceSyncMessage by remember { mutableStateOf("") }
+    var profileBusy by remember { mutableStateOf(false) }
+    var profileMessage by remember { mutableStateOf("") }
+    var appMessages by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var couponItems by remember { mutableStateOf(emptyList<JSONObject>()) }
     var rewardSummary by remember { mutableStateOf<JSONObject?>(null) }
     var rewardBusy by remember { mutableStateOf(false) }
     var transferRecipient by remember { mutableStateOf("") }
@@ -307,6 +335,8 @@ private fun GeniexNativeApp(activity: MainActivity) {
                 if (userEmail.isNotBlank()) {
                     val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
                     points = wallet.optString("pointsBalance", points)
+                    registeredDevice = activity.registerCurrentDevice()
+                    deviceSyncMessage = "This Android device is registered to your account."
                 }
             }
         }
@@ -350,13 +380,28 @@ private fun GeniexNativeApp(activity: MainActivity) {
             scope.launch {
                 runCatching {
                     val r = activity.api("/app/coupons")
-                    val coupons = r.optJSONObject("coupons")?.optJSONArray("available") ?: JSONArray()
-                    details = (0 until coupons.length()).map { i ->
-                        val item = coupons.optJSONObject(i) ?: JSONObject()
-                        item.optString("title", "Voucher") to item.optString("description", item.optString("type", ""))
-                    }
+                    val catalog = r.optJSONObject("coupons") ?: JSONObject()
+                    val available = catalog.optJSONArray("available") ?: JSONArray()
+                    couponItems = (0 until available.length()).mapNotNull { i -> available.optJSONObject(i) }
                     detailsTitle = "My Vouchers"
                 }.onFailure { toast(it.message ?: "Vouchers could not be loaded.") }
+            }
+        }
+        if (target == "messages") {
+            scope.launch {
+                runCatching {
+                    val r = activity.api("/app/messages")
+                    val items = r.optJSONArray("messages") ?: JSONArray()
+                    appMessages = (0 until items.length()).mapNotNull { i -> items.optJSONObject(i) }
+                }.onFailure { toast(it.message ?: "Messages could not be loaded.") }
+            }
+        }
+        if (target == "device" && userEmail.isNotBlank() && registeredDevice == null) {
+            scope.launch {
+                runCatching {
+                    registeredDevice = activity.registerCurrentDevice()
+                    deviceSyncMessage = "This Android device is registered to your account."
+                }.onFailure { deviceSyncMessage = it.message ?: "Device registration is unavailable." }
             }
         }
         if (target == "history") {
@@ -809,6 +854,10 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                                 userEmail = u.optString("email").takeIf { it.isNotBlank() && it != "null" } ?: loginEmail
                                                 fullName = u.optString("fullName").takeIf { it.isNotBlank() && it != "null" } ?: fullName
                                                 phone = u.optString("phone").takeIf { it.isNotBlank() && it != "null" } ?: phone
+                                                runCatching {
+                                                    registeredDevice = activity.registerCurrentDevice()
+                                                    deviceSyncMessage = "This Android device is registered to your account."
+                                                }.onFailure { deviceSyncMessage = it.message ?: "Device registration is unavailable." }
                                                 toast(r.optString("message").ifBlank { "Account request completed." })
                                             } catch (e: Exception) {
                                                 toast(e.message ?: "Account request failed.")
