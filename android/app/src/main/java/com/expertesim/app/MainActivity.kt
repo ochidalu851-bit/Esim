@@ -171,6 +171,15 @@ class MainActivity : ComponentActivity() {
             .onFailure { notifyUser("The secure verification page could not be opened.") }
     }
 
+    internal fun shareText(value: String) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_TEXT, value)
+        }
+        runCatching { startActivity(Intent.createChooser(intent, "Share Expert eSIM")) }
+            .onFailure { notifyUser("Sharing is not available on this device.") }
+    }
+
     @SuppressLint("MissingPermission")
     internal fun currentNetworkLabel(): String {
         if (checkSelfPermission(Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
@@ -324,6 +333,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var passwordMessage by remember { mutableStateOf("") }
     var loginEmail by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var referralCodeInput by remember { mutableStateOf("") }
     var acceptedTerms by remember { mutableStateOf(false) }
     var loginMode by remember { mutableStateOf(true) }
     var networkLabel by remember { mutableStateOf("Permission required") }
@@ -994,6 +1004,8 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                     Spacer(Modifier.height(12.dp))
                                     FormField("Phone number (optional)", phone, { phone = it }, "+234...")
                                     Spacer(Modifier.height(12.dp))
+                                    FormField("Referral code (optional)", referralCodeInput, { referralCodeInput = it.uppercase() }, "Enter referral code")
+                                    Spacer(Modifier.height(12.dp))
                                 }
                                 FormField("Email address", loginEmail, { loginEmail = it }, "name@example.com")
                                 Spacer(Modifier.height(12.dp))
@@ -1025,6 +1037,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                                 if (!loginMode) {
                                                     body.put("fullName", fullName.trim())
                                                         .put("phone", phone.trim())
+                                                        .put("referralCode", referralCodeInput.trim().uppercase())
                                                         .put("acceptedTerms", true)
                                                         .put("acceptedPrivacy", true)
                                                 }
@@ -1155,7 +1168,20 @@ private fun GeniexNativeApp(activity: MainActivity) {
                             }
                             Spacer(Modifier.height(8.dp))
                             Text("Referral code", color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Text(summary.optString("referralCode", "Available after sign-in"), color = Color(0xFFAE99FF), fontFamily = Poppins, fontSize = 14.sp)
+                            val referralCode = summary.optString("referralCode", "")
+                            Text(referralCode.ifBlank { "Available after sign-in" }, color = Color(0xFFAE99FF), fontFamily = Poppins, fontSize = 14.sp)
+                            Text(
+                                "${summary.optInt("referralCount")} invited · ${summary.optInt("qualifiedReferrals")} qualified",
+                                color = Muted, fontFamily = Poppins, fontSize = 9.sp
+                            )
+                            OutlinedButton(
+                                enabled = referralCode.isNotBlank(),
+                                onClick = {
+                                    activity.shareText("Join Expert eSIM using my referral code $referralCode: https://expert-esim-web-production.up.railway.app/?ref=$referralCode")
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                border = BorderStroke(1.dp, Stroke)
+                            ) { Text("Share Referral Code", color = MainText, fontFamily = Poppins, fontSize = 10.sp) }
                             Text("Referral points are credited after the invited member completes the qualifying activity.", color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp)
                         }
                     }
