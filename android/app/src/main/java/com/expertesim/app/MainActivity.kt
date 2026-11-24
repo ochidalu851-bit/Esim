@@ -16,6 +16,8 @@ import android.telephony.TelephonyManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -264,9 +266,13 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var dataMessage by remember { mutableStateOf("") }
     var points by remember { mutableStateOf("0") }
     var userEmail by remember { mutableStateOf("") }
+    var fullName by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
     var loginEmail by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var acceptedTerms by remember { mutableStateOf(false) }
     var loginMode by remember { mutableStateOf(true) }
+    var networkLabel by remember { mutableStateOf("Permission required") }
     var loginBusy by remember { mutableStateOf(false) }
     var speedResult by remember { mutableStateOf<SpeedResult?>(null) }
     var speedBusy by remember { mutableStateOf(false) }
@@ -274,6 +280,25 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var detailsTitle by remember { mutableStateOf("Details") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val requestPhonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        networkLabel = if (granted) activity.currentNetworkLabel() else "Permission denied"
+    }
+
+    LaunchedEffect(Unit) {
+        if (activity.sessionCookie().isNotBlank()) {
+            runCatching {
+                val profile = activity.api("/me")
+                val user = profile.optJSONObject("user") ?: JSONObject()
+                userEmail = user.optString("email").takeIf { it != "null" }.orEmpty()
+                fullName = user.optString("fullName").takeIf { it != "null" }.orEmpty()
+                phone = user.optString("phone").takeIf { it != "null" }.orEmpty()
+                if (userEmail.isNotBlank()) {
+                    val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
+                    points = wallet.optString("pointsBalance", points)
+                }
+            }
+        }
+    }
 
     val countries = remember {
         Locale.getISOCountries().map { code ->
@@ -609,7 +634,9 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     "account" -> {
                         if (userEmail.isNotBlank()) {
                             Column(Modifier.weight(1f).padding(23.dp)) {
-                                Text(userEmail, color = MainText, fontFamily = Poppins, fontSize = 15.sp)
+                                Text(fullName.ifBlank { userEmail }, color = MainText, fontFamily = Poppins, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                                Text(userEmail, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+                                if (phone.isNotBlank()) Text(phone, color = Muted, fontFamily = Poppins, fontSize = 11.sp)
                                 Spacer(Modifier.height(16.dp))
                                 SimpleActionRow("Sign out", "End this account session", 0xE635) {
                                     scope.launch {
@@ -627,6 +654,12 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                     PlanTab("Create account", !loginMode, Modifier.weight(1f)) { loginMode = false }
                                 }
                                 Spacer(Modifier.height(20.dp))
+                                if (!loginMode) {
+                                    FormField("Full name", fullName, { fullName = it }, "Your full name")
+                                    Spacer(Modifier.height(12.dp))
+                                    FormField("Phone number (optional)", phone, { phone = it }, "+234...")
+                                    Spacer(Modifier.height(12.dp))
+                                }
                                 FormField("Email address", loginEmail, { loginEmail = it }, "name@example.com")
                                 Spacer(Modifier.height(12.dp))
                                 OutlinedTextField(
@@ -640,17 +673,31 @@ private fun GeniexNativeApp(activity: MainActivity) {
                                         focusedTextColor = MainText, unfocusedTextColor = MainText
                                     )
                                 )
+                                if (!loginMode) {
+                                    Row(Modifier.fillMaxWidth().clickable { acceptedTerms = !acceptedTerms }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(checked = acceptedTerms, onCheckedChange = { acceptedTerms = it }, colors = CheckboxDefaults.colors(checkedColor = Purple))
+                                        Text("I agree to the Terms and Privacy Notice", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                                    }
+                                }
                                 Spacer(Modifier.height(16.dp))
                                 Button(
-                                    enabled = loginEmail.contains("@") && password.isNotBlank() && !loginBusy,
+                                    enabled = loginEmail.contains("@") && password.isNotBlank() && (loginMode || (fullName.trim().length >= 2 && password.length >= 10 && acceptedTerms)) && !loginBusy,
                                     onClick = {
                                         loginBusy = true
                                         scope.launch {
                                             try {
                                                 val body = JSONObject().put("email", loginEmail).put("password", password)
+                                                if (!loginMode) {
+                                                    body.put("fullName", fullName.trim())
+                                                        .put("phone", phone.trim())
+                                                        .put("acceptedTerms", true)
+                                                        .put("acceptedPrivacy", true)
+                                                }
                                                 val r = activity.api(if (loginMode) "/auth/login" else "/auth/register", "POST", body)
                                                 val u = r.optJSONObject("user") ?: r.optJSONObject("account") ?: JSONObject()
                                                 userEmail = u.optString("email").takeIf { it.isNotBlank() && it != "null" } ?: loginEmail
+                                                fullName = u.optString("fullName").takeIf { it.isNotBlank() && it != "null" } ?: fullName
+                                                phone = u.optString("phone").takeIf { it.isNotBlank() && it != "null" } ?: phone
                                                 toast(r.optString("message").ifBlank { "Account request completed." })
                                             } catch (e: Exception) {
                                                 toast(e.message ?: "Account request failed.")
@@ -671,13 +718,18 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     }
                     "network" -> {
                         Column(Modifier.weight(1f).padding(23.dp)) {
-                            val network = remember { mutableStateOf(activity.currentNetworkLabel()) }
                             Text("Current mobile network", color = Muted, fontFamily = Poppins, fontSize = 11.sp)
-                            Text(network.value, color = MainText, fontFamily = Poppins, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
+                            Text(networkLabel, color = MainText, fontFamily = Poppins, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(8.dp))
                             Text("Read from the handset's active mobile-data subscription. Network reporting depends on Android permissions and the carrier.", color = Muted, fontFamily = Poppins, fontSize = 11.sp, lineHeight = 18.sp)
                             Spacer(Modifier.height(18.dp))
-                            PrimaryAction("Refresh network", 0xE619) { network.value = activity.currentNetworkLabel() }
+                            PrimaryAction("Refresh network", 0xE619) {
+                                if (activity.checkSelfPermission(Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+                                    networkLabel = activity.currentNetworkLabel()
+                                } else {
+                                    requestPhonePermission.launch(Manifest.permission.READ_PHONE_STATE)
+                                }
+                            }
                             PrimaryAction("Open network settings", 0xE627) { activity.openSimSettings() }
                         }
                     }
