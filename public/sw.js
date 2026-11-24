@@ -1,5 +1,5 @@
-const CACHE_NAME = "expert-mobile-geniex-v2";
-const APP_FILES = ["/", "/manifest.webmanifest", "/icon.svg", "/geniex.css?v=1", "/geniex-app.js?v=1"];
+const CACHE_NAME = "expert-esim-apk-v3";
+const APP_FILES = ["/", "/manifest.webmanifest", "/icon.svg", "/geniex.css?v=2", "/geniex-app.js?v=2"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

@@ -450,7 +450,7 @@ test('GENIEX-style client routes expose only real provider readiness', async () 
   }
 });
 
-test('customer UI is replaced by the GENIEX-style mobile interface and same-origin actions', () => {
+test('customer UI follows the migrated APK country and plan flow while retaining same-origin features', () => {
   const mainHtml = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
   const appJs = fs.readFileSync(path.join(root, 'public/geniex-app.js'), 'utf8');
   const appCss = fs.readFileSync(path.join(root, 'public/geniex.css'), 'utf8');
@@ -474,10 +474,14 @@ test('customer UI is replaced by the GENIEX-style mobile interface and same-orig
   assert.match(androidSource, /ExpertMobileBridge/);
   assert.doesNotMatch(androidSource, /downloadProfile|switchToSubscription|downloadSubscription/);
   const androidManifest = fs.readFileSync(path.join(root, 'android/app/src/main/AndroidManifest.xml'), 'utf8');
-  assert.match(androidManifest, /android:label="Expert Mobile"/);
+  assert.match(androidManifest, /android:label="Expert eSIM"/);
   assert.match(appJs, /api\/v1\/tools\/speedtest/);
-  assert.match(appCss, /power-button/);
-  assert.match(appCss, /bottom-nav/);
+  assert.match(appJs, /function countriesPage/);
+  assert.match(appJs, /function countryPlansPage/);
+  assert.match(appJs, /function morePage/);
+  assert.match(appJs, /select-country/);
+  assert.match(appCss, /country-row/);
+  assert.match(appCss, /plan-option/);
   assert.match(serviceWorker, /geniex-app\.js/);
   assert.doesNotMatch(serviceWorker, /account\.js|expert-features\.js/);
 
