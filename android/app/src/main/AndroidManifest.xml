@@ -8,7 +8,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Expert Mobile"
+        android:label="Expert eSIM"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:usesCleartextTraffic="false"

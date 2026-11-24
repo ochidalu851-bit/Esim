@@ -1,13 +1,13 @@
 {
-  "name": "Expert Mobile",
-  "short_name": "Expert",
-  "description": "Expert mobile network, data bundles, rewards and connection tools.",
+  "name": "Expert eSIM",
+  "short_name": "Expert eSIM",
+  "description": "Expert eSIM country coverage, verified plans and mobile network tools.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0b121c",
-  "theme_color": "#0b121c",
+  "background_color": "#0b0c0e",
+  "theme_color": "#0b0c0e",
   "icons": [
     {
       "src": "/icon.svg",

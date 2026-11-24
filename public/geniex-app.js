@@ -2,7 +2,7 @@
 "use strict";
 const $=id=>document.getElementById(id);
 const screen=$("screen"),toast=$("toast");
-const S={page:"home",user:null,status:null,summary:null,wallet:null,catalog:{plans:[],bundles:[]},usage:null,network:null,authMode:"login",speed:{download:null,upload:null,ping:null,jitter:null},connecting:false,connected:false,preferences:null,device:null,sponsorOffers:[]};
+const S={page:"countries",user:null,status:null,summary:null,wallet:null,catalog:{plans:[],bundles:[],countryPlans:[]},usage:null,network:null,authMode:"login",speed:{download:null,upload:null,ping:null,jitter:null},connecting:false,connected:false,preferences:null,device:null,sponsorOffers:[],selectedCountry:null,planType:"data",selectedPlanId:null,countryQuery:"",countryCatalogLoading:false,countryCatalogMessage:"",countryProvider:null,countrySpeed:null};
 const icons={
 back:'<svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>',
 bolt:'<svg viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-13h-7l0-7Z"/></svg>',
@@ -29,12 +29,16 @@ function openModal(title,body,actions){
  $("modalRoot").innerHTML='<div class="modal-backdrop" data-action="close-modal"><section class="modal-card" role="dialog" aria-modal="true"><h2>'+esc(title)+'</h2><div class="modal-body">'+body+'</div><div class="modal-actions">'+actions+'</div></section></div>';
 }
 function closeModal(){ $("modalRoot").innerHTML=""; }
-function header(title,extra){return '<div class="sub-header"><button class="back-button" data-page="home" aria-label="Back">'+icons.back+'</button><h1>'+esc(title)+'</h1>'+(extra||"")+'</div>';}
+function header(title,extra){
+ return '<div class="sub-header"><button class="back-button" data-action="go-back" aria-label="Back">'+icons.back+'</button><h1>'+esc(title)+'</h1>'+(extra||'')+'</div>';
+}
 function empty(title,copy,button){return '<div class="empty-state"><div class="empty-icon">◌</div><b>'+esc(title)+'</b><p>'+esc(copy)+'</p>'+(button||"")+'</div>';}
 function row(symbol,title,desc,tail,action){return '<button class="menu-action" '+(action?'data-page="'+esc(action)+'"':'data-action="noop"')+'><span class="menu-symbol">'+symbol+'</span><span>'+esc(title)+'<small class="muted">'+esc(desc||"")+'</small></span><em>'+esc(tail||"›")+'</em></button>';}
 function setPage(page){
- S.page=page;render();document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.page===page));
- if(page==="data"||page==="apps")loadCatalog();
+ if(page==="home"||page==="data")page="countries";
+ S.page=page;render();
+ if(page==="country-plans")loadCountryCatalog();
+ if(page==="apps")loadCatalog();
  if(page==="balance")loadBalance();
  if(page==="account")refreshAccount();
  if(page==="rewards")loadRewards();
@@ -50,9 +54,11 @@ function setPage(page){
  if(page==="sponsors")loadSponsorOffers();
 }
 function render(){
+ updateTopBar();
  let html="";
- if(S.page==="home")html=homePage();
- else if(S.page==="data")html=dataPage();
+ if(S.page==="countries"||S.page==="home"||S.page==="data")html=countriesPage();
+ else if(S.page==="country-plans")html=countryPlansPage();
+ else if(S.page==="more")html=morePage();
  else if(S.page==="apps")html=appsPage();
  else if(S.page==="balance")html=balancePage();
  else if(S.page==="sponsors")html=sponsorsPage();
@@ -72,15 +78,99 @@ function render(){
  else if(S.page==="help")html=helpPage();
  else if(S.page==="messages")html=messagesPage();
  else if(S.page==="history")html=historyPage();
- else html=homePage();
+ else html=countriesPage();
  screen.innerHTML='<section class="page active">'+html+'</section>';
- document.querySelectorAll(".nav-item").forEach(b=>b.classList.toggle("active",b.dataset.page===S.page));
 }
-function homePage(){
- const mb=S.usage&&S.usage.available?Number(S.usage.remainingMb||0).toLocaleString()+" MB":"—";
- const count=Array.isArray(S.catalog.bundles)?S.catalog.bundles.length:0;
- return '<div class="eyebrow">YOUR MOBILE NETWORK</div><div class="home-connect" style="margin-top:9px"><button class="power-button '+(S.connected?"is-connected":"")+(S.connecting?" is-loading":"")+'" data-action="connect" aria-label="Connect to Expert smart network" '+(S.connecting?"disabled":"")+'><svg viewBox="0 0 48 48"><path d="M24 5v19M12.3 11.8a18 18 0 1 0 23.4 0"/></svg></button><div class="connection-copy"><div class="signal-flow"><span></span><i>▣</i><span></span><b>✓</b><span></span><i>'+icons.signal+'</i></div><div class="eyebrow" style="color:#345d50">EXPERT SMART NETWORK</div><h1>'+(S.connecting?"Connecting…":S.connected?"Connected":"Disconnected")+'</h1><p>'+(S.connected?"Your selected mobile profile is enabled.":S.connecting?"Checking the SIM profile and network state.":"Tap the power button to connect when your network profile is available.")+'</p></div></div><div class="home-cards"><button class="home-tile" data-page="data"><div class="tile-head"><span>Data Plan</span><span class="tile-arrow">›</span></div><div class="tile-value">'+mb.replace(" MB","")+'<small> MB</small></div><div class="tile-note">'+(S.usage&&S.usage.available?"Available data":"Usage feed not connected")+'</div><span class="tile-action">Buy Data</span></button><button class="home-tile" data-page="apps"><div class="tile-head"><span>App Bundle</span><span class="tile-arrow">›</span></div><div class="tile-value">'+(count||"—")+'<small> Bundles</small></div><div class="tile-note">'+(count?"Available bundles":"Bundle catalogue not connected")+'</div><span class="tile-action">Buy Bundle</span></button></div><div class="promo-card"><div class="promo-icon">'+icons.gift+'</div><div class="promo-copy"><b>Free Data & Rewards</b><span>Daily check-in, reward tasks, vouchers and available sponsor offers.</span></div><button data-page="rewards">Explore</button></div><div class="section-row"><h2 class="section-title">Quick Access</h2><span class="eyebrow">TOOLS & SERVICES</span></div><div class="quick-grid"><button class="quick-item" data-page="speed"><span class="quick-icon">'+icons.speed+'</span><span>NetSpeed</span></button><button class="quick-item" data-page="network"><span class="quick-icon">'+icons.signal+'</span><span>Network Analyzer</span></button><button class="quick-item" data-page="balance"><span class="quick-icon">'+icons.wallet+'</span><span>Balance</span></button><button class="quick-item" data-page="airtime"><span class="quick-icon">'+icons.person+'</span><span>Top Up</span></button><button class="quick-item" data-page="sponsors"><span class="quick-icon">'+icons.gift+'</span><span>Free Data</span></button><button class="quick-item" data-action="speed-boost"><span class="quick-icon">'+icons.bolt+'</span><span>Speed Boost</span></button></div><div class="section-row"><h2 class="section-title">Account & Support</h2><button class="inline-link" data-page="account">View all</button></div><div class="menu-list">'+row(icons.gift,"My Rewards","Points, tasks and referral rewards","","rewards")+row(icons.help,"Help & Support","FAQ and contact support","","help")+'</div>';
+
+const ISO_COUNTRY_CODES=("AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW XK").split(" ");
+const COUNTRY_NAME_OVERRIDES={XK:"Kosovo"};
+function updateTopBar(){
+ const bar=$("appHeader");if(!bar)return;
+ const points=S.wallet?Number(S.wallet.pointsBalance||0).toLocaleString():"0";
+ const onCountries=S.page==="countries"||S.page==="home"||S.page==="data";
+ const right=onCountries
+  ? '<button class="topbar-more" data-page="more" aria-label="More"><span></span><span></span><span></span></button>'
+  : '<button class="points-pill" data-page="balance" aria-label="Points balance"><span class="points-gem">◆</span><b>'+points+'</b><span>PTS</span></button>';
+ bar.innerHTML='<button class="topbar-back" data-action="go-back" aria-label="Back">'+icons.back+'</button>'+right;
 }
+function flagForCountry(code){
+ if(code==="XK")return "🇽🇰";
+ const c=String(code||"").toUpperCase();
+ if(!/^[A-Z]{2}$/.test(c))return "🌐";
+ return String.fromCodePoint(...[...c].map(ch=>127397+ch.charCodeAt(0)));
+}
+function getCountryItems(){
+ let display;try{display=new Intl.DisplayNames(["en"],{type:"region"});}catch(e){display=null;}
+ return ISO_COUNTRY_CODES.map(code=>({code,name:COUNTRY_NAME_OVERRIDES[code]||(display?display.of(code):code),flag:flagForCountry(code)})).sort((a,b)=>a.name.localeCompare(b.name));
+}
+function countryRows(){
+ const q=String(S.countryQuery||"").trim().toLocaleLowerCase();
+ const items=getCountryItems().filter(c=>!q||(c.name+" "+c.code).toLocaleLowerCase().includes(q));
+ if(!items.length)return '<div class="country-empty">No countries match that search.</div>';
+ return items.map(c=>'<button class="country-row" type="button" data-action="select-country" data-code="'+c.code+'"><span class="country-flag">'+c.flag+'</span><span class="country-copy"><b>'+esc(c.name)+'</b><small>View eSIM availability</small></span><span class="country-chevron">›</span></button>').join("");
+}
+function countriesPage(){
+ return '<div class="country-heading"><h1>Select country</h1></div><label class="country-search"><span class="search-icon"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></span><input id="countrySearch" type="search" autocomplete="off" placeholder="Where do you need an eSIM?" value="'+esc(S.countryQuery||"")+'" aria-label="Search countries"><button type="button" class="search-clear" data-action="clear-country-search" aria-label="Clear search">×</button></label><div class="country-list" id="countryList">'+countryRows()+'</div>';
+}
+function planPrice(plan){
+ if(plan.priceLabel)return String(plan.priceLabel);
+ if(plan.priceFormatted)return String(plan.priceFormatted);
+ if(plan.priceDisplay)return String(plan.priceDisplay);
+ if(plan.price!==undefined&&plan.price!==null&&plan.currency)return String(plan.currency)+" "+Number(plan.price).toFixed(2);
+ return "";
+}
+function planGroup(plan){
+ if(plan.groupLabel)return String(plan.groupLabel);
+ const days=Number(plan.durationDays||plan.validityDays||plan.days||0);
+ if(days>0)return days+"-DAY PLAN";
+ const name=String(plan.name||plan.validityLabel||"AVAILABLE PLANS");
+ const match=name.match(/(\d+)\s*[- ]?\s*day/i);
+ return match?match[1]+"-DAY PLAN":"AVAILABLE PLANS";
+}
+function currentCountryPlans(){
+ const plans=Array.isArray(S.catalog.countryPlans)?S.catalog.countryPlans:[];
+ return plans.filter(p=>{
+  const code=String(p.countryCode||p.country_code||p.isoCode||"").toUpperCase();
+  const type=String(p.category||p.planType||p.productType||"").toLowerCase();
+  const countryOk=!code||code===S.selectedCountry?.code;
+  const typeOk=!type||(S.planType==="data"?(!/call|text|voice|sms/.test(type)):(/call|text|voice|sms|combo/.test(type)));
+  return countryOk&&typeOk;
+ });
+}
+function countryPlansPage(){
+ const country=S.selectedCountry;if(!country)return countriesPage();
+ const plans=currentCountryPlans(),provider=S.countryProvider||"Not connected",speed=S.countrySpeed||"Not verified";
+ let list="";
+ if(S.countryCatalogLoading)list='<div class="plan-empty"><span class="loader-dot"></span><b>Checking availability</b><p>Requesting the latest country catalogue.</p></div>';
+ else if(!plans.length)list='<div class="plan-empty"><div class="empty-plan-symbol">⌁</div><b>No verified plans available</b><p>Expert eSIM has not received a confirmed provider catalogue for '+esc(country.name)+'. Provider, network speed, coverage and plan prices will appear here only after a connectivity partner verifies them.</p><button class="outline-action" data-action="refresh-country-catalog">Refresh availability</button></div>';
+ else{
+  const groups={};plans.forEach(p=>{const k=planGroup(p);(groups[k]||(groups[k]=[])).push(p);});
+  list=Object.entries(groups).map(([heading,items])=>'<section class="plan-group"><h2>'+esc(heading)+'</h2>'+items.map(p=>{
+   const id=String(p.id||p.planId||p.plan_id||""),selected=id&&id===S.selectedPlanId;
+   const name=p.name||p.dataLabel||p.allowance||p.data||"eSIM plan",price=planPrice(p);
+   const points=p.pointsCost!==undefined?" (◆ "+Number(p.pointsCost).toLocaleString()+")":"";
+   const details=p.description||p.validityLabel||p.durationLabel||"";
+   return '<button class="plan-option '+(selected?"selected":"")+'" data-action="select-plan" data-id="'+esc(id)+'"><span class="plan-radio"></span><span class="plan-copy"><b>'+esc(name)+'</b>'+(details?'<small>'+esc(details)+'</small>':'')+'</span><span class="plan-price">'+esc(price)+(points?'<small>'+esc(points)+'</small>':'')+'</span></button>';
+  }).join("")+'</section>').join("");
+ }
+ return '<div class="plan-title"><div><h1>Available plans</h1><p>'+esc(country.name)+'</p></div><span class="plan-country-flag">'+country.flag+'</span></div><div class="plan-meta"><span><i class="meta-globe">◎</i><b>Provider:</b> '+esc(provider)+'</span><i class="meta-separator"></i><span><i class="meta-bolt">ϟ</i><b>Speed</b> '+esc(speed)+'</span></div><div class="plan-tabs"><button class="'+(S.planType==="data"?"active":"")+'" data-action="plan-type" data-type="data">Data</button><button class="'+(S.planType==="combo"?"active":"")+'" data-action="plan-type" data-type="combo">Data + Calls + Text</button></div><div class="plan-list">'+list+'</div><div class="purchase-dock"><button class="buy-esim-button" '+(S.selectedPlanId?"":"disabled")+' data-action="buy-data" data-id="'+esc(S.selectedPlanId||"")+'">Buy eSIM</button></div>';
+}
+function morePage(){
+ return header("More")+'<div class="more-intro"><b>Expert eSIM</b><p>Account, device tools and services</p></div><div class="menu-list">'+
+ row(icons.person,"Account & eSIM","Profile and automatically detected device","›","account")+
+ row(icons.gift,"Rewards & Tasks","Daily rewards, tasks and referrals","›","rewards")+
+ row(icons.wallet,"Points & Balance","Points wallet and activity","›","balance")+
+ row(icons.gift,"Coupons & Vouchers","Claimed rewards and redemption codes","›","vouchers")+
+ row(icons.wallet,"Orders & History","Your service requests and activity","›","orders")+
+ row(icons.signal,"Network Analyzer","Current mobile radio and SIM tools","›","network")+
+ row(icons.speed,"Speed Test","Measure the connection currently in use","›","speed")+
+ row(icons.person,"Airtime","Airtime requests and supplier status","›","airtime")+
+ row(icons.help,"Messages","Service announcements and inbox","›","messages")+
+ row(icons.help,"Settings","Appearance and account preferences","›","settings")+
+ row(icons.help,"Help & Support","FAQs and support tickets","›","help")+
+ '</div><p class="footer-note">Only provider-confirmed eSIM plans, network speeds and fulfilment states are shown.</p>';
+}
+function homePage(){return countriesPage();}
 function dataPage(){
  const items=S.catalog.plans||[];
  return header("Data Bundles",'<button class="sub-end" data-page="history">History</button>')+'<div class="data-tabs"><button class="active" data-page="data">Data Plan</button><button data-page="apps">APP Bundles</button></div><div class="usage-total"><div><div class="eyebrow">DATA AVAILABLE</div><strong>'+(S.usage&&S.usage.available?esc(S.usage.remainingMb||0):"—")+' <small>MB</small></strong></div><button class="link-button" data-page="usage">Usage Details</button></div>'+(items.length?'<div class="row-list">'+items.map(x=>'<div class="panel"><b>'+esc(x.name)+'</b><p class="tiny muted">'+esc(x.description||"")+'</p><div class="row-list"><span class="pill">'+esc(x.dataLabel||"Data bundle")+'</span><span class="pill">'+esc(x.validityLabel||"Validity not stated")+'</span></div><button class="primary-button" data-action="buy-data" data-id="'+esc(x.id)+'">Buy Data</button></div>').join("")+'</div>':empty("Data catalogue is not connected","The GENIEX APK lists data plans and plan history. No authorised data supplier has published live plans to this Railway app yet.",'<button class="secondary-button" data-action="catalog-status">Check provider status</button>'))+'<div style="margin-top:14px"><button class="primary-button" data-action="add-data">ADD DATA</button></div><p class="footer-note">Only carrier-confirmed balances and purchases will be shown here. No sample data or invented plan prices are displayed.</p>';
@@ -177,8 +267,21 @@ async function registerDetectedDevice(){
  catch(e){notify("Device registration: "+e.message);}
 }
 async function loadCatalog(){
- try{const r=await api("/geniex/catalog");S.catalog={plans:r.plans||[],bundles:r.bundles||[]};if(S.page==="data"||S.page==="apps")render();}
+ try{const r=await api("/geniex/catalog");S.catalog={plans:r.plans||[],bundles:r.bundles||[],countryPlans:S.catalog.countryPlans||[]};S.catalogMessage=r.message||"";if(S.page==="data"||S.page==="apps")render();}
  catch(e){notify(e.message);}
+}
+async function loadCountryCatalog(){
+ if(!S.selectedCountry)return;
+ S.countryCatalogLoading=true;S.countryCatalogMessage="";S.countryProvider=null;S.countrySpeed=null;S.selectedPlanId=null;render();
+ try{
+  const query=new URLSearchParams({countryCode:S.selectedCountry.code,category:S.planType});
+  const r=await api("/geniex/catalog?"+query.toString());
+  S.catalog.countryPlans=Array.isArray(r.plans)?r.plans:[];
+  S.countryProvider=r.providerName||(r.provider&&r.provider.name)||null;
+  S.countrySpeed=r.speedLabel||r.speed||null;
+  S.countryCatalogMessage=r.message||"";
+ }catch(e){S.catalog.countryPlans=[];S.countryCatalogMessage=e.message||"Availability could not be checked.";}
+ finally{S.countryCatalogLoading=false;if(S.page==="country-plans")render();}
 }
 async function loadUsage(){
  try{const r=await api("/geniex/usage");S.usage=r.usage||r; if(S.page==="usage"||S.page==="home")render();}
@@ -287,6 +390,31 @@ async function shareReferral(){
  else{try{await navigator.clipboard.writeText("Referral code: "+code+" · "+link);notify("Referral link copied.");}catch(e){notify("Your referral code is "+code);}}
 }
 async function handleClick(e){
+
+ const countryAction=e.target.closest("[data-action]");
+ if(countryAction&&countryAction.dataset.action==="select-country"){
+  const selected=getCountryItems().find(c=>c.code===countryAction.dataset.code);
+  if(selected){S.selectedCountry=selected;S.page="country-plans";S.planType="data";S.selectedPlanId=null;S.countryCatalogMessage="";render();loadCountryCatalog();}
+  return;
+ }
+ if(countryAction&&countryAction.dataset.action==="clear-country-search"){
+  S.countryQuery="";const input=$("countrySearch");if(input)input.value="";const list=$("countryList");if(list)list.innerHTML=countryRows();return;
+ }
+ if(countryAction&&countryAction.dataset.action==="go-back"){
+  if(S.page==="country-plans"){S.page="countries";S.countryQuery="";render();}
+  else if(S.page==="countries"){S.page="more";render();}
+  else if(S.page==="more"){S.page="countries";render();}
+  else{S.page="more";render();}
+  return;
+ }
+ if(countryAction&&countryAction.dataset.action==="plan-type"){
+  const nextType=countryAction.dataset.type||"data";
+  if(nextType!==S.planType){S.planType=nextType;S.selectedPlanId=null;loadCountryCatalog();}
+  return;
+ }
+ if(countryAction&&countryAction.dataset.action==="select-plan"){S.selectedPlanId=countryAction.dataset.id||null;render();return;}
+ if(countryAction&&countryAction.dataset.action==="refresh-country-catalog"){loadCountryCatalog();return;}
+
  const page=e.target.closest("[data-page]");if(page){setPage(page.dataset.page);return;}
  const b=e.target.closest("[data-action]");if(!b)return;
  const a=b.dataset.action;
@@ -297,7 +425,7 @@ async function handleClick(e){
  if(a==="add-data"||a==="catalog-status"){loadStatus();openModal("Data service status","<p>Data plans and app bundles are not being invented. They will populate when the contracted provider exposes its catalogue and the payment/fulfilment integration is active.</p>",'<button class="secondary-button" data-action="close-modal">Close</button>');return;}
  if(a==="buy-data"||a==="buy-bundle"){
   if(!S.user){setPage("account");notify("Sign in before purchasing.");return;}
-  try{await api(a==="buy-data"?"/geniex/data/order":"/geniex/app-bundle/order",{method:"POST",body:JSON.stringify({itemId:b.dataset.id})});}
+  try{await api(a==="buy-data"?"/geniex/data/order":"/geniex/app-bundle/order",{method:"POST",body:JSON.stringify({itemId:b.dataset.id,countryCode:S.selectedCountry&&S.selectedCountry.code,planType:S.planType})});}
   catch(err){notify(err.message);}return;
  }
  if(a==="check-in"||a==="spin"){
@@ -315,7 +443,7 @@ async function handleClick(e){
  }
  if(a==="logout"){
   try{await api("/auth/logout",{method:"POST",body:"{}"});}catch(e){}
-  S.user=null;S.summary=null;S.wallet=null;S.page="home";notify("Signed out.");render();return;
+  S.user=null;S.summary=null;S.wallet=null;S.page="countries";notify("Signed out.");render();return;
  }
  if(a==="share-referral"){await shareReferral();return;}
  if(a==="run-speed"){await runSpeed();return;}
@@ -350,6 +478,9 @@ async function handleClick(e){
  if(a==="exchange-coins"){await requestUnavailable("/geniex/balance/exchange","G-Coin exchange");return;}
 }
 document.addEventListener("click",handleClick);
+document.addEventListener("input",e=>{
+ if(e.target&&e.target.id==="countrySearch"){S.countryQuery=e.target.value||"";const list=$("countryList");if(list)list.innerHTML=countryRows();}
+});
 document.addEventListener("submit",async e=>{
  const f=e.target;if(!f||!f.id)return;e.preventDefault();
  if(f.id==="authForm"){await authSubmit(f);return;}
