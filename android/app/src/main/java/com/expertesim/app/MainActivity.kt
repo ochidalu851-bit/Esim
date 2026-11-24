@@ -278,6 +278,18 @@ private fun GeniexNativeApp(activity: MainActivity) {
     var speedBusy by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
     var detailsTitle by remember { mutableStateOf("Details") }
+    var rewardSummary by remember { mutableStateOf<JSONObject?>(null) }
+    var rewardBusy by remember { mutableStateOf(false) }
+    var transferRecipient by remember { mutableStateOf("") }
+    var transferPoints by remember { mutableStateOf("10") }
+    var transferBusy by remember { mutableStateOf(false) }
+    var transferMessage by remember { mutableStateOf("") }
+    var airtimeCountry by remember { mutableStateOf("NG") }
+    var airtimePhone by remember { mutableStateOf("") }
+    var airtimeAmount by remember { mutableStateOf("") }
+    var airtimeCurrency by remember { mutableStateOf("NGN") }
+    var airtimeBusy by remember { mutableStateOf(false) }
+    var airtimeMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val requestPhonePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -326,6 +338,9 @@ private fun GeniexNativeApp(activity: MainActivity) {
             scope.launch {
                 runCatching {
                     val r = activity.api("/app/summary")
+                    rewardSummary = r.optJSONObject("summary") ?: JSONObject()
+                    val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
+                    points = wallet.optString("pointsBalance", points)
                     details = summaryRows(r)
                     detailsTitle = "My Rewards"
                 }.onFailure { toast(it.message ?: "Rewards could not be loaded.") }
@@ -342,6 +357,42 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     }
                     detailsTitle = "My Vouchers"
                 }.onFailure { toast(it.message ?: "Vouchers could not be loaded.") }
+            }
+        }
+        if (target == "history") {
+            scope.launch {
+                runCatching {
+                    val r = activity.api("/app/wallet")
+                    val wallet = r.optJSONObject("wallet") ?: JSONObject()
+                    points = wallet.optString("pointsBalance", points)
+                    val entries = wallet.optJSONArray("transactions") ?: JSONArray()
+                    details = (0 until entries.length()).map { i ->
+                        val item = entries.optJSONObject(i) ?: JSONObject()
+                        val delta = item.optInt("delta")
+                        val sign = if (delta > 0) "+" else ""
+                        (item.optString("reason", "Points activity") + " ($sign$delta)") to item.optString("createdAt", "")
+                    }
+                    detailsTitle = "Transaction History"
+                }.onFailure { toast(it.message ?: "History could not be loaded.") }
+            }
+        }
+        if (target == "airtime") {
+            if (userEmail.isBlank()) {
+                page = "account"
+                toast("Sign in to request airtime.")
+            } else {
+                scope.launch {
+                    runCatching {
+                        val r = activity.api("/app/airtime")
+                        val entries = r.optJSONArray("requests") ?: JSONArray()
+                        details = (0 until entries.length()).map { i ->
+                            val item = entries.optJSONObject(i) ?: JSONObject()
+                            item.optString("reference", "Airtime request") to
+                                (item.optString("phone") + " · " + item.optString("amount") + " " + item.optString("currency") + " · " + item.optString("status"))
+                        }
+                        detailsTitle = "Airtime History"
+                    }.onFailure { toast(it.message ?: "Airtime history could not be loaded.") }
+                }
             }
         }
         if (target == "apps") {
@@ -631,15 +682,63 @@ private fun GeniexNativeApp(activity: MainActivity) {
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
                             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(10.dp)) {
                                 Column(Modifier.fillMaxWidth().padding(18.dp)) {
-                                    Text("Points balance", color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+                                    Text("Expert Points", color = Muted, fontFamily = Poppins, fontSize = 11.sp)
                                     Text(points, color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 29.sp)
-                                    Text("PTS", color = Muted, fontFamily = Poppins, fontSize = 11.sp)
+                                    Text("LOYALTY POINTS · NOT CASH", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
                                 }
                             }
                             Spacer(Modifier.height(12.dp))
-                            SimpleActionRow("Transaction History", "Balance and points activity", 0xE61B) { open("history") }
-                            SimpleActionRow("Recharge", "Recharge options", 0xE614) { toast("Recharge requires an authorised payment partner.") }
-                            SimpleActionRow("Transfer", "Member-to-member transfer", 0xE64A) { toast("Transfer requires an active account and supported balance.") }
+                            SimpleActionRow("Transaction History", "View points earned and spent", 0xE61B) { open("history") }
+                            Spacer(Modifier.height(10.dp))
+                            Text("Transfer Expert Points", color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Spacer(Modifier.height(6.dp))
+                            OutlinedTextField(
+                                value = transferRecipient,
+                                onValueChange = { transferRecipient = it.uppercase() },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Recipient referral code", fontFamily = Poppins, fontSize = 11.sp) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Purple, unfocusedBorderColor = Stroke, focusedContainerColor = Panel, unfocusedContainerColor = Panel, focusedTextColor = MainText, unfocusedTextColor = MainText)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = transferPoints,
+                                onValueChange = { transferPoints = it.filter(Char::isDigit).take(6) },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("Points to transfer", fontFamily = Poppins, fontSize = 11.sp) },
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Purple, unfocusedBorderColor = Stroke, focusedContainerColor = Panel, unfocusedContainerColor = Panel, focusedTextColor = MainText, unfocusedTextColor = MainText)
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Button(
+                                enabled = !transferBusy && transferRecipient.isNotBlank() && (transferPoints.toIntOrNull() ?: 0) > 0,
+                                onClick = {
+                                    transferBusy = true
+                                    transferMessage = ""
+                                    scope.launch {
+                                        try {
+                                            val response = activity.api(
+                                                "/app/wallet/transfer", "POST",
+                                                JSONObject().put("recipientCode", transferRecipient.trim()).put("points", transferPoints.toInt())
+                                            )
+                                            points = response.optString("pointsBalance", points)
+                                            transferMessage = response.optString("message", "Points transfer completed.")
+                                            transferRecipient = ""
+                                            toast(transferMessage)
+                                            val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
+                                            points = wallet.optString("pointsBalance", points)
+                                        } catch (e: Exception) {
+                                            transferMessage = e.message ?: "Points transfer failed."
+                                            toast(transferMessage)
+                                        } finally { transferBusy = false }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                            ) { Text(if (transferBusy) "Transferring…" else "Transfer Points", fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 12.sp) }
+                            if (transferMessage.isNotBlank()) Text(transferMessage, color = Muted, fontFamily = Poppins, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+                            Spacer(Modifier.height(10.dp))
+                            SimpleActionRow("Wallet Recharge", "Requires an authorised payment provider", 0xE614) { toast("Cash wallet recharge is not enabled. No payment provider is connected.") }
                         }
                     }
                     "account" -> {
@@ -723,8 +822,163 @@ private fun GeniexNativeApp(activity: MainActivity) {
                             }
                         }
                     }
-                    "rewards", "vouchers", "messages", "history" -> {
-                        val title = when (page) { "rewards" -> "Reward Center"; "vouchers" -> "My Vouchers"; "messages" -> "Messages"; else -> "Transaction History" }
+                    "rewards" -> {
+                        val summary = rewardSummary ?: JSONObject()
+                        val tasks = summary.optJSONArray("tasks") ?: JSONArray()
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(12.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                    Text("YOUR EXPERT POINTS", color = Muted, fontFamily = Poppins, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(summary.optString("pointsBalance", points), color = MainText, fontFamily = Poppins, fontWeight = FontWeight.SemiBold, fontSize = 27.sp)
+                                    Text("Earned from qualifying account and app activities", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text("Daily rewards", color = MainText, fontFamily = Poppins, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(7.dp))
+                            Button(
+                                enabled = !rewardBusy && summary.optBoolean("dailyCheckinAvailable", false),
+                                onClick = {
+                                    rewardBusy = true
+                                    scope.launch {
+                                        try {
+                                            val result = activity.api("/app/check-in", "POST", JSONObject())
+                                            toast(result.optString("message", "Daily check-in claimed."))
+                                            rewardSummary = activity.api("/app/summary").optJSONObject("summary") ?: JSONObject()
+                                            val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
+                                            points = wallet.optString("pointsBalance", points)
+                                        } catch (e: Exception) { toast(e.message ?: "Check-in could not be claimed.") }
+                                        finally { rewardBusy = false }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(43.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                            ) { Text(if (summary.optBoolean("dailyCheckinAvailable", false)) "Daily Check-in · Collect 10 Points" else "Daily Check-in · Collected Today", fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                            Spacer(Modifier.height(7.dp))
+                            OutlinedButton(
+                                enabled = !rewardBusy && summary.optBoolean("dailySpinAvailable", false),
+                                onClick = {
+                                    rewardBusy = true
+                                    scope.launch {
+                                        try {
+                                            val result = activity.api("/app/spin", "POST", JSONObject())
+                                            toast(result.optString("message", "Daily spin completed."))
+                                            rewardSummary = activity.api("/app/summary").optJSONObject("summary") ?: JSONObject()
+                                            val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
+                                            points = wallet.optString("pointsBalance", points)
+                                        } catch (e: Exception) { toast(e.message ?: "Daily spin could not be completed.") }
+                                        finally { rewardBusy = false }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(43.dp),
+                                border = BorderStroke(1.dp, Stroke)
+                            ) { Text(if (summary.optBoolean("dailySpinAvailable", false)) "Free Daily Rewards Spin" else "Daily Spin · Used Today", color = MainText, fontFamily = Poppins, fontSize = 11.sp) }
+                            Spacer(Modifier.height(16.dp))
+                            Text("Tasks", color = MainText, fontFamily = Poppins, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(6.dp))
+                            if (tasks.length() == 0) {
+                                Text("No tasks are available for this account yet.", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                            } else {
+                                for (i in 0 until tasks.length()) {
+                                    val task = tasks.optJSONObject(i) ?: continue
+                                    val taskId = task.optString("id")
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Panel),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(task.optString("title", "Task"), color = MainText, fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                                    Text(task.optString("description", ""), color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp)
+                                                }
+                                                Text("${task.optInt("points")} PTS", color = Color(0xFFAE99FF), fontFamily = Poppins, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                                            }
+                                            Spacer(Modifier.height(8.dp))
+                                            when {
+                                                task.optBoolean("claimed", false) -> Text("COMPLETED", color = Color(0xFF8E84B6), fontFamily = Poppins, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                                                task.optBoolean("eligible", false) -> Button(
+                                                    enabled = !rewardBusy,
+                                                    onClick = {
+                                                        rewardBusy = true
+                                                        scope.launch {
+                                                            try {
+                                                                val result = activity.api("/app/tasks/${taskId}/claim", "POST", JSONObject())
+                                                                toast(result.optString("message", "Task reward claimed."))
+                                                                rewardSummary = activity.api("/app/summary").optJSONObject("summary") ?: JSONObject()
+                                                                val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
+                                                                points = wallet.optString("pointsBalance", points)
+                                                            } catch (e: Exception) { toast(e.message ?: "Task reward could not be claimed.") }
+                                                            finally { rewardBusy = false }
+                                                        }
+                                                    },
+                                                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                                                ) { Text("Claim Task Reward", fontFamily = Poppins, fontSize = 10.sp) }
+                                                else -> Text("IN PROGRESS", color = Muted, fontFamily = Poppins, fontSize = 9.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text("Referral code", color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            Text(summary.optString("referralCode", "Available after sign-in"), color = Color(0xFFAE99FF), fontFamily = Poppins, fontSize = 14.sp)
+                            Text("Referral points are credited after the invited member completes the qualifying activity.", color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp)
+                        }
+                    }
+                    "airtime" -> {
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            Text("Mobile Airtime", color = MainText, fontFamily = Poppins, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Submit a top-up request for a supplier. It remains pending until delivery is confirmed.", color = Muted, fontFamily = Poppins, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 5.dp, bottom = 14.dp))
+                            FormField("Country code (ISO)", airtimeCountry, { airtimeCountry = it.uppercase().take(2) }, "NG")
+                            Spacer(Modifier.height(9.dp))
+                            FormField("Phone number", airtimePhone, { airtimePhone = it }, "+234...")
+                            Spacer(Modifier.height(9.dp))
+                            FormField("Amount", airtimeAmount, { airtimeAmount = it.filter { c -> c.isDigit() || c == '.' } }, "Enter amount")
+                            Spacer(Modifier.height(9.dp))
+                            FormField("Currency", airtimeCurrency, { airtimeCurrency = it.uppercase().take(3) }, "NGN")
+                            Spacer(Modifier.height(12.dp))
+                            Button(
+                                enabled = !airtimeBusy && airtimePhone.isNotBlank() && (airtimeAmount.toDoubleOrNull() ?: 0.0) > 0.0,
+                                onClick = {
+                                    airtimeBusy = true
+                                    airtimeMessage = ""
+                                    scope.launch {
+                                        try {
+                                            val result = activity.api(
+                                                "/app/airtime", "POST",
+                                                JSONObject().put("countryCode", airtimeCountry).put("phone", airtimePhone).put("amount", airtimeAmount.toDouble()).put("currency", airtimeCurrency)
+                                            )
+                                            val request = result.optJSONObject("request") ?: JSONObject()
+                                            airtimeMessage = request.optString("message", "Your airtime request has been recorded.")
+                                            toast(airtimeMessage)
+                                            airtimePhone = ""
+                                            airtimeAmount = ""
+                                            val history = activity.api("/app/airtime").optJSONArray("requests") ?: JSONArray()
+                                            details = (0 until history.length()).map { i ->
+                                                val item = history.optJSONObject(i) ?: JSONObject()
+                                                item.optString("reference", "Airtime") to (item.optString("phone") + " · " + item.optString("status"))
+                                            }
+                                        } catch (e: Exception) {
+                                            airtimeMessage = e.message ?: "Airtime request failed."
+                                            toast(airtimeMessage)
+                                        } finally { airtimeBusy = false }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                            ) { Text(if (airtimeBusy) "Submitting…" else "Submit Top-up Request", fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                            if (airtimeMessage.isNotBlank()) Text(airtimeMessage, color = Muted, fontFamily = Poppins, fontSize = 9.sp, modifier = Modifier.padding(top = 8.dp))
+                            Spacer(Modifier.height(16.dp))
+                            Text("Airtime history", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            if (details.isEmpty()) Text("Previous requests will appear here.", color = Muted, fontFamily = Poppins, fontSize = 10.sp, modifier = Modifier.padding(top = 6.dp))
+                            details.forEach { (title, subtitle) -> DetailRow(title, subtitle) }
+                        }
+                    }
+                    "vouchers", "messages", "history" -> {
+                        val title = when (page) { "vouchers" -> "My Vouchers"; "messages" -> "Messages"; else -> "Transaction History" }
                         DetailListPage(title, details, if (details.isEmpty()) "Sign in to load your account information. Items will appear here when returned by the account service." else "")
                     }
                     "network" -> {
