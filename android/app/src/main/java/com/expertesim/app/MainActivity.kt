@@ -56,12 +56,13 @@ import java.net.URL
 import java.util.Locale
 import kotlin.math.sqrt
 
-private val Ink = Color(0xFF08080B)
-private val Panel = Color(0xFF111116)
-private val Panel2 = Color(0xFF17171D)
-private val Stroke = Color(0xFF292930)
-private val MainText = Color(0xFFF4F4F6)
-private val Muted = Color(0xFF92929C)
+private var darkThemeEnabled by mutableStateOf(true)
+private val Ink: Color get() = if (darkThemeEnabled) Color(0xFF08080B) else Color(0xFFF7F6FA)
+private val Panel: Color get() = if (darkThemeEnabled) Color(0xFF111116) else Color.White
+private val Panel2: Color get() = if (darkThemeEnabled) Color(0xFF17171D) else Color(0xFFECE9F2)
+private val Stroke: Color get() = if (darkThemeEnabled) Color(0xFF292930) else Color(0xFFE0DCE8)
+private val MainText: Color get() = if (darkThemeEnabled) Color(0xFFF4F4F6) else Color(0xFF1B1822)
+private val Muted: Color get() = if (darkThemeEnabled) Color(0xFF92929C) else Color(0xFF716B7C)
 private val Purple = Color(0xFF8054F6)
 private val Poppins = FontFamily(
     Font(R.font.poppins_regular, FontWeight.Normal),
@@ -81,9 +82,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = android.graphics.Color.rgb(8, 8, 11)
-        window.navigationBarColor = android.graphics.Color.rgb(8, 8, 11)
+        applyTheme(preferences.getBoolean("darkMode", true))
         setContent { GeniexNativeApp(this) }
+    }
+
+    internal fun applyTheme(enabled: Boolean) {
+        darkThemeEnabled = enabled
+        preferences.edit().putBoolean("darkMode", enabled).apply()
+        val color = if (enabled) android.graphics.Color.rgb(8, 8, 11) else android.graphics.Color.rgb(247, 246, 250)
+        window.statusBarColor = color
+        window.navigationBarColor = color
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val flags = if (enabled) 0 else android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+            window.decorView.systemUiVisibility = flags
+        }
     }
 
     internal fun notifyUser(message: String) {
@@ -393,7 +405,9 @@ private fun GeniexNativeApp(activity: MainActivity) {
             scope.launch {
                 runCatching {
                     val response = activity.api("/app/preferences")
-                    appPreferences = response.optJSONObject("preferences") ?: JSONObject()
+                    val loadedPreferences = response.optJSONObject("preferences") ?: JSONObject()
+                    appPreferences = loadedPreferences
+                    activity.applyTheme(loadedPreferences.optBoolean("darkMode", true))
                 }.onFailure { toast(it.message ?: "Settings could not be loaded.") }
             }
         }
@@ -472,6 +486,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                 val patch = JSONObject().put(key, enabled)
                 val response = activity.api("/app/preferences", "PATCH", patch)
                 appPreferences = response.optJSONObject("preferences") ?: (appPreferences ?: JSONObject()).put(key, enabled)
+                if (key == "darkMode") activity.applyTheme(enabled)
             } catch (e: Exception) {
                 toast(e.message ?: "Setting could not be saved.")
             } finally { preferencesBusy = false }
@@ -534,7 +549,10 @@ private fun GeniexNativeApp(activity: MainActivity) {
         }
     }
 
-    MaterialTheme(colorScheme = darkColorScheme(
+    MaterialTheme(colorScheme = if (darkThemeEnabled) darkColorScheme(
+        primary = Purple, background = Ink, surface = Panel,
+        onPrimary = Color.White, onBackground = MainText, onSurface = MainText
+    ) else lightColorScheme(
         primary = Purple, background = Ink, surface = Panel,
         onPrimary = Color.White, onBackground = MainText, onSurface = MainText
     )) {
