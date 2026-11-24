@@ -1,5 +1,5 @@
-const CACHE_NAME = "expert-esim-geniex-port-v4";
-const APP_FILES = ["/", "/manifest.webmanifest", "/icon.svg", "/geniex.css?v=3", "/geniex-app.js?v=3"];
+const CACHE_NAME = "expert-esim-geniex-port-v5";
+const APP_FILES = ["/", "/manifest.webmanifest", "/icon.svg", "/geniex.css?v=4", "/geniex-app.js?v=4"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
