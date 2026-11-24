@@ -115,3 +115,90 @@ body.light-theme .app-header{background:#f5f7fa}
 body.light-theme .screen .panel,body.light-theme .screen .menu-action,body.light-theme .screen .list-row{background:#fff;color:#1b2431;border-color:#dde3ec}
 @media(max-width:370px){.screen{padding-left:18px;padding-right:18px}.plan-title h1,.plan-title p{font-size:22px}.plan-country-flag{font-size:47px}.plan-meta{gap:8px;padding:0 10px;font-size:11px}.plan-tabs{margin-bottom:45px}.country-row{height:44px}.purchase-dock{padding-left:18px;padding-right:18px}}
 @media(prefers-reduced-motion:reduce){.loader-dot{animation:none}}
+
+
+/* Recovered GENIEX APK country / plan interface port */
+:root{color-scheme:dark;--bg:#09090c;--bg2:#101014;--panel:#141418;--panel2:#19191f;--line:#29292f;--muted:#85858f;--text:#f5f5f7;--green:#7950f2;--green2:#6840df;--blue:#9b83ff;--radius:10px;font-family:"Poppins",Roboto,"Arial",sans-serif}
+html,body{background:#050507!important;color:#f5f5f7!important}
+body{font-family:"Poppins",Roboto,"Arial",sans-serif!important;font-size:13px!important}
+.app-shell{width:100%!important;max-width:none!important;min-height:100dvh!important;margin:0!important;background:#08080b!important;padding-bottom:0!important;box-shadow:none!important;overflow-x:hidden!important}
+.app-header{height:42px!important;padding:0 16px!important;background:#08080b!important;border:0!important;position:relative!important;box-shadow:none!important}
+.app-header-empty{display:none!important}
+.screen{padding:0 16px 26px!important;min-height:calc(100dvh - 42px)!important}
+.page{animation:none!important}
+.country-topbar{height:34px;display:flex;align-items:center;margin:0 0 10px}
+.country-back{height:32px;width:32px;margin-left:-7px;border:0;background:transparent;color:#c9c9ce;display:grid;place-items:center;padding:0}
+.country-back svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.country-heading{margin:8px 0 17px!important}
+.country-heading h1{margin:0!important;font-size:17px!important;font-weight:600!important;line-height:1.3!important;letter-spacing:0!important;color:#f6f6f7!important}
+.country-search{height:38px!important;margin:0 0 11px!important;padding:0 10px!important;display:flex!important;align-items:center!important;gap:8px!important;background:#0b0b0f!important;border:1px solid #27272c!important;border-radius:6px!important;box-shadow:none!important}
+.country-search .search-icon{width:16px!important;height:16px!important;display:grid;place-items:center;color:#7f7f88!important}
+.country-search .search-icon svg{width:15px!important;height:15px!important;fill:none!important;stroke:currentColor!important;stroke-width:1.8!important}
+.country-search input{height:36px!important;padding:0!important;background:transparent!important;border:0!important;outline:none!important;color:#efeff2!important;font-size:11px!important;font-weight:400!important;box-shadow:none!important}
+.country-search input::placeholder{color:#777780!important;opacity:1}
+.country-search .search-clear{color:#8a8a92!important;background:transparent!important;border:0!important;font-size:19px!important}
+.country-list{display:flex!important;flex-direction:column!important;gap:0!important;padding:0 0 14px!important;max-height:none!important;overflow:visible!important}
+.country-row{width:100%!important;min-height:41px!important;padding:5px 2px!important;display:flex!important;align-items:center!important;gap:11px!important;background:transparent!important;border:0!important;border-bottom:1px solid #17171c!important;border-radius:0!important;color:#f3f3f5!important;text-align:left!important;box-shadow:none!important}
+.country-flag{width:21px!important;height:21px!important;flex:0 0 21px!important;display:grid!important;place-items:center!important;border-radius:50%!important;overflow:hidden!important;font-size:18px!important;line-height:1!important;background:#15151a!important}
+.country-copy{min-width:0!important;flex:1!important;display:block!important}
+.country-copy b{display:block!important;font-size:12px!important;font-weight:500!important;line-height:1.2!important;color:#f0f0f2!important}
+.country-copy small{display:none!important}
+.country-chevron{width:16px!important;height:16px!important;color:#66666e!important;display:grid!important;place-items:center!important;font-size:0!important}
+.country-chevron svg{width:14px!important;height:14px!important;fill:none!important;stroke:#65656e!important;stroke-width:1.5!important;stroke-linecap:round!important;stroke-linejoin:round!important}
+.country-empty{padding:24px 4px!important;color:#92929b!important;font-size:12px!important;text-align:center}
+.topbar-back{color:#c7c7ce!important;background:transparent!important;border:0!important}
+.points-pill{background:#15151c!important;border:1px solid #292932!important;color:#eee!important;border-radius:18px!important}
+.plan-title{margin:4px 0 17px!important;align-items:center!important}
+.plan-title h1{font-size:17px!important;font-weight:600!important;letter-spacing:0!important}
+.plan-title p{font-size:12px!important;color:#8c8c95!important;margin-top:4px!important}
+.plan-country-flag{font-size:25px!important}
+.plan-meta{height:42px!important;padding:0 10px!important;border-radius:6px!important;background:#111116!important;border:1px solid #292930!important;color:#d5d5da!important;font-size:11px!important;gap:10px!important}
+.plan-meta b{color:#efeff2!important;font-weight:500!important}
+.meta-separator{height:18px!important;background:#303038!important}
+.plan-tabs{display:flex!important;gap:0!important;margin:15px 0 12px!important;border-bottom:1px solid #292930!important}
+.plan-tabs button{flex:1!important;min-height:39px!important;border:0!important;border-bottom:2px solid transparent!important;border-radius:0!important;background:transparent!important;color:#9999a2!important;font-size:12px!important;font-weight:500!important}
+.plan-tabs button.active{color:#fff!important;border-bottom-color:#8055ff!important}
+.plan-list{padding-bottom:90px!important}
+.plan-group{margin:13px 0 17px!important}
+.plan-group h2{margin:0 0 8px!important;font-size:11px!important;font-weight:600!important;letter-spacing:.04em!important;color:#a9a9b1!important}
+.plan-option{min-height:60px!important;margin:0 0 7px!important;padding:10px 11px!important;border:1px solid #2b2b33!important;border-radius:7px!important;background:#111116!important;color:#f6f6f8!important}
+.plan-option.selected{border-color:#855cff!important;background:#15121e!important}
+.plan-radio{border-color:#777780!important}
+.plan-option.selected .plan-radio{border-color:#8a62ff!important}
+.plan-copy b{font-size:12px!important;font-weight:600!important}
+.plan-copy small,.plan-price small{color:#8c8c95!important;font-size:10px!important}
+.plan-price{font-size:12px!important;color:#f2f2f5!important}
+.plan-empty{padding:26px 16px!important;margin:14px 0!important;background:#101014!important;border:1px solid #26262c!important;border-radius:7px!important;text-align:center!important}
+.plan-empty b{font-size:13px!important;font-weight:600!important}
+.plan-empty p{font-size:11px!important;line-height:1.6!important;color:#9999a2!important}
+.purchase-dock{position:fixed!important;z-index:40!important;left:0!important;right:0!important;bottom:0!important;padding:12px 16px calc(12px + env(safe-area-inset-bottom))!important;background:#08080b!important;border-top:1px solid #1f1f25!important}
+.buy-esim-button,.primary-button{height:44px!important;border-radius:7px!important;background:#8054f6!important;color:white!important;font-size:13px!important;font-weight:600!important;box-shadow:none!important}
+.buy-esim-button:disabled{background:#26232f!important;color:#77717f!important;opacity:1!important}
+.geniex-profile-banner{display:flex;align-items:center;gap:11px;padding:13px 12px;margin:10px 0 18px;background:#111116;border:1px solid #26262d;border-radius:8px}
+.geniex-profile-banner img{width:34px;height:34px;object-fit:contain}
+.geniex-profile-banner div{display:grid;gap:2px}
+.geniex-profile-banner b{font-size:13px;font-weight:600;color:#fff}
+.geniex-profile-banner small{font-size:10px;color:#8a8a93}
+.geniex-menu-section{margin:17px 0 20px}
+.geniex-menu-section h2{margin:0 0 8px 2px;font-size:12px;font-weight:600;color:#9c9ca5}
+.menu-list{background:#101014!important;border:1px solid #24242b!important;border-radius:8px!important;overflow:hidden}
+.menu-action{min-height:54px!important;padding:8px 12px!important;background:transparent!important;border:0!important;border-bottom:1px solid #23232a!important;border-radius:0!important;color:#f4f4f6!important}
+.menu-action:last-child{border-bottom:0!important}
+.menu-symbol{width:28px!important;height:28px!important;border-radius:7px!important;background:#1c1828!important;color:#a58aff!important}
+.menu-symbol svg{width:17px!important;height:17px!important}
+.menu-action>span:nth-child(2){font-size:12px!important;font-weight:500!important}
+.menu-action small{font-size:10px!important;color:#8c8c95!important}
+.menu-action em{color:#72727b!important}
+.panel,.balance-card,.status-banner,.stat-box{background:#111116!important;border:1px solid #282830!important;border-radius:8px!important;box-shadow:none!important}
+.panel h3,.section-title{font-size:14px!important;font-weight:600!important}
+.eyebrow{color:#8e8e98!important;font-size:9px!important;letter-spacing:.12em!important}
+.muted,.tiny{color:#92929c!important}
+.field input,.field select,.field textarea{background:#0b0b0f!important;border:1px solid #303038!important;border-radius:6px!important;color:#f0f0f2!important}
+.form-stack label{font-size:11px!important;color:#c9c9ce!important}
+.separator{background:#292930!important}
+.footer-note{color:#777780!important;font-size:10px!important}
+.sub-header{padding:8px 0 14px!important}
+.sub-header h1,.sub-header h2{font-size:16px!important;font-weight:600!important}
+.auth-switch button{background:#111116!important;color:#a5a5ad!important}
+.auth-switch button.active{background:#211a32!important;color:#fff!important}
+@media(min-width:700px){.app-shell{max-width:480px!important;margin:0 auto!important;border-left:1px solid #15151a!important;border-right:1px solid #15151a!important}.purchase-dock{left:50%!important;right:auto!important;width:480px!important;transform:translateX(-50%)!important}}
