@@ -1027,9 +1027,87 @@ private fun GeniexNativeApp(activity: MainActivity) {
                             details.forEach { (title, subtitle) -> DetailRow(title, subtitle) }
                         }
                     }
-                    "vouchers", "messages", "history" -> {
-                        val title = when (page) { "vouchers" -> "My Vouchers"; "messages" -> "Messages"; else -> "Transaction History" }
-                        DetailListPage(title, details, if (details.isEmpty()) "Sign in to load your account information. Items will appear here when returned by the account service." else "")
+                    "vouchers" -> {
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            Text("Available vouchers", color = MainText, fontFamily = Poppins, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(8.dp))
+                            if (userEmail.isBlank()) {
+                                Text("Sign in to view and collect vouchers.", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                            } else if (couponItems.isEmpty()) {
+                                Text("There are no active vouchers available right now.", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                            } else {
+                                couponItems.forEach { coupon ->
+                                    val couponId = coupon.optString("id")
+                                    val alreadyClaimed = coupon.optBoolean("claimed", false)
+                                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 9.dp), colors = CardDefaults.cardColors(containerColor = Panel), border = BorderStroke(1.dp, Stroke), shape = RoundedCornerShape(11.dp)) {
+                                        Column(Modifier.fillMaxWidth().padding(13.dp)) {
+                                            Text(coupon.optString("title", "Voucher"), color = MainText, fontFamily = Poppins, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                            Text(coupon.optString("description", coupon.optString("type", "Reward voucher")), color = Muted, fontFamily = Poppins, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 4.dp))
+                                            Spacer(Modifier.height(8.dp))
+                                            Button(
+                                                enabled = !alreadyClaimed && !rewardBusy && couponId.isNotBlank(),
+                                                onClick = {
+                                                    rewardBusy = true
+                                                    scope.launch {
+                                                        try {
+                                                            val result = activity.api("/app/coupons/${couponId}/claim", "POST", JSONObject())
+                                                            toast(result.optString("message", "Voucher collected."))
+                                                            val fresh = activity.api("/app/coupons").optJSONObject("coupons") ?: JSONObject()
+                                                            val available = fresh.optJSONArray("available") ?: JSONArray()
+                                                            couponItems = (0 until available.length()).mapNotNull { i -> available.optJSONObject(i) }
+                                                            val wallet = activity.api("/app/wallet").optJSONObject("wallet") ?: JSONObject()
+                                                            points = wallet.optString("pointsBalance", points)
+                                                        } catch (e: Exception) { toast(e.message ?: "Voucher could not be claimed.") }
+                                                        finally { rewardBusy = false }
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth().height(36.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                                            ) { Text(if (alreadyClaimed) "Already collected" else if (rewardBusy) "Collecting…" else "Collect voucher", fontFamily = Poppins, fontSize = 10.sp) }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "messages" -> {
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            if (userEmail.isBlank()) {
+                                Text("Sign in to view your messages.", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                            } else if (appMessages.isEmpty()) {
+                                Text("No messages are available.", color = Muted, fontFamily = Poppins, fontSize = 10.sp)
+                            } else {
+                                appMessages.forEach { item ->
+                                    val messageId = item.optString("id")
+                                    val read = !item.isNull("readAt") && item.optString("readAt").isNotBlank() && item.optString("readAt") != "null"
+                                    Card(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp), colors = CardDefaults.cardColors(containerColor = Panel), border = BorderStroke(1.dp, Stroke), shape = RoundedCornerShape(10.dp)) {
+                                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(item.optString("title", "Notice"), modifier = Modifier.weight(1f), color = MainText, fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                                                Text(if (read) "READ" else "NEW", color = Color(0xFFAE99FF), fontFamily = Poppins, fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
+                                            }
+                                            Text(item.optString("message", ""), color = Muted, fontFamily = Poppins, fontSize = 10.sp, lineHeight = 15.sp, modifier = Modifier.padding(top = 5.dp))
+                                            if (!read && messageId.isNotBlank()) {
+                                                TextButton(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            try {
+                                                                val response = activity.api("/app/messages/${messageId}/read", "POST", JSONObject())
+                                                                val updated = response.optJSONObject("message") ?: item
+                                                                appMessages = appMessages.map { if (it.optString("id") == messageId) updated else it }
+                                                            } catch (e: Exception) { toast(e.message ?: "Message could not be marked as read.") }
+                                                        }
+                                                    }
+                                                ) { Text("Mark as read", color = Color(0xFFAE99FF), fontFamily = Poppins, fontSize = 9.sp) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    "history" -> {
+                        DetailListPage("Transaction History", details, if (details.isEmpty()) "No points transactions have been returned for this account." else "")
                     }
                     "network" -> {
                         Column(Modifier.weight(1f).padding(23.dp)) {
@@ -1093,12 +1171,83 @@ private fun GeniexNativeApp(activity: MainActivity) {
                             Text("Measures the active internet connection to the Expert eSIM service. Results depend on your current Wi-Fi or mobile-data route.", color = Muted, fontFamily = Poppins, fontSize = 10.sp, lineHeight = 16.sp)
                         }
                     }
-                    "device", "battery", "boost" -> {
+                    "device" -> {
+                        val rows = remember { activity.deviceSummary() }
+                        val current = registeredDevice
+                        val latestProfile = current?.optJSONObject("latestProfile")
+                        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
+                            Card(colors = CardDefaults.cardColors(containerColor = Panel), border = BorderStroke(1.dp, Stroke), shape = RoundedCornerShape(12.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                                    Text("THIS DEVICE", color = Muted, fontFamily = Poppins, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        current?.optString("deviceName")?.takeIf { it.isNotBlank() } ?: listOf(Build.MANUFACTURER, Build.MODEL).filter { it.isNotBlank() }.joinToString(" "),
+                                        color = MainText, fontFamily = Poppins, fontSize = 15.sp, fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        if (userEmail.isNotBlank()) deviceSyncMessage.ifBlank { "Checking device registration…" } else "Sign in to attach this device to your subscriber account.",
+                                        color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            rows.forEach { (label, value) -> DetailRow(label, value) }
+                            if (current != null) {
+                                DetailRow("Account device status", current.optString("status", "registered"))
+                                DetailRow("eSIM capability", when {
+                                    current.optBoolean("hasEuiccHardware", false).not() -> if (current.isNull("hasEuiccHardware")) "Not reported" else "Not detected"
+                                    current.optBoolean("euiccEnabled", false) -> "Supported and enabled"
+                                    else -> "Hardware detected; eSIM disabled"
+                                })
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            Text("eSIM profile", color = MainText, fontFamily = Poppins, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            if (latestProfile != null) {
+                                Text(latestProfile.optString("status", "Status unavailable").replace('_', ' ').uppercase(), color = Color(0xFFAE99FF), fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
+                                Text(latestProfile.optString("message", "Provider status has not supplied a message."), color = Muted, fontFamily = Poppins, fontSize = 10.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 4.dp))
+                            } else {
+                                Text("No eSIM profile has been requested for this device.", color = Muted, fontFamily = Poppins, fontSize = 10.sp, modifier = Modifier.padding(top = 5.dp))
+                            }
+                            if (profileMessage.isNotBlank()) Text(profileMessage, color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp, modifier = Modifier.padding(top = 6.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Button(
+                                enabled = userEmail.isNotBlank() && current != null && current.optBoolean("hasEuiccHardware", false) && current.optBoolean("euiccEnabled", false) && !profileBusy,
+                                onClick = {
+                                    val deviceId = current?.optString("id").orEmpty()
+                                    if (deviceId.isBlank()) return@Button
+                                    profileBusy = true
+                                    profileMessage = ""
+                                    scope.launch {
+                                        try {
+                                            val response = activity.api("/devices/${deviceId}/profile", "POST", JSONObject())
+                                            val issued = response.optJSONObject("profile") ?: JSONObject()
+                                            val copy = JSONObject(current.toString()).put("latestProfile", issued)
+                                            registeredDevice = copy
+                                            profileMessage = response.optString("message", issued.optString("message", "Provider request received."))
+                                            toast(profileMessage)
+                                        } catch (e: Exception) {
+                                            profileMessage = e.message ?: "Profile request could not be completed."
+                                            toast(profileMessage)
+                                        } finally { profileBusy = false }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().height(44.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                            ) { Text(if (profileBusy) "Requesting profile…" else "Request eSIM Profile", fontFamily = Poppins, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                            if (!activity.hasEuicc()) {
+                                Text("This handset does not report eSIM hardware. Profile installation is unavailable on this device.", color = Muted, fontFamily = Poppins, fontSize = 9.sp, lineHeight = 14.sp, modifier = Modifier.padding(top = 7.dp))
+                            } else if (userEmail.isBlank()) {
+                                Text("Sign in before requesting an eSIM profile.", color = Muted, fontFamily = Poppins, fontSize = 9.sp, modifier = Modifier.padding(top = 7.dp))
+                            }
+                            Spacer(Modifier.height(14.dp))
+                            PrimaryAction("Open device settings", 0xE627) { activity.openAppSettings() }
+                        }
+                    }
+                    "battery", "boost" -> {
                         val rows = remember(page) { activity.deviceSummary() }
                         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(23.dp)) {
                             rows.forEach { (label, value) -> DetailRow(label, value) }
                             Spacer(Modifier.height(14.dp))
-                            PrimaryAction(if (page == "battery") "Open battery settings" else if (page == "boost") "Open app settings" else "Open device settings", 0xE627) {
+                            PrimaryAction(if (page == "battery") "Open battery settings" else "Open app settings", 0xE627) {
                                 if (page == "battery") activity.openBatterySettings() else activity.openAppSettings()
                             }
                         }
