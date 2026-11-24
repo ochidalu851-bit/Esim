@@ -543,6 +543,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                         "balance" -> "My Balance"
                         "account" -> "My Account"
                         "rewards" -> "My Rewards"
+                        "airtime" -> "Airtime Recharge"
                         "vouchers" -> "My Vouchers"
                         "messages" -> "Message"
                         "settings" -> "Settings"
@@ -1085,7 +1086,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = Purple, selectedTextColor = Purple, indicatorColor = Panel2, unselectedIconColor = Muted, unselectedTextColor = Muted)
                 )
                 NavigationBarItem(
-                    selected = page == "shop" || page == "countries" || page == "plans",
+                    selected = page in listOf("shop", "countries", "plans", "apps", "airtime"),
                     onClick = { open("shop") },
                     icon = { Glyph(0xE622, 19) },
                     label = { Text("Shop", fontFamily = Poppins, fontSize = 9.sp) },
