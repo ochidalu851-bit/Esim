@@ -628,7 +628,7 @@ private fun GeniexNativeApp(activity: MainActivity) {
                             Spacer(Modifier.height(12.dp))
                             SimpleActionRow("Transaction History", "Balance and points activity", 0xE61B) { open("history") }
                             SimpleActionRow("Recharge", "Recharge options", 0xE614) { toast("Recharge requires an authorised payment partner.") }
-                            SimpleActionRow("Transfer", "Member-to-member transfer", 0xE654) { toast("Transfer requires an active account and supported balance.") }
+                            SimpleActionRow("Transfer", "Member-to-member transfer", 0xE64A) { toast("Transfer requires an active account and supported balance.") }
                         }
                     }
                     "account" -> {
