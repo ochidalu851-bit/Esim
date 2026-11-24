@@ -202,3 +202,120 @@ body{font-family:"Poppins",Roboto,"Arial",sans-serif!important;font-size:13px!im
 .auth-switch button{background:#111116!important;color:#a5a5ad!important}
 .auth-switch button.active{background:#211a32!important;color:#fff!important}
 @media(min-width:700px){.app-shell{max-width:480px!important;margin:0 auto!important;border-left:1px solid #15151a!important;border-right:1px solid #15151a!important}.purchase-dock{left:50%!important;right:auto!important;width:480px!important;transform:translateX(-50%)!important}}
+
+
+/* Expert eSIM rebuild: visual tokens matched to the supplied Geniex APK resources */
+:root{
+  color-scheme:dark;
+  --bg:#08080b;
+  --bg2:#111116;
+  --panel:#111116;
+  --panel2:#17171d;
+  --line:#292930;
+  --muted:#92929c;
+  --text:#f4f4f6;
+  --green:#8054f6;
+  --green2:#6e46de;
+  --blue:#a08cff;
+  --radius:14px;
+}
+html,body{background:#08080b;color:#f4f4f6;font-family:Roboto,Inter,system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+.app-shell{background:#08080b;padding-bottom:env(safe-area-inset-bottom,0px)}
+.app-header{background:#08080b;border-bottom:1px solid #ffffff08}
+.expert-brand{display:flex;align-items:center;gap:10px;min-width:0}
+.expert-brand img{width:37px;height:37px;border-radius:10px;object-fit:contain;background:#17171d}
+.expert-brand span{display:grid;gap:2px}
+.expert-brand b{font-size:16px;font-weight:750;letter-spacing:-.02em;color:#f4f4f6}
+.expert-brand small{font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:#92929c}
+.header-actions{display:flex;align-items:center;gap:8px}
+.topbar-more{width:35px;height:35px;min-width:35px;border:1px solid #292930;border-radius:50%;background:#111116}
+.topbar-more span{width:4px;height:4px;border-radius:50%;background:#c8c5d4}
+.points-pill{background:#17171d;border:1px solid #292930;color:#f4f4f6}
+.points-gem{color:#a58dff;text-shadow:0 0 7px #8054f655}
+.screen{padding:7px 18px calc(108px + env(safe-area-inset-bottom))}
+.bottom-nav{height:calc(68px + env(safe-area-inset-bottom));padding:7px 8px calc(7px + env(safe-area-inset-bottom));background:#101015f5;border-top:1px solid #292930;backdrop-filter:blur(18px)}
+.nav-item{color:#82828e;gap:4px;font-size:10px}
+.nav-item svg{width:22px;height:22px}
+.nav-item span{font-size:9px;line-height:1.2;display:block}
+.nav-item.active{color:#a58dff}
+.nav-item.active svg{filter:drop-shadow(0 0 5px #8054f655)}
+.home-dashboard{display:flex;flex-direction:column;gap:14px;padding-bottom:12px}
+.home-welcome{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 2px 4px}
+.home-welcome-copy{min-width:0;flex:1}
+.home-welcome .eyebrow{color:#9b8bca;font-size:9px;letter-spacing:.16em}
+.home-welcome h1{margin:5px 0 5px;font-size:23px;line-height:1.16;letter-spacing:-.035em;font-weight:750;color:#f4f4f6}
+.home-welcome p{margin:0;color:#92929c;font-size:11px;line-height:1.5}
+.home-avatar{width:43px;height:43px;flex:0 0 43px;border-radius:50%;display:grid;place-items:center;background:#211b30;border:1px solid #8054f65c;color:#c9baff;font-weight:750;font-size:18px}
+.home-network-card{border:1px solid #392d59;border-radius:17px;padding:15px;background:linear-gradient(145deg,#1b1726,#111116 70%);box-shadow:0 10px 24px #0004}
+.home-network-head{display:flex;align-items:center;gap:7px;color:#b5b0c4;font-size:10px;font-weight:650}
+.home-live-dot{width:7px;height:7px;border-radius:50%;background:#65616f;display:inline-block}
+.home-live-dot.ready{background:#8b6bf6;box-shadow:0 0 8px #8054f688}
+.home-network-head button{margin-left:auto;border:0;background:transparent;color:#b59fff;font-size:10px;font-weight:700}
+.home-network-body{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0 14px}
+.home-network-body .eyebrow{font-size:9px;color:#9187ad;letter-spacing:.14em}
+.home-network-body strong{display:block;margin-top:6px;font-size:25px;line-height:1.1;letter-spacing:-.025em;color:#f4f4f6}
+.home-network-body small{display:block;margin-top:6px;max-width:245px;color:#9693a1;font-size:10px;line-height:1.5}
+.home-signal-icon{width:46px;height:46px;flex:0 0 46px;border-radius:14px;display:grid;place-items:center;color:#a58dff;background:#281f3c}
+.home-signal-icon svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8}
+.home-device-line{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-top:1px solid #ffffff10;color:#c0bbc9;font-size:10px}
+.home-device-line span:last-child{color:#9f91c5;text-align:right}
+.home-network-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.home-network-actions button{border:1px solid #39304d;border-radius:9px;padding:10px 7px;background:#1c1727;color:#c4b8e7;font-size:10px;font-weight:700}
+.home-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.home-stat-card{min-width:0;text-align:left;border:1px solid #292930;border-radius:13px;background:#111116;padding:12px 12px 11px;color:#f4f4f6}
+.home-stat-card span{display:block;color:#96929f;font-size:8px;letter-spacing:.12em;font-weight:700}
+.home-stat-card strong{display:block;margin:8px 0 5px;font-size:23px;line-height:1.1;font-weight:750;letter-spacing:-.03em;overflow-wrap:anywhere}
+.home-stat-card strong small{font-size:10px;color:#aaa4b8;letter-spacing:0}
+.home-stat-card em{display:block;color:#82818c;font-size:9px;font-style:normal;line-height:1.4;min-height:25px}
+.home-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 2px -3px}
+.home-section-heading h2{margin:0;font-size:14px;color:#f0eef4;font-weight:700}
+.home-section-heading button{border:0;background:transparent;color:#a58dff;font-size:10px;font-weight:700}
+.home-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.home-shortcuts button{min-width:0;min-height:86px;border:1px solid #292930;border-radius:13px;background:#111116;color:#e7e3ee;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:10px 4px}
+.shortcut-symbol{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:#211a31;color:#a58dff}
+.shortcut-symbol svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.home-shortcuts b{font-size:9px;font-weight:650;text-align:center}
+.home-reward-card{display:flex;align-items:center;gap:10px;border:1px solid #3a2b5c;border-radius:14px;padding:12px;background:linear-gradient(110deg,#1d1730,#14111b)}
+.home-reward-icon{width:36px;height:36px;flex:0 0 36px;border-radius:11px;background:#2b2042;color:#b7a4ff;display:grid;place-items:center}
+.home-reward-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.home-reward-copy{min-width:0;flex:1;display:grid;gap:3px}
+.home-reward-copy b{font-size:11px;color:#f2eff8}
+.home-reward-copy small{font-size:9px;color:#a49db3;line-height:1.4}
+.home-reward-card>button{border:0;border-radius:18px;background:#8054f6;color:white;padding:8px 12px;font-size:9px;font-weight:750}
+.home-service-list{border:1px solid #292930;border-radius:13px;overflow:hidden;background:#111116}
+.home-service-list button{width:100%;display:flex;align-items:center;gap:11px;padding:13px 12px;border:0;border-bottom:1px solid #292930;background:transparent;color:#e9e6ee;text-align:left}
+.home-service-list button:last-child{border-bottom:0}
+.home-service-list button>span{width:27px;height:27px;display:grid;place-items:center;border-radius:8px;background:#211a31;color:#a58dff}
+.home-service-list button>span svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.home-service-list button b{font-size:10px;font-weight:650;flex:1}
+.home-service-list button i{font-style:normal;color:#777482;font-size:18px}
+.home-footnote{margin:0 3px;color:#76727f;font-size:9px;line-height:1.5}
+.device-summary h2{margin:7px 0;font-size:16px;color:#f4f4f6}
+.device-detail-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #ffffff0d;font-size:10px}
+.device-detail-row span{color:#92929c}
+.device-detail-row b{color:#e8e5ed;text-align:right;font-weight:650}
+.device-health-details{padding-top:5px}
+.device-health-details .list-row{border-bottom-color:#ffffff0d}
+.primary-button{background:#8054f6;color:#fff;box-shadow:0 8px 18px #8054f622}
+.primary-button:active{background:#6e46de}
+.secondary-button,.small-button{border-color:#3a334b;background:#1a1722;color:#ddd5f4}
+.panel{background:linear-gradient(145deg,#17171d,#111116);border-color:#292930}
+.balance-card{background:linear-gradient(125deg,#241b39,#17151e);color:#f4f4f6;border-color:#392d59}
+.link-button{background:#211a31;color:#b5a2ff}
+.empty-state{background:#14141b;border-color:#34303d;color:#aca8b4}
+.data-tabs{background:#15151c}
+.data-tabs button.active{background:#211a31;color:#f4f4f6}
+.status-banner{background:#1a1722;color:#c5bbdd;border-color:#39304d}
+.menu-action{background:#111116;color:#e9e6ee}
+.menu-action small{color:#92929c}
+body.light-theme .home-network-card,body.light-theme .home-stat-card,body.light-theme .home-service-list,body.light-theme .home-shortcuts button{background:#fff;color:#1b1822;border-color:#ded9e8}
+body.light-theme .home-welcome h1,body.light-theme .home-stat-card strong,body.light-theme .device-summary h2{color:#1b1822}
+body.light-theme .home-welcome p,body.light-theme .home-stat-card em,body.light-theme .home-stat-card span,body.light-theme .device-detail-row span{color:#696273}
+body.light-theme .bottom-nav{background:#fffffff5;border-top-color:#ded9e8}
+body.light-theme .nav-item{color:#726b80}
+body.light-theme .nav-item.active{color:#8054f6}
+@media(max-width:360px){
+ .home-welcome h1{font-size:20px}
+ .home-network-body strong{font-size:22px}
+ .home-stat-card{padding:10px}
+}
